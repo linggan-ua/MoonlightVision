@@ -9,6 +9,7 @@ import SwiftUI
 
 struct HostListView: View {
     @State private var model = HostListModel()
+    @State private var showingAddHost = false
 
     var body: some View {
         NavigationStack {
@@ -27,12 +28,23 @@ struct HostListView: View {
                     .padding(40)
                 } else {
                     List(model.hosts, id: \.uuid) { host in
-                        HostRow(host: host)
+                        NavigationLink {
+                            HostSessionView(host: host, discovery: model.discoveryManager)
+                        } label: {
+                            HostRow(host: host)
+                        }
                     }
                 }
             }
             .navigationTitle("MoonlightVision")
             .toolbar {
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        showingAddHost = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                }
                 ToolbarItem(placement: .automatic) {
                     Button {
                         model.refresh()
@@ -43,7 +55,9 @@ struct HostListView: View {
             }
         }
         .task { model.start() }
-        .onDisappear { model.stop() }
+        .sheet(isPresented: $showingAddHost) {
+            AddHostSheet(model: model)
+        }
     }
 }
 
@@ -64,7 +78,63 @@ private struct HostRow: View {
                 }
             }
             Spacer()
+            Text(host.pairState == .paired ? "Paired" : "Not Paired")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
         .padding(8)
+    }
+}
+
+private struct AddHostSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let model: HostListModel
+
+    @State private var address = ""
+    @State private var errorMessage: String?
+    @State private var isWorking = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Add Host Manually")
+                .font(.title2.bold())
+            Text("Enter the IP address or hostname of a PC running Sunshine.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            TextField("192.168.1.10", text: $address)
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 420)
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.callout)
+                    .foregroundStyle(.red)
+            }
+
+            HStack {
+                Button("Cancel") {
+                    dismiss()
+                }
+                Spacer()
+                Button(isWorking ? "Adding…" : "Add") {
+                    isWorking = true
+                    errorMessage = nil
+                    model.addHost(address: address) { message in
+                        isWorking = false
+                        if let message {
+                            errorMessage = message
+                        } else {
+                            dismiss()
+                        }
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isWorking || address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(36)
+        .frame(minWidth: 480)
     }
 }

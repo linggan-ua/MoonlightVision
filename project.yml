@@ -1,0 +1,168 @@
+name: Moonlight Vision
+options:
+  minimumXcodeGenVersion: "2.45.0"
+  deploymentTarget:
+    visionOS: "27.0"
+  developmentLanguage: en
+  knownRegions:
+    - en
+    - Base
+    - zh-Hans
+  createIntermediateGroups: true
+  groupSortPosition: top
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    ARCHS: arm64
+    ONLY_ACTIVE_ARCH: YES
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    CLANG_ENABLE_MODULES: YES
+    CLANG_ENABLE_OBJC_ARC: YES
+    CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES: YES
+    GCC_PREFIX_HEADER: Vendor/Limelight/Limelight-Prefix.pch
+    GCC_PRECOMPILE_PREFIX_HEADER: YES
+    HEADER_SEARCH_PATHS:
+      - $(inherited)
+      - $(SRCROOT)/Vendor/Limelight
+      - $(SRCROOT)/Vendor/Limelight/Utility
+      - $(SRCROOT)/Vendor/Limelight/Input
+      - $(SRCROOT)/Vendor/Limelight/Database
+      - $(SRCROOT)/Vendor/Limelight/Network
+      - $(SRCROOT)/Vendor/Limelight/Stream
+      - $(SRCROOT)/Vendor/Limelight/Crypto
+      - $(SRCROOT)/Vendor/moonlight-common-c
+      - $(SRCROOT)/Vendor/moonlight-common-c/src
+      - $(SRCROOT)/Vendor/moonlight-common-c/enet
+      - $(SRCROOT)/Vendor/moonlight-common-c/enet/include
+      - $(SRCROOT)/Vendor/moonlight-common-c/nanors
+      - $(SRCROOT)/Vendor/moonlight-common-c/nanors/deps/obl
+      - $(SRCROOT)/Vendor/ThirdParty/FFmpeg/include
+      - $(SRCROOT)/Vendor/ThirdParty/opus/include
+      - $(SRCROOT)/Vendor/ThirdParty/opus/include/opus
+      - $(SDKROOT)/usr/include/libxml2
+    OTHER_LDFLAGS:
+      - $(inherited)
+      - -lxml2
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+  configs:
+    Debug:
+      ENABLE_TESTABILITY: YES
+
+targets:
+  Moonlight Vision:
+    type: application
+    platform: visionOS
+    deploymentTarget: "27.0"
+    sources:
+      - path: App
+      - path: Vendor/Limelight
+      - path: Vendor/moonlight-common-c/src
+        includes:
+          - "*.c"
+          - "*.h"
+      - path: Vendor/moonlight-common-c/enet
+        includes:
+          - "*.c"
+          - "*.h"
+          - "include/**/*.h"
+      - path: Vendor/moonlight-common-c/nanors/rs.c
+      - path: Vendor/moonlight-common-c/nanors/deps/obl/oblas_common.c
+      - path: Vendor/moonlight-common-c/nanors/deps/obl/oblas_lite.c
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lingganua.moonlight-stream-moonlightvision
+        # The product is "Moonlight Vision", but the Swift module keeps its
+        # original identifier: module names cannot contain spaces, and every
+        # test file imports it by name.
+        PRODUCT_MODULE_NAME: MoonlightVision
+        # 设置为你自己的开发团队 ID 后再签名（xcodegen 生成工程用）
+        DEVELOPMENT_TEAM: ""
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: MoonlightVision.entitlements
+        TARGETED_DEVICE_FAMILY: "7"
+        SDKROOT: xros
+        SUPPORTED_PLATFORMS: "xros xrsimulator"
+        XROS_DEPLOYMENT_TARGET: "27.0"
+        SWIFT_OBJC_BRIDGING_HEADER: App/MoonlightVision-Bridging-Header.h
+        SWIFT_OBJC_INTERFACE_HEADER_NAME: MoonlightVision-Swift.h
+        INFOPLIST_FILE: App/Info.plist
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        CODE_SIGN_IDENTITY: "Apple Development"
+    dependencies:
+      - sdk: UIKit.framework
+      - sdk: Foundation.framework
+      - sdk: CoreData.framework
+      - sdk: CoreGraphics.framework
+      - sdk: CoreMotion.framework
+      - sdk: GameController.framework
+      - sdk: AVFoundation.framework
+      - sdk: AVKit.framework
+      - sdk: VideoToolbox.framework
+      - sdk: CoreMedia.framework
+      - sdk: CoreVideo.framework
+      - sdk: AudioToolbox.framework
+      - sdk: CoreAudio.framework
+      - sdk: Accelerate.framework
+      - sdk: QuartzCore.framework
+      - sdk: CoreHaptics.framework
+      - sdk: CoreBluetooth.framework
+      - sdk: Security.framework
+      - sdk: CoreFoundation.framework
+      - sdk: RealityKit.framework
+      - sdk: Metal.framework
+      - sdk: MetalKit.framework
+      - framework: Vendor/ThirdParty/FFmpeg/libavcodec.xcframework
+        embed: false
+      - framework: Vendor/ThirdParty/FFmpeg/libavformat.xcframework
+        embed: false
+      - framework: Vendor/ThirdParty/FFmpeg/libavutil.xcframework
+        embed: false
+      - framework: Vendor/ThirdParty/opus/libopus.xcframework
+        embed: false
+      - package: OpenSSL
+        product: OpenSSL
+
+  Moonlight VisionTests:
+    type: bundle.unit-test
+    platform: visionOS
+    deploymentTarget: "27.0"
+    sources:
+      - path: Tests
+    dependencies:
+      - target: Moonlight Vision
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.lingganua.moonlight-stream-moonlightvision.tests
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Moonlight Vision.app/Moonlight Vision"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        SWIFT_OBJC_BRIDGING_HEADER: App/MoonlightVision-Bridging-Header.h
+        HEADER_SEARCH_PATHS:
+          - $(SRCROOT)/Tests/Support
+          - $(inherited)
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "7"
+        SDKROOT: xros
+        SUPPORTED_PLATFORMS: "xros xrsimulator"
+        XROS_DEPLOYMENT_TARGET: "27.0"
+
+packages:
+  OpenSSL:
+    url: https://github.com/krzyzanowskim/OpenSSL
+    from: 3.6.3000
+
+schemes:
+  Moonlight Vision:
+    build:
+      targets:
+        Moonlight Vision: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - Moonlight VisionTests
+    archive:
+      config: Release

@@ -1,0 +1,1601 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		01EE9D0A904F88314AD2C2D5 /* ServerInfoResponse.m in Sources */ = {isa = PBXBuildFile; fileRef = 9B1C1A790B573C7E26AE73AC /* ServerInfoResponse.m */; };
+		0369A64E9231B39E52A24DDB /* StreamVideoSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = A131C346151B754D509641DC /* StreamVideoSurface.swift */; };
+		03C2703E4E08777094A13CB5 /* StreamConfiguration.m in Sources */ = {isa = PBXBuildFile; fileRef = FA78DA6EE574D95F6B1D741A /* StreamConfiguration.m */; };
+		0A603F794ED9E6C12388B403 /* LinkedBlockingQueue.c in Sources */ = {isa = PBXBuildFile; fileRef = 94B30C7A81E3C06892813090 /* LinkedBlockingQueue.c */; };
+		0ACC06BEAA2F13F85C1AF667 /* RtpAudioQueue.c in Sources */ = {isa = PBXBuildFile; fileRef = A8D06F942C8726D0D25E0DC4 /* RtpAudioQueue.c */; };
+		0C6360FD1A84DD6676A29C0A /* StreamTouchpadInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B03C20231DCC6D890F20531 /* StreamTouchpadInput.swift */; };
+		0F865BB42194DD7578338E10 /* libavutil.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = B249D3A8DF774EE24905E845 /* libavutil.xcframework */; };
+		11FB9A2A1A256BAFFC27A190 /* rs.c in Sources */ = {isa = PBXBuildFile; fileRef = 3FF750012B2167012BEC9499 /* rs.c */; };
+		1CACEB7113BD772922B90D7F /* PairManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 45912E2F1C1F2794DF307F7C /* PairManager.m */; };
+		1DDB787B5929061EDAE6AEE9 /* ClientCertificateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28C9063026ABC04191155A1A /* ClientCertificateStore.swift */; };
+		1EDEBE8D283B1E72582A5C85 /* BoxArtCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 916EF9BB7A6D5BAF81DC8EA5 /* BoxArtCache.swift */; };
+		2178256FB35F8384E1D65D4C /* LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 8F796791D7FC16F4E4BD5A91 /* LICENSE.txt */; };
+		23D7E96887F18CF2942CE758 /* StreamTouchInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FC79E6BF7E09895B7BDA2DE /* StreamTouchInput.swift */; };
+		263D2BECDDBA3D695697E75E /* KeyboardInputField.m in Sources */ = {isa = PBXBuildFile; fileRef = BDE5D58D322FFB7E96A87B65 /* KeyboardInputField.m */; };
+		2730DFB59316CD04B60F04B1 /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 841FA3808F717AD9E86FEC7E /* Accelerate.framework */; };
+		288D61C92D0E61F304A02EC2 /* libavcodec.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = E25E5A062D9B3E41A5F7102F /* libavcodec.xcframework */; };
+		2A2BD72D14789B9D4C4C9FD5 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 61692E8CC34B52B5A175834D /* AVFoundation.framework */; };
+		2BDA97AA18D22216C67AC5D7 /* VideoDepacketizer.c in Sources */ = {isa = PBXBuildFile; fileRef = 89C91F19F8327BB39D9A87A4 /* VideoDepacketizer.c */; };
+		312CC69993806C5E4832A24A /* AppAssetManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 18BDFD1D52ADD4BD588F3EF1 /* AppAssetManager.m */; };
+		32B850A9FAF1A4867A4CC022 /* PlatformSockets.c in Sources */ = {isa = PBXBuildFile; fileRef = ABBF3A00DB01A2595EA76490 /* PlatformSockets.c */; };
+		32DB13D8C170BFE0AB87BC57 /* RealtimeStereo.metal in Sources */ = {isa = PBXBuildFile; fileRef = F37FB3F4E36D38F543357525 /* RealtimeStereo.metal */; };
+		34A04BB1F7F7E7A9CEE23E5E /* HttpManager.m in Sources */ = {isa = PBXBuildFile; fileRef = D59172194CA88F3AAD3E7518 /* HttpManager.m */; };
+		360391FCC8244A6B81252341 /* StreamChromePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F3932B20505BAE6EB773556 /* StreamChromePreview.swift */; };
+		371E0A05818BCC05C8B85782 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5D9B5D07D93F4F798B7AF708 /* QuartzCore.framework */; };
+		38CFEEBE724F5722B16687D0 /* HostSessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DD1A9DDA68F8FAF0A4B90BE /* HostSessionView.swift */; };
+		393315361EDB285A6C6B5492 /* CoreBluetooth.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D7EEBFD6E792EA5057A76AE4 /* CoreBluetooth.framework */; };
+		3C03C2E1BBBFDD2642960BA1 /* Realtime3DConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AF9F07B1A550D43F96F72BA /* Realtime3DConverter.swift */; };
+		3C69188F8D7BA41888F3C7C9 /* DepthAnythingV2-NOTICE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 147312C4037ADDC68D0DBC7B /* DepthAnythingV2-NOTICE.txt */; };
+		3D0D8FA1C608F660D2379B16 /* host.c in Sources */ = {isa = PBXBuildFile; fileRef = 2A203992E21BD054F90438CC /* host.c */; };
+		3E226AC9D4AE0F3E8E022F52 /* ConnectionTester.c in Sources */ = {isa = PBXBuildFile; fileRef = 44177B189EA71C382F8BC229 /* ConnectionTester.c */; };
+		3E541B77305019D2A51FFB8C /* ControlStream.c in Sources */ = {isa = PBXBuildFile; fileRef = C6DEDBEA606F416EC8BBF552 /* ControlStream.c */; };
+		3E6DD10AFAABD4DA05ED6C62 /* StreamMouseStrategy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57B906D992F2E5ADE80D1ED9 /* StreamMouseStrategy.swift */; };
+		3FED5883C69CD584E5D03624 /* KeyboardSupport.m in Sources */ = {isa = PBXBuildFile; fileRef = DF55CCE115EA99B4F9DBF57D /* KeyboardSupport.m */; };
+		401D4A12087A11C98478FE48 /* Controller.m in Sources */ = {isa = PBXBuildFile; fileRef = BA60C3306969E2EBB088B826 /* Controller.m */; };
+		41492CD2E452B43CB47DEBB9 /* StreamManager.m in Sources */ = {isa = PBXBuildFile; fileRef = D2C970882E2A1DD3A518F51C /* StreamManager.m */; };
+		41F041EA75F7F369EB913166 /* RecorderCallbacks.c in Sources */ = {isa = PBXBuildFile; fileRef = 962D3E5BD6B6AE5C99489CB4 /* RecorderCallbacks.c */; };
+		44B180ACC70C1C558BC27D1D /* StreamAudioRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 876F9868D08C7DB72F4A8053 /* StreamAudioRenderer.swift */; };
+		453E185A9A521CAD65BD843D /* StreamKeyboardWindowState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11A6B3B470C10BDEA2B7930 /* StreamKeyboardWindowState.swift */; };
+		4614D44CC792DD0053AF3061 /* CoreData.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BDC6611C414C78F6DDDF355B /* CoreData.framework */; };
+		465BCFF098241C6207FFADB9 /* Limelight.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 2597B90BFED631D0AB6921A3 /* Limelight.xcdatamodeld */; };
+		466866B1174BB115025250CF /* HttpResponse.m in Sources */ = {isa = PBXBuildFile; fileRef = 55A9741CAF5644E6D17C8D50 /* HttpResponse.m */; };
+		4A0A79ED42BFF8FF2121A21D /* AppAssetRetriever.m in Sources */ = {isa = PBXBuildFile; fileRef = EE4308EE5B2976B2DE973E56 /* AppAssetRetriever.m */; };
+		4C245F7CF60F79FF8F22777D /* LSRealtime3DSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4877082696060206E1576740 /* LSRealtime3DSettings.swift */; };
+		4DB012D12946601D10938EAB /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = AA30E27D57FE92618FAC2BDB /* AppDelegate.m */; };
+		528940DC6CCFF75922AEAF2E /* WindowAspectLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 436812829F9C1B68630FFB34 /* WindowAspectLock.swift */; };
+		59E128F0024DF2428EB741EE /* WakeOnLanManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 4DED51D734D1AB2AA2F52D4C /* WakeOnLanManager.m */; };
+		5C12638C4FA6C3395760A065 /* StreamLocalCursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94DBC1C40229866B984E5523 /* StreamLocalCursor.swift */; };
+		5E390BC2A45D7AD4735E5E7E /* AppAssetResponse.m in Sources */ = {isa = PBXBuildFile; fileRef = BB4C2142DB4A31C6A02CEAB1 /* AppAssetResponse.m */; };
+		61DDA43602B5C6D661ED7405 /* ZipDepth-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 44671D30872A812B5E97C9B2 /* ZipDepth-LICENSE.txt */; };
+		63AC9AFCC506DB1C8AF64CAC /* MVRingBuffer.c in Sources */ = {isa = PBXBuildFile; fileRef = D5C84096141ACCB25AFDCC41 /* MVRingBuffer.c */; };
+		64500C9D5227004F4DF3BAFB /* LSRealtimeDepthModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197980B23FF645364D5B6997 /* LSRealtimeDepthModel.swift */; };
+		66E1F72E945569BC290C6E3B /* VideoToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8BBFBC213172FECF6229296C /* VideoToolbox.framework */; };
+		6921C3B710DEBCFB735035E4 /* RtspParser.c in Sources */ = {isa = PBXBuildFile; fileRef = 080BCAA7B457E9135D89596C /* RtspParser.c */; };
+		6C95A9FD0B8FD621B51D2680 /* HostListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09EF8B1CAA0B1C1B928649F2 /* HostListView.swift */; };
+		6DC66583039391A677584698 /* Stereo3DSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58969D420897AF62A3146745 /* Stereo3DSettingsView.swift */; };
+		6F682483D7D2D0648F76FB64 /* PlatformCrypto.c in Sources */ = {isa = PBXBuildFile; fileRef = 36BCF42C3FD84A1EC8F92DE2 /* PlatformCrypto.c */; };
+		73C4156BE6CDE5E20AA00402 /* Connection.c in Sources */ = {isa = PBXBuildFile; fileRef = 22EDC52483C8B877C4E9BAE1 /* Connection.c */; };
+		741ACC4EAB6B1F361768A4CB /* Realtime3DTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF66FC87A2DE99DFB6DABDC8 /* Realtime3DTests.swift */; };
+		7583170475F33E10C9EAB606 /* win32.c in Sources */ = {isa = PBXBuildFile; fileRef = 87EC00F059A3808D4D6B5FA1 /* win32.c */; };
+		75EE17745F2B944AF1E938C2 /* PairingFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B89D2D9024206A0EF997A10E /* PairingFlow.swift */; };
+		7897940BA20B82E8851EAD8A /* unix.c in Sources */ = {isa = PBXBuildFile; fileRef = B9D3F6846FAEBCCFD4EE50E6 /* unix.c */; };
+		793800C5460909D46F6E7F9D /* TemporarySettings.m in Sources */ = {isa = PBXBuildFile; fileRef = 08531E504CB31B77EDF38FFB /* TemporarySettings.m */; };
+		7943C9706B6B3B741B01308D /* CryptoManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 502E49FC7D8C96A8E0CF6EAB /* CryptoManager.m */; };
+		7964A458A4916F39DEFD7448 /* StreamSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 245BB410A9AE3F96D3A59793 /* StreamSettingsStore.swift */; };
+		7A17A80D35653DE8C55C491E /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6E5C6F1994E85D89AC95BDA8 /* CoreGraphics.framework */; };
+		7D009853834ACA9E89DD538B /* LSRealtimeDepthEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60A0C98421D901BDEBC7809 /* LSRealtimeDepthEstimator.swift */; };
+		7E68BD037BCBA3E5745F60C6 /* Misc.c in Sources */ = {isa = PBXBuildFile; fileRef = 71773E1D06275423AC0D11DE /* Misc.c */; };
+		7EAC0BE1E1E465BAE5842C47 /* libavformat.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8551BBB0EA532577BEE7FC53 /* libavformat.xcframework */; };
+		7EED2F43E72B60520323B374 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A43BD49C0E6F88478F39948 /* SettingsView.swift */; };
+		7FE52ECEE138C1C3159507F8 /* MouseInputGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADC1E3030C03A4882FD5378E /* MouseInputGeometryTests.swift */; };
+		8383EC40F5B88B2BC138592A /* RealityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BCBF3B607A19BBA67E971E57 /* RealityKit.framework */; };
+		85EF3B9C3A26455587B76DAB /* TemporaryHost.m in Sources */ = {isa = PBXBuildFile; fileRef = D5173B87CD5A79916AB578E4 /* TemporaryHost.m */; };
+		8AB7ED45B317E5A0EF860B2D /* DrawableVideoDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2BEC27BAA314F1481E34C25 /* DrawableVideoDecoder.swift */; };
+		8AD5FF547BBF9DE1E3FF6EBB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CC42A78E3AFEAE62FBBE1018 /* Assets.xcassets */; };
+		8B2C117DAF04702B48E3345E /* StreamView.m in Sources */ = {isa = PBXBuildFile; fileRef = D50D4EE3C362C4E9854E7396 /* StreamView.m */; };
+		8B533AC5FF6190FCCE7819F4 /* MDNSManager.m in Sources */ = {isa = PBXBuildFile; fileRef = CEF2365E080FBA6410E5215F /* MDNSManager.m */; };
+		8CB6F9BC21D63CC769A7C450 /* DataManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 3461F8963E204157DC694ACE /* DataManager.m */; };
+		8E3A664B1DDADBB86436A5E3 /* AudioStream.c in Sources */ = {isa = PBXBuildFile; fileRef = B6095BACF9CB52C0BC46F074 /* AudioStream.c */; };
+		8FE9FB041066D78C1E5E5C3A /* AV1Parser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C160093A1F78971D6F393876 /* AV1Parser.swift */; };
+		90587A7CE047520D29F4EC67 /* libopus.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 32D2F4BA31DE6CE6886C8791 /* libopus.xcframework */; };
+		90B4DF4C6F418660CEBBAB85 /* CoreMotion.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3B183999BDA20FC6D97B3A94 /* CoreMotion.framework */; };
+		927C41655190D2F5E916993B /* callbacks.c in Sources */ = {isa = PBXBuildFile; fileRef = C383ED1986738A9DFFFFD6D9 /* callbacks.c */; };
+		92A88EA7A7532A6539F679FC /* SBSMaterial.usda in Resources */ = {isa = PBXBuildFile; fileRef = 9AA655338B62F7147B85A9CF /* SBSMaterial.usda */; };
+		92E96AEAF7A418C953BCAD4A /* StreamPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C38B652CF7B4BE2B22CA0CD /* StreamPresentation.swift */; };
+		92F152EFC8CA3C00D239ABD6 /* LSRealtimeStereoRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6054234081C5ED7DEA7EEA3F /* LSRealtimeStereoRenderer.swift */; };
+		932AB7D798B5B4F423971EDD /* AVKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E17F80E7C40D67D94E5D787B /* AVKit.framework */; };
+		934B6DA113FFBA59C038648C /* VideoStream.c in Sources */ = {isa = PBXBuildFile; fileRef = EC0D9FEBEA82D56A218D0602 /* VideoStream.c */; };
+		96221AC3551BE2DC359AB283 /* StreamWindowInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E7D23453FFBD5F9B9ED0666 /* StreamWindowInputView.swift */; };
+		969A4C05A8D70EB8DA7B9CD9 /* ByteBuffer.c in Sources */ = {isa = PBXBuildFile; fileRef = 7FE144CB8867660AB74C58E1 /* ByteBuffer.c */; };
+		998183C1E2A5AF30C60C44AF /* list.c in Sources */ = {isa = PBXBuildFile; fileRef = 62B3C6D705E20CB651AC365C /* list.c */; };
+		9A5171EEC79B8013EB7ECEAF /* HttpRequest.m in Sources */ = {isa = PBXBuildFile; fileRef = 3464A82DC27F8678657D1EC5 /* HttpRequest.m */; };
+		9B141029724BBD9E9177534E /* RtpVideoQueue.c in Sources */ = {isa = PBXBuildFile; fileRef = 6BE7C2EFCA0BAF2474081507 /* RtpVideoQueue.c */; };
+		A257D42CAC4BB9E75263F80D /* SimpleStun.c in Sources */ = {isa = PBXBuildFile; fileRef = 5082E40AC2E7122C4CAB24AA /* SimpleStun.c */; };
+		A3289ED5B26E59620CEB94DB /* Platform.c in Sources */ = {isa = PBXBuildFile; fileRef = 7910D697DCEE910347286415 /* Platform.c */; };
+		A33A15B148811EB22CAD8D0C /* DepthAnythingV2SmallF16P6.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = D644B170AC831D779517D2CE /* DepthAnythingV2SmallF16P6.mlpackage */; };
+		A4EA35D89AAF45CF489D9455 /* StreamRestartSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B387521D6AEAAFD7EAC96B82 /* StreamRestartSettings.swift */; };
+		A5883BC123E0777F5DBF45D8 /* CVMetalHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = E54752E8CE8D854F8A79E19D /* CVMetalHelpers.swift */; };
+		A9AEB6DBF052F75B2B6FFE52 /* VideoMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE8699152E0A8A576C5C8D36 /* VideoMode.swift */; };
+		A9B378E30AE7D5674B922FF7 /* AbsoluteTouchHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = E6E961791C4085011E0882BA /* AbsoluteTouchHandler.m */; };
+		AACE67B096E345A54A2F4929 /* InputStream.c in Sources */ = {isa = PBXBuildFile; fileRef = 7A482E1B2225BFDD46747D14 /* InputStream.c */; };
+		AAF8F859F0565CF308AAA436 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F0531F6201E245A9EB268E6B /* UIKit.framework */; };
+		AB4306F6F1517C31999C12AE /* CoreMedia.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4D82988BCB4866ACEFD09C53 /* CoreMedia.framework */; };
+		AB82F1B6AC17CF9ACAB83D04 /* mkcert.c in Sources */ = {isa = PBXBuildFile; fileRef = B915DFA60F6C2DB9703A4D05 /* mkcert.c */; };
+		AB99F642D0C3BFE832459164 /* Realtime3DSettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00306AC9F0F5182C87D0C4F /* Realtime3DSettingsStore.swift */; };
+		ADDDA6BA4C5303A055E4A33C /* TemporaryApp.m in Sources */ = {isa = PBXBuildFile; fileRef = 263EFB2B88D18F94A847B065 /* TemporaryApp.m */; };
+		AE2A11CC0C40E61954750FC1 /* CoreHaptics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0377F5A4AF586CE2B28F95F9 /* CoreHaptics.framework */; };
+		B176CFA19D5E32926D816536 /* AppListResponse.m in Sources */ = {isa = PBXBuildFile; fileRef = 9F93740BBD4C438848C34C85 /* AppListResponse.m */; };
+		B1F1FC4770AFDFE1F22FA3F9 /* Logger.m in Sources */ = {isa = PBXBuildFile; fileRef = 96B2063B79F6514AB1F6F0A9 /* Logger.m */; };
+		B295B8BAF9C7F3B98D0D4A9E /* StreamWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AC745ED8495AC8AC043C41B /* StreamWindowView.swift */; };
+		B2F39298235ACB7EF87B672A /* StreamKeyboardWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07E056BC80EA94BC1BFC732A /* StreamKeyboardWindowView.swift */; };
+		B35005D4C48C8D74BCF551A4 /* OnScreenControls.m in Sources */ = {isa = PBXBuildFile; fileRef = C4AB8DD629E3B2CDC0E7AC7B /* OnScreenControls.m */; };
+		B3CEF7F0ADF60ED2B48AA5D8 /* protocol.c in Sources */ = {isa = PBXBuildFile; fileRef = 7F2D59D42C3870B0099BA59D /* protocol.c */; };
+		B486C74BCF72D5DC8E6B99CF /* StreamHDRTrimState.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0E18BAC298A8BB8B1CA8424 /* StreamHDRTrimState.swift */; };
+		B4F390C5203B4DE19FB35C83 /* ZipDepth768x416.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 6BF5460AD2363D708929EBCC /* ZipDepth768x416.mlpackage */; };
+		B82EE437C5B58860DAD3A125 /* compress.c in Sources */ = {isa = PBXBuildFile; fileRef = 469A1D7E7FF5D8E645CF5942 /* compress.c */; };
+		B87B2FEA48E7849E2C2D94AC /* ControllerSupport.m in Sources */ = {isa = PBXBuildFile; fileRef = D25503AA6C5262AAABB93124 /* ControllerSupport.m */; };
+		B94AD51D24CE2ED7CC2F55AD /* OpenSSL in Frameworks */ = {isa = PBXBuildFile; productRef = 0E9EBD673CE0645FA9005EC0 /* OpenSSL */; };
+		B98FEC7CA4228EAE0F03D386 /* GameController.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B9A432FEB18349711EFE56B9 /* GameController.framework */; };
+		B9F5A7EACCD34D31BC4FD97D /* StreamPictureGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77D0BFB6DC7CA2F25727A7D4 /* StreamPictureGeometryTests.swift */; };
+		BD2AE3C40F8CF8D05CB1FCDF /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = A5DEE7B458F20D7F4716F92C /* Localizable.strings */; };
+		BD64F39ADD51741F928D0D22 /* MVAudioRing.c in Sources */ = {isa = PBXBuildFile; fileRef = EF1527FA61B6BF7A65FEAF73 /* MVAudioRing.c */; };
+		BF739ACA121997BB29249409 /* RelativeTouchHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = 38496129684AD5520DF83ABE /* RelativeTouchHandler.m */; };
+		C2BBAA25E6F11BA496DDFB29 /* Stream3DSettingsWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95A0CA762F23E291F299CA7B /* Stream3DSettingsWindowView.swift */; };
+		C450E992DB29E266060A883F /* MVAudioConfig.c in Sources */ = {isa = PBXBuildFile; fileRef = 282E32A6B62242D615EE2AD7 /* MVAudioConfig.c */; };
+		C68C9CA35526181ADBA95DBD /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6A1E126494F57E8D0CB7D8C3 /* Security.framework */; };
+		C81165249F41AB5AA2F5AB9E /* VirtualKeyboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBBFA9FAB874AD6385B4EC86 /* VirtualKeyboardView.swift */; };
+		C8CD1B7C22D3321D6FDD6E48 /* SdpGenerator.c in Sources */ = {isa = PBXBuildFile; fileRef = 007048C7DE554E5A76D3825D /* SdpGenerator.c */; };
+		CE308807B94C2B10F43450C2 /* HDRParsingUtils.m in Sources */ = {isa = PBXBuildFile; fileRef = 0A77802DF2870E8963C0C832 /* HDRParsingUtils.m */; };
+		CE5D58F2F47D90C456059D9E /* CoreVideo.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3F350301A40955714471923B /* CoreVideo.framework */; };
+		D030321135DC3574372F70B3 /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = 8BBCA92E1D5C3B43AC852295 /* Shaders.metal */; };
+		D3119348E076DD480CA6FA10 /* StreamWindowRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33624756A697C5F2B36EA07A /* StreamWindowRootView.swift */; };
+		D467D9959D313115C261CC2D /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5CB5E46CF7409C5092769B9E /* MetalKit.framework */; };
+		D5712CDADD86407CF07DF96B /* StreamControlBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87EFCD98C322D06FF2CE3240 /* StreamControlBar.swift */; };
+		D706DF8109525DA9C2FB98C8 /* StreamKeyboardInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E27C04747167D6809986846 /* StreamKeyboardInput.swift */; };
+		D81A44D7FE5E9E78A3696378 /* DiscoveryWorker.m in Sources */ = {isa = PBXBuildFile; fileRef = 386232DA79738E9141A87AEA /* DiscoveryWorker.m */; };
+		D9558608F40881370B432D16 /* HostListModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EF7F86A0E1C0DB3E8BC02A4 /* HostListModel.swift */; };
+		DDD2570FDE253458D609702B /* peer.c in Sources */ = {isa = PBXBuildFile; fileRef = 4803C1F88B00FCB9671FEFC4 /* peer.c */; };
+		E3C86672C5F8327CBB6E2F6D /* EDRProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = E07387F9805ABABF59A1261F /* EDRProbe.swift */; };
+		E464FDA588D5C35E399D55A0 /* PairingFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E586C8DC3A86B73AE2CB5C4 /* PairingFlowTests.swift */; };
+		E56153318BC7F197269C0791 /* ConnectionHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = A7DF52DE10580F0B31914668 /* ConnectionHelper.m */; };
+		E76BB9A8D1DA0710976C0FE6 /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F2504B7B6F1A3275DC7E5FAF /* CoreAudio.framework */; };
+		E7B007D652C88EEFA14A28AE /* oblas_common.c in Sources */ = {isa = PBXBuildFile; fileRef = 567F5FE173DCF84F5FCABC19 /* oblas_common.c */; };
+		E7F0276FBBE0ACB5312FC0E7 /* TouchscreenGCMouseStrategy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 758F57CF0CA871D4F9B62C01 /* TouchscreenGCMouseStrategy.swift */; };
+		EA8A6BF1885E3E1CBB50F671 /* HostSessionModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDEE54C7EF384C257B5ADC76 /* HostSessionModel.swift */; };
+		EB58F2107F2A7AB145C80926 /* oblas_lite.c in Sources */ = {isa = PBXBuildFile; fileRef = E3061F13CF3AA0B926B80CB6 /* oblas_lite.c */; };
+		EF52239621EC7EE23488AECE /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 015CD2387E6718C5FBE0D1B8 /* Foundation.framework */; };
+		EF9B742EFB5D6FD7D423A53A /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F22A0B5BE15E23B00FAE465 /* CoreFoundation.framework */; };
+		F04E6D4AE394215B46F66BE2 /* MoonlightVisionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBEED58D3F3035B5B69E5BF1 /* MoonlightVisionApp.swift */; };
+		F0BCC0C52322FDCD2B09A0C6 /* Utils.m in Sources */ = {isa = PBXBuildFile; fileRef = 2A795D60D3EFF92A95374117 /* Utils.m */; };
+		F25066E03E5481699B202BF4 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E5BC4C64D035A62D6FBDFF46 /* Metal.framework */; };
+		F317B3FC32734574800B32E9 /* StreamFrameMailbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE8E656D419D3D3728E866F1 /* StreamFrameMailbox.swift */; };
+		F3583047F69F109EA9C386E7 /* LSRealtimeStereoScheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC3E762EB55996CFD08B4E4 /* LSRealtimeStereoScheme.swift */; };
+		F5E95B2769342369340C0DAB /* RtspConnection.c in Sources */ = {isa = PBXBuildFile; fileRef = 527EDBBC8A03A8DFA1FD9913 /* RtspConnection.c */; };
+		F5FC1A2E9D1A806D1754FCE1 /* HapticContext.m in Sources */ = {isa = PBXBuildFile; fileRef = 7B87B2C51391B250ECDDCFA2 /* HapticContext.m */; };
+		F75816B70DD25E5C14044CFD /* Connection.m in Sources */ = {isa = PBXBuildFile; fileRef = 5169C045649E547513BA0BCA /* Connection.m */; };
+		F80D9410D75310D69F3C2FEE /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DF9A16E3B2AA9BA1F8D99656 /* AudioToolbox.framework */; };
+		FAF5C6A81915880546AC4957 /* IdManager.m in Sources */ = {isa = PBXBuildFile; fileRef = A7127A632C29B70D12A141FB /* IdManager.m */; };
+		FBE719FB61AE82146B24CD39 /* packet.c in Sources */ = {isa = PBXBuildFile; fileRef = AD3E99E5B51759F9BABA59D7 /* packet.c */; };
+		FC286CD7199E788E0FB24522 /* FakeCallbacks.c in Sources */ = {isa = PBXBuildFile; fileRef = 0391003611011508931501EE /* FakeCallbacks.c */; };
+		FCEAA51765752F675AE806E4 /* DiscoveryManager.m in Sources */ = {isa = PBXBuildFile; fileRef = E4ED45BACC7D8700F21ED208 /* DiscoveryManager.m */; };
+		FD37591150DF0A2105B3DFBB /* DepthAnythingV2-LICENSE.txt in Resources */ = {isa = PBXBuildFile; fileRef = 12BF99342995B75EDAE40757 /* DepthAnythingV2-LICENSE.txt */; };
+		FF1DDA6616D312927BA1EC68 /* StreamSessionModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7279C9CE482412F3817A4A25 /* StreamSessionModel.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		6D2CC82F29AC801AF7485BDB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 786AC4CE9E91C44D5ED52CCE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D890BFBCCD861D91E4DA9894;
+			remoteInfo = "Moonlight Vision";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		007048C7DE554E5A76D3825D /* SdpGenerator.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = SdpGenerator.c; sourceTree = "<group>"; };
+		0081D894EDA75111B0E9D02E /* Moonlight Vision.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Moonlight Vision.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0100885282DA52B9761A4391 /* MVRingBuffer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MVRingBuffer.h; sourceTree = "<group>"; };
+		01509CA1ABF855449ED5F54D /* Moonlight v1.2.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "Moonlight v1.2.xcdatamodel"; sourceTree = "<group>"; };
+		015CD2387E6718C5FBE0D1B8 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
+		02F9F6B3B21226A8CDF9D0BB /* TemporarySettings.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TemporarySettings.h; sourceTree = "<group>"; };
+		0377F5A4AF586CE2B28F95F9 /* CoreHaptics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreHaptics.framework; path = System/Library/Frameworks/CoreHaptics.framework; sourceTree = SDKROOT; };
+		0391003611011508931501EE /* FakeCallbacks.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = FakeCallbacks.c; sourceTree = "<group>"; };
+		0398D549510C53DB3930D149 /* ConnectionCallbacks.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ConnectionCallbacks.h; sourceTree = "<group>"; };
+		04ED9D1AC07D5240B743772E /* WakeOnLanManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WakeOnLanManager.h; sourceTree = "<group>"; };
+		04EEEB1053BE91BB4E0DFD88 /* CryptoManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CryptoManager.h; sourceTree = "<group>"; };
+		0630FCD792A22EEA7D1C9368 /* PlatformCrypto.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PlatformCrypto.h; sourceTree = "<group>"; };
+		07E056BC80EA94BC1BFC732A /* StreamKeyboardWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamKeyboardWindowView.swift; sourceTree = "<group>"; };
+		080BCAA7B457E9135D89596C /* RtspParser.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = RtspParser.c; sourceTree = "<group>"; };
+		08531E504CB31B77EDF38FFB /* TemporarySettings.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TemporarySettings.m; sourceTree = "<group>"; };
+		0913C96B10ABDADE61CF319B /* KeyboardSupport.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = KeyboardSupport.h; sourceTree = "<group>"; };
+		09EF8B1CAA0B1C1B928649F2 /* HostListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostListView.swift; sourceTree = "<group>"; };
+		0A43BD49C0E6F88478F39948 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		0A77802DF2870E8963C0C832 /* HDRParsingUtils.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = HDRParsingUtils.m; sourceTree = "<group>"; };
+		0CB8F42831C8F5CBACFF5141 /* Moonlight v1.1.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "Moonlight v1.1.xcdatamodel"; sourceTree = "<group>"; };
+		0DD1A9DDA68F8FAF0A4B90BE /* HostSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostSessionView.swift; sourceTree = "<group>"; };
+		1049C54585C71BCEE6E9C3CB /* ControllerSupport.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ControllerSupport.h; sourceTree = "<group>"; };
+		11341156E6284C0B950FDF44 /* HDRParsingUtils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = HDRParsingUtils.h; sourceTree = "<group>"; };
+		128976A8C039649ADA0A081B /* types.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = types.h; sourceTree = "<group>"; };
+		12BF99342995B75EDAE40757 /* DepthAnythingV2-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "DepthAnythingV2-LICENSE.txt"; sourceTree = "<group>"; };
+		14626929C686C8A23A7D236F /* Moonlight v1.6.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "Moonlight v1.6.xcdatamodel"; sourceTree = "<group>"; };
+		147312C4037ADDC68D0DBC7B /* DepthAnythingV2-NOTICE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "DepthAnythingV2-NOTICE.txt"; sourceTree = "<group>"; };
+		14AD9EAA1E0D9EE06F6008EA /* LinkedBlockingQueue.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LinkedBlockingQueue.h; sourceTree = "<group>"; };
+		15419160C36509322F983C80 /* TemporaryApp.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TemporaryApp.h; sourceTree = "<group>"; };
+		18BDFD1D52ADD4BD588F3EF1 /* AppAssetManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppAssetManager.m; sourceTree = "<group>"; };
+		197980B23FF645364D5B6997 /* LSRealtimeDepthModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LSRealtimeDepthModel.swift; sourceTree = "<group>"; };
+		19BD6199DBD3E703CDC60158 /* PairManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PairManager.h; sourceTree = "<group>"; };
+		1CD70BA6356C74A77F818B0F /* StreamConfiguration.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = StreamConfiguration.h; sourceTree = "<group>"; };
+		1D78A32A40BE722521125A03 /* Utils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Utils.h; sourceTree = "<group>"; };
+		21ADDB801EA047F56E483FBB /* AppListResponse.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppListResponse.h; sourceTree = "<group>"; };
+		22A57834AEE3E46B3CE9EAF6 /* Controller.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Controller.h; sourceTree = "<group>"; };
+		22EDC52483C8B877C4E9BAE1 /* Connection.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = Connection.c; sourceTree = "<group>"; };
+		245BB410A9AE3F96D3A59793 /* StreamSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamSettingsStore.swift; sourceTree = "<group>"; };
+		263EFB2B88D18F94A847B065 /* TemporaryApp.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TemporaryApp.m; sourceTree = "<group>"; };
+		278CA05CC1FA13C67934000C /* Logger.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Logger.h; sourceTree = "<group>"; };
+		282E32A6B62242D615EE2AD7 /* MVAudioConfig.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = MVAudioConfig.c; sourceTree = "<group>"; };
+		28C9063026ABC04191155A1A /* ClientCertificateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientCertificateStore.swift; sourceTree = "<group>"; };
+		28E5BE0EEB35495B801156DF /* Limelight 0.3.0.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "Limelight 0.3.0.xcdatamodel"; sourceTree = "<group>"; };
+		2A203992E21BD054F90438CC /* host.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = host.c; sourceTree = "<group>"; };
+		2A795D60D3EFF92A95374117 /* Utils.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Utils.m; sourceTree = "<group>"; };
+		2C31329B3B584A3777222A6F /* KeyboardInputField.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = KeyboardInputField.h; sourceTree = "<group>"; };
+		2F52B747557D7AA31B755A54 /* Moonlight VisionTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = "Moonlight VisionTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		31AEA32353AD69B785A6A41F /* HttpRequest.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = HttpRequest.h; sourceTree = "<group>"; };
+		32D2F4BA31DE6CE6886C8791 /* libopus.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libopus.xcframework; path = Vendor/ThirdParty/opus/libopus.xcframework; sourceTree = "<group>"; };
+		33624756A697C5F2B36EA07A /* StreamWindowRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamWindowRootView.swift; sourceTree = "<group>"; };
+		3461F8963E204157DC694ACE /* DataManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DataManager.m; sourceTree = "<group>"; };
+		3464A82DC27F8678657D1EC5 /* HttpRequest.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = HttpRequest.m; sourceTree = "<group>"; };
+		36BCF42C3FD84A1EC8F92DE2 /* PlatformCrypto.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = PlatformCrypto.c; sourceTree = "<group>"; };
+		38496129684AD5520DF83ABE /* RelativeTouchHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = RelativeTouchHandler.m; sourceTree = "<group>"; };
+		386232DA79738E9141A87AEA /* DiscoveryWorker.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DiscoveryWorker.m; sourceTree = "<group>"; };
+		3A5E03A0BFE7F9F5944D48A7 /* Limelight.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = Limelight.xcdatamodel; sourceTree = "<group>"; };
+		3B183999BDA20FC6D97B3A94 /* CoreMotion.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMotion.framework; path = System/Library/Frameworks/CoreMotion.framework; sourceTree = SDKROOT; };
+		3CA0152BAD6FC356CFE3B4DC /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		3E27C04747167D6809986846 /* StreamKeyboardInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamKeyboardInput.swift; sourceTree = "<group>"; };
+		3E97C69AE7A529922789FC7D /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		3F350301A40955714471923B /* CoreVideo.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreVideo.framework; path = System/Library/Frameworks/CoreVideo.framework; sourceTree = SDKROOT; };
+		3FF750012B2167012BEC9499 /* rs.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = rs.c; sourceTree = "<group>"; };
+		436812829F9C1B68630FFB34 /* WindowAspectLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowAspectLock.swift; sourceTree = "<group>"; };
+		44177B189EA71C382F8BC229 /* ConnectionTester.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ConnectionTester.c; sourceTree = "<group>"; };
+		44671D30872A812B5E97C9B2 /* ZipDepth-LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "ZipDepth-LICENSE.txt"; sourceTree = "<group>"; };
+		45912E2F1C1F2794DF307F7C /* PairManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = PairManager.m; sourceTree = "<group>"; };
+		469A1D7E7FF5D8E645CF5942 /* compress.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = compress.c; sourceTree = "<group>"; };
+		4803C1F88B00FCB9671FEFC4 /* peer.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = peer.c; sourceTree = "<group>"; };
+		4877082696060206E1576740 /* LSRealtime3DSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LSRealtime3DSettings.swift; sourceTree = "<group>"; };
+		4D82988BCB4866ACEFD09C53 /* CoreMedia.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMedia.framework; path = System/Library/Frameworks/CoreMedia.framework; sourceTree = SDKROOT; };
+		4DED51D734D1AB2AA2F52D4C /* WakeOnLanManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WakeOnLanManager.m; sourceTree = "<group>"; };
+		4F22A0B5BE15E23B00FAE465 /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = System/Library/Frameworks/CoreFoundation.framework; sourceTree = SDKROOT; };
+		4F3932B20505BAE6EB773556 /* StreamChromePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamChromePreview.swift; sourceTree = "<group>"; };
+		502E49FC7D8C96A8E0CF6EAB /* CryptoManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = CryptoManager.m; sourceTree = "<group>"; };
+		5082E40AC2E7122C4CAB24AA /* SimpleStun.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = SimpleStun.c; sourceTree = "<group>"; };
+		5169C045649E547513BA0BCA /* Connection.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Connection.m; sourceTree = "<group>"; };
+		527EDBBC8A03A8DFA1FD9913 /* RtspConnection.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = RtspConnection.c; sourceTree = "<group>"; };
+		529674ACA01DC29BEB8652C3 /* Moonlight v1.3.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "Moonlight v1.3.xcdatamodel"; sourceTree = "<group>"; };
+		52B8558080371CB0185BE2C1 /* StreamManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = StreamManager.h; sourceTree = "<group>"; };
+		55A9741CAF5644E6D17C8D50 /* HttpResponse.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = HttpResponse.m; sourceTree = "<group>"; };
+		567F5FE173DCF84F5FCABC19 /* oblas_common.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = oblas_common.c; sourceTree = "<group>"; };
+		5778D173F20E3FAA81C870A3 /* Moonlight v1.0-2.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "Moonlight v1.0-2.xcdatamodel"; sourceTree = "<group>"; };
+		57B906D992F2E5ADE80D1ED9 /* StreamMouseStrategy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamMouseStrategy.swift; sourceTree = "<group>"; };
+		58969D420897AF62A3146745 /* Stereo3DSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stereo3DSettingsView.swift; sourceTree = "<group>"; };
+		5A6756659FE027B8E909478A /* ConnectionHelper.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ConnectionHelper.h; sourceTree = "<group>"; };
+		5B5D0267E13564B857A474EC /* mkcert.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = mkcert.h; sourceTree = "<group>"; };
+		5CB5E46CF7409C5092769B9E /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
+		5D9B5D07D93F4F798B7AF708 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		5E9BDC43F7C8B95A5578B529 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		5FC79E6BF7E09895B7BDA2DE /* StreamTouchInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamTouchInput.swift; sourceTree = "<group>"; };
+		6054234081C5ED7DEA7EEA3F /* LSRealtimeStereoRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LSRealtimeStereoRenderer.swift; sourceTree = "<group>"; };
+		61692E8CC34B52B5A175834D /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
+		6198C172EA68AB6DFC8A3F82 /* ByteBuffer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ByteBuffer.h; sourceTree = "<group>"; };
+		624BE9D787485F7A35002DB5 /* Limelight-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Limelight-Prefix.pch"; sourceTree = "<group>"; };
+		62B3C6D705E20CB651AC365C /* list.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = list.c; sourceTree = "<group>"; };
+		638502C8CF69E0C23CA0CB65 /* HttpManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = HttpManager.h; sourceTree = "<group>"; };
+		6423770E04206B540200EF02 /* Limelight 0.3.1.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "Limelight 0.3.1.xcdatamodel"; sourceTree = "<group>"; };
+		64EABD2E4EA482876BF81F22 /* Video.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Video.h; sourceTree = "<group>"; };
+		673901D6728882A9D40FDB9C /* time.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = time.h; sourceTree = "<group>"; };
+		6A1E126494F57E8D0CB7D8C3 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		6AF9F07B1A550D43F96F72BA /* Realtime3DConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Realtime3DConverter.swift; sourceTree = "<group>"; };
+		6B03C20231DCC6D890F20531 /* StreamTouchpadInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamTouchpadInput.swift; sourceTree = "<group>"; };
+		6BE7C2EFCA0BAF2474081507 /* RtpVideoQueue.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = RtpVideoQueue.c; sourceTree = "<group>"; };
+		6BF5460AD2363D708929EBCC /* ZipDepth768x416.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = ZipDepth768x416.mlpackage; sourceTree = "<group>"; };
+		6E5C6F1994E85D89AC95BDA8 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		6ED03DB6D036E30E5C609997 /* HttpResponse.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = HttpResponse.h; sourceTree = "<group>"; };
+		6EF7F86A0E1C0DB3E8BC02A4 /* HostListModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostListModel.swift; sourceTree = "<group>"; };
+		71773E1D06275423AC0D11DE /* Misc.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = Misc.c; sourceTree = "<group>"; };
+		7279C9CE482412F3817A4A25 /* StreamSessionModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamSessionModel.swift; sourceTree = "<group>"; };
+		7381F24E63A219AFEDABCFA5 /* TemporaryHost.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TemporaryHost.h; sourceTree = "<group>"; };
+		758F57CF0CA871D4F9B62C01 /* TouchscreenGCMouseStrategy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchscreenGCMouseStrategy.swift; sourceTree = "<group>"; };
+		77A5C67E3A09E43AF1EE8439 /* DiscoveryManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DiscoveryManager.h; sourceTree = "<group>"; };
+		77D0BFB6DC7CA2F25727A7D4 /* StreamPictureGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamPictureGeometryTests.swift; sourceTree = "<group>"; };
+		7910D697DCEE910347286415 /* Platform.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = Platform.c; sourceTree = "<group>"; };
+		7A482E1B2225BFDD46747D14 /* InputStream.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = InputStream.c; sourceTree = "<group>"; };
+		7AD5783451B73BEADA12CE28 /* MVAudioConfig.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MVAudioConfig.h; sourceTree = "<group>"; };
+		7B87B2C51391B250ECDDCFA2 /* HapticContext.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = HapticContext.m; sourceTree = "<group>"; };
+		7C38B652CF7B4BE2B22CA0CD /* StreamPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamPresentation.swift; sourceTree = "<group>"; };
+		7E7D23453FFBD5F9B9ED0666 /* StreamWindowInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamWindowInputView.swift; sourceTree = "<group>"; };
+		7F2D59D42C3870B0099BA59D /* protocol.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = protocol.c; sourceTree = "<group>"; };
+		7FE144CB8867660AB74C58E1 /* ByteBuffer.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ByteBuffer.c; sourceTree = "<group>"; };
+		800BBB6BCA8C7068F13B0232 /* callbacks.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = callbacks.h; sourceTree = "<group>"; };
+		829A1E011490210311862D05 /* IdManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = IdManager.h; sourceTree = "<group>"; };
+		8406F9FA90264D2E06AF185A /* Moonlight v1.7.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "Moonlight v1.7.xcdatamodel"; sourceTree = "<group>"; };
+		841FA3808F717AD9E86FEC7E /* Accelerate.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Accelerate.framework; path = System/Library/Frameworks/Accelerate.framework; sourceTree = SDKROOT; };
+		8551BBB0EA532577BEE7FC53 /* libavformat.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libavformat.xcframework; path = Vendor/ThirdParty/FFmpeg/libavformat.xcframework; sourceTree = "<group>"; };
+		876F9868D08C7DB72F4A8053 /* StreamAudioRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamAudioRenderer.swift; sourceTree = "<group>"; };
+		87EC00F059A3808D4D6B5FA1 /* win32.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = win32.c; sourceTree = "<group>"; };
+		87EFCD98C322D06FF2CE3240 /* StreamControlBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamControlBar.swift; sourceTree = "<group>"; };
+		897C5E8607BAA163167D0C63 /* list.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = list.h; sourceTree = "<group>"; };
+		89C91F19F8327BB39D9A87A4 /* VideoDepacketizer.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = VideoDepacketizer.c; sourceTree = "<group>"; };
+		8B1D187F28CBEF35376FE47F /* utility.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = utility.h; sourceTree = "<group>"; };
+		8BBCA92E1D5C3B43AC852295 /* Shaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = Shaders.metal; sourceTree = "<group>"; };
+		8BBFBC213172FECF6229296C /* VideoToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = VideoToolbox.framework; path = System/Library/Frameworks/VideoToolbox.framework; sourceTree = SDKROOT; };
+		8CDA3C6A592E76C90A7944A5 /* AppAssetResponse.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppAssetResponse.h; sourceTree = "<group>"; };
+		8D6583EAF0CCE0002E9A40DA /* Limelight.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Limelight.h; sourceTree = "<group>"; };
+		8D72587B5D185650205C8E03 /* MoonlightVision-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MoonlightVision-Bridging-Header.h"; sourceTree = "<group>"; };
+		8E586C8DC3A86B73AE2CB5C4 /* PairingFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingFlowTests.swift; sourceTree = "<group>"; };
+		8F796791D7FC16F4E4BD5A91 /* LICENSE.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE.txt; sourceTree = "<group>"; };
+		9161D052EA3BC8687B3E508E /* PlatformThreads.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PlatformThreads.h; sourceTree = "<group>"; };
+		916EF9BB7A6D5BAF81DC8EA5 /* BoxArtCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoxArtCache.swift; sourceTree = "<group>"; };
+		91BEB82E41521C5580654764 /* Moonlight v1.10.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "Moonlight v1.10.xcdatamodel"; sourceTree = "<group>"; };
+		9391C211C2823BD0A9E02171 /* Moonlight v1.4.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "Moonlight v1.4.xcdatamodel"; sourceTree = "<group>"; };
+		94B30C7A81E3C06892813090 /* LinkedBlockingQueue.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = LinkedBlockingQueue.c; sourceTree = "<group>"; };
+		94DBC1C40229866B984E5523 /* StreamLocalCursor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamLocalCursor.swift; sourceTree = "<group>"; };
+		95A0CA762F23E291F299CA7B /* Stream3DSettingsWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stream3DSettingsWindowView.swift; sourceTree = "<group>"; };
+		962D3E5BD6B6AE5C99489CB4 /* RecorderCallbacks.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = RecorderCallbacks.c; sourceTree = "<group>"; };
+		96B2063B79F6514AB1F6F0A9 /* Logger.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Logger.m; sourceTree = "<group>"; };
+		97F4EB1CAB4B2DCEE8A84B7C /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
+		9AA655338B62F7147B85A9CF /* SBSMaterial.usda */ = {isa = PBXFileReference; lastKnownFileType = text; path = SBSMaterial.usda; sourceTree = "<group>"; };
+		9AAF74C4A3E97B69CDD8FBCD /* DiscoveryWorker.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DiscoveryWorker.h; sourceTree = "<group>"; };
+		9AC745ED8495AC8AC043C41B /* StreamWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamWindowView.swift; sourceTree = "<group>"; };
+		9B1C1A790B573C7E26AE73AC /* ServerInfoResponse.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ServerInfoResponse.m; sourceTree = "<group>"; };
+		9DE81C6CA915DAD8750A0EEF /* AppAssetManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppAssetManager.h; sourceTree = "<group>"; };
+		9F93740BBD4C438848C34C85 /* AppListResponse.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppListResponse.m; sourceTree = "<group>"; };
+		A11A6B3B470C10BDEA2B7930 /* StreamKeyboardWindowState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamKeyboardWindowState.swift; sourceTree = "<group>"; };
+		A131C346151B754D509641DC /* StreamVideoSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamVideoSurface.swift; sourceTree = "<group>"; };
+		A7127A632C29B70D12A141FB /* IdManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = IdManager.m; sourceTree = "<group>"; };
+		A7DF52DE10580F0B31914668 /* ConnectionHelper.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ConnectionHelper.m; sourceTree = "<group>"; };
+		A8B7016F745BB3DDAC836A4E /* App+CoreDataClass.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "App+CoreDataClass.h"; sourceTree = "<group>"; };
+		A8D06F942C8726D0D25E0DC4 /* RtpAudioQueue.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = RtpAudioQueue.c; sourceTree = "<group>"; };
+		AA30E27D57FE92618FAC2BDB /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
+		AA713CDEE14B5DB7385AEE4F /* Settings+CoreDataClass.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Settings+CoreDataClass.h"; sourceTree = "<group>"; };
+		ABBF3A00DB01A2595EA76490 /* PlatformSockets.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = PlatformSockets.c; sourceTree = "<group>"; };
+		AD3E99E5B51759F9BABA59D7 /* packet.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = packet.c; sourceTree = "<group>"; };
+		ADC1E3030C03A4882FD5378E /* MouseInputGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MouseInputGeometryTests.swift; sourceTree = "<group>"; };
+		AEC3E762EB55996CFD08B4E4 /* LSRealtimeStereoScheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LSRealtimeStereoScheme.swift; sourceTree = "<group>"; };
+		B0200C7B42648AD35363221D /* DataManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DataManager.h; sourceTree = "<group>"; };
+		B02879C7CDFA8C2BF586E604 /* HapticContext.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = HapticContext.h; sourceTree = "<group>"; };
+		B14705D233FD024F599F2BDA /* protocol.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = protocol.h; sourceTree = "<group>"; };
+		B249D3A8DF774EE24905E845 /* libavutil.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libavutil.xcframework; path = Vendor/ThirdParty/FFmpeg/libavutil.xcframework; sourceTree = "<group>"; };
+		B2800B123942F1581DF9A9B7 /* RelativeTouchHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RelativeTouchHandler.h; sourceTree = "<group>"; };
+		B387521D6AEAAFD7EAC96B82 /* StreamRestartSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamRestartSettings.swift; sourceTree = "<group>"; };
+		B6095BACF9CB52C0BC46F074 /* AudioStream.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = AudioStream.c; sourceTree = "<group>"; };
+		B60A0C98421D901BDEBC7809 /* LSRealtimeDepthEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LSRealtimeDepthEstimator.swift; sourceTree = "<group>"; };
+		B689599DE74EE6869344D861 /* Rtsp.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Rtsp.h; sourceTree = "<group>"; };
+		B89D2D9024206A0EF997A10E /* PairingFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingFlow.swift; sourceTree = "<group>"; };
+		B915DFA60F6C2DB9703A4D05 /* mkcert.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = mkcert.c; sourceTree = "<group>"; };
+		B99FFF2B3A480EF3E0D87920 /* Moonlight v1.0.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "Moonlight v1.0.xcdatamodel"; sourceTree = "<group>"; };
+		B9A432FEB18349711EFE56B9 /* GameController.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameController.framework; path = System/Library/Frameworks/GameController.framework; sourceTree = SDKROOT; };
+		B9D3F6846FAEBCCFD4EE50E6 /* unix.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = unix.c; sourceTree = "<group>"; };
+		BA60C3306969E2EBB088B826 /* Controller.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Controller.m; sourceTree = "<group>"; };
+		BAED1BB55E7CEC778488CB9B /* Connection.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Connection.h; sourceTree = "<group>"; };
+		BB4C2142DB4A31C6A02CEAB1 /* AppAssetResponse.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppAssetResponse.m; sourceTree = "<group>"; };
+		BBEED58D3F3035B5B69E5BF1 /* MoonlightVisionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoonlightVisionApp.swift; sourceTree = "<group>"; };
+		BCBF3B607A19BBA67E971E57 /* RealityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = RealityKit.framework; path = System/Library/Frameworks/RealityKit.framework; sourceTree = SDKROOT; };
+		BDC6611C414C78F6DDDF355B /* CoreData.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreData.framework; path = System/Library/Frameworks/CoreData.framework; sourceTree = SDKROOT; };
+		BDE5D58D322FFB7E96A87B65 /* KeyboardInputField.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = KeyboardInputField.m; sourceTree = "<group>"; };
+		BE8E656D419D3D3728E866F1 /* StreamFrameMailbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamFrameMailbox.swift; sourceTree = "<group>"; };
+		C09A4311334B8BC02389A694 /* Limelight-internal.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Limelight-internal.h"; sourceTree = "<group>"; };
+		C0E18BAC298A8BB8B1CA8424 /* StreamHDRTrimState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamHDRTrimState.swift; sourceTree = "<group>"; };
+		C160093A1F78971D6F393876 /* AV1Parser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AV1Parser.swift; sourceTree = "<group>"; };
+		C300D7CC03C25FE96154922F /* StreamView.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = StreamView.h; sourceTree = "<group>"; };
+		C383ED1986738A9DFFFFD6D9 /* callbacks.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = callbacks.c; sourceTree = "<group>"; };
+		C3D199B0B49EA25AFE97D74B /* win32.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = win32.h; sourceTree = "<group>"; };
+		C4AB8DD629E3B2CDC0E7AC7B /* OnScreenControls.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = OnScreenControls.m; sourceTree = "<group>"; };
+		C6DEDBEA606F416EC8BBF552 /* ControlStream.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ControlStream.c; sourceTree = "<group>"; };
+		CA7393BCA9C9228E92DC9CE0 /* MDNSManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MDNSManager.h; sourceTree = "<group>"; };
+		CB2045440256DB6E510E970C /* AppAssetRetriever.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppAssetRetriever.h; sourceTree = "<group>"; };
+		CBB2159C12AEEAA627EE8AC5 /* Input.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Input.h; sourceTree = "<group>"; };
+		CC42A78E3AFEAE62FBBE1018 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		CCA6A089358E9CD6DAB72D62 /* RtpAudioQueue.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RtpAudioQueue.h; sourceTree = "<group>"; };
+		CDDCDC8867FF5C17F6AC40DB /* PlatformSockets.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PlatformSockets.h; sourceTree = "<group>"; };
+		CE8699152E0A8A576C5C8D36 /* VideoMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoMode.swift; sourceTree = "<group>"; };
+		CEB2EDC760C5C86265F08578 /* unix.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = unix.h; sourceTree = "<group>"; };
+		CEF2365E080FBA6410E5215F /* MDNSManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = MDNSManager.m; sourceTree = "<group>"; };
+		D0FA8C66DF416805C0C5D0B2 /* Moonlight v1.9.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "Moonlight v1.9.xcdatamodel"; sourceTree = "<group>"; };
+		D1E1D87B0E7971308B38FBD0 /* Moonlight v1.8.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "Moonlight v1.8.xcdatamodel"; sourceTree = "<group>"; };
+		D25503AA6C5262AAABB93124 /* ControllerSupport.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ControllerSupport.m; sourceTree = "<group>"; };
+		D2C970882E2A1DD3A518F51C /* StreamManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = StreamManager.m; sourceTree = "<group>"; };
+		D2F28AC1E2229F20D6882C4D /* AbsoluteTouchHandler.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AbsoluteTouchHandler.h; sourceTree = "<group>"; };
+		D50D4EE3C362C4E9854E7396 /* StreamView.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = StreamView.m; sourceTree = "<group>"; };
+		D5173B87CD5A79916AB578E4 /* TemporaryHost.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TemporaryHost.m; sourceTree = "<group>"; };
+		D59172194CA88F3AAD3E7518 /* HttpManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = HttpManager.m; sourceTree = "<group>"; };
+		D5C84096141ACCB25AFDCC41 /* MVRingBuffer.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = MVRingBuffer.c; sourceTree = "<group>"; };
+		D644B170AC831D779517D2CE /* DepthAnythingV2SmallF16P6.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = DepthAnythingV2SmallF16P6.mlpackage; sourceTree = "<group>"; };
+		D7EEBFD6E792EA5057A76AE4 /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = System/Library/Frameworks/CoreBluetooth.framework; sourceTree = SDKROOT; };
+		DBBFA9FAB874AD6385B4EC86 /* VirtualKeyboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VirtualKeyboardView.swift; sourceTree = "<group>"; };
+		DDBD651DF80798D809D6937B /* OnScreenControls.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OnScreenControls.h; sourceTree = "<group>"; };
+		DDEE54C7EF384C257B5ADC76 /* HostSessionModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostSessionModel.swift; sourceTree = "<group>"; };
+		DF55CCE115EA99B4F9DBF57D /* KeyboardSupport.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = KeyboardSupport.m; sourceTree = "<group>"; };
+		DF66FC87A2DE99DFB6DABDC8 /* Realtime3DTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Realtime3DTests.swift; sourceTree = "<group>"; };
+		DF9A16E3B2AA9BA1F8D99656 /* AudioToolbox.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioToolbox.framework; path = System/Library/Frameworks/AudioToolbox.framework; sourceTree = SDKROOT; };
+		E07387F9805ABABF59A1261F /* EDRProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EDRProbe.swift; sourceTree = "<group>"; };
+		E17F80E7C40D67D94E5D787B /* AVKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVKit.framework; path = System/Library/Frameworks/AVKit.framework; sourceTree = SDKROOT; };
+		E25E5A062D9B3E41A5F7102F /* libavcodec.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = libavcodec.xcframework; path = Vendor/ThirdParty/FFmpeg/libavcodec.xcframework; sourceTree = "<group>"; };
+		E2AB8E7512D9C6BD5E4109B9 /* enet.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = enet.h; sourceTree = "<group>"; };
+		E3061F13CF3AA0B926B80CB6 /* oblas_lite.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = oblas_lite.c; sourceTree = "<group>"; };
+		E41CEEA7290C776CB3D5E042 /* RtpVideoQueue.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RtpVideoQueue.h; sourceTree = "<group>"; };
+		E44700751CBE5D73EFCE4BC6 /* Moonlight v1.5.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "Moonlight v1.5.xcdatamodel"; sourceTree = "<group>"; };
+		E4ED45BACC7D8700F21ED208 /* DiscoveryManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DiscoveryManager.m; sourceTree = "<group>"; };
+		E53212DC3DE6876D349B1DD4 /* Moonlight-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Moonlight-Bridging-Header.h"; sourceTree = "<group>"; };
+		E54752E8CE8D854F8A79E19D /* CVMetalHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CVMetalHelpers.swift; sourceTree = "<group>"; };
+		E5BC4C64D035A62D6FBDFF46 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		E6E961791C4085011E0882BA /* AbsoluteTouchHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AbsoluteTouchHandler.m; sourceTree = "<group>"; };
+		E8D7C1CC61D4081F9151E3BB /* Platform.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Platform.h; sourceTree = "<group>"; };
+		E91CE39FAEE6EEEC0A11BF3B /* ServerInfoResponse.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ServerInfoResponse.h; sourceTree = "<group>"; };
+		EA46EF8DB606A85CEB3D3ABE /* Host+CoreDataClass.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Host+CoreDataClass.h"; sourceTree = "<group>"; };
+		EC0D9FEBEA82D56A218D0602 /* VideoStream.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = VideoStream.c; sourceTree = "<group>"; };
+		EE4308EE5B2976B2DE973E56 /* AppAssetRetriever.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppAssetRetriever.m; sourceTree = "<group>"; };
+		EF1527FA61B6BF7A65FEAF73 /* MVAudioRing.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = MVAudioRing.c; sourceTree = "<group>"; };
+		F00306AC9F0F5182C87D0C4F /* Realtime3DSettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Realtime3DSettingsStore.swift; sourceTree = "<group>"; };
+		F0531F6201E245A9EB268E6B /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		F2504B7B6F1A3275DC7E5FAF /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
+		F2BEC27BAA314F1481E34C25 /* DrawableVideoDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawableVideoDecoder.swift; sourceTree = "<group>"; };
+		F37FB3F4E36D38F543357525 /* RealtimeStereo.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = RealtimeStereo.metal; sourceTree = "<group>"; };
+		F502C527A05D16C0E4CA228B /* AnyVideoDecoderRenderer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AnyVideoDecoderRenderer.h; sourceTree = "<group>"; };
+		F7C1C7884BC7102119CE4A91 /* MVAudioRing.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MVAudioRing.h; sourceTree = "<group>"; };
+		FA78DA6EE574D95F6B1D741A /* StreamConfiguration.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = StreamConfiguration.m; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B072AE3791CD615F92DD6E5F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AAF8F859F0565CF308AAA436 /* UIKit.framework in Frameworks */,
+				EF52239621EC7EE23488AECE /* Foundation.framework in Frameworks */,
+				4614D44CC792DD0053AF3061 /* CoreData.framework in Frameworks */,
+				7A17A80D35653DE8C55C491E /* CoreGraphics.framework in Frameworks */,
+				90B4DF4C6F418660CEBBAB85 /* CoreMotion.framework in Frameworks */,
+				B98FEC7CA4228EAE0F03D386 /* GameController.framework in Frameworks */,
+				2A2BD72D14789B9D4C4C9FD5 /* AVFoundation.framework in Frameworks */,
+				932AB7D798B5B4F423971EDD /* AVKit.framework in Frameworks */,
+				66E1F72E945569BC290C6E3B /* VideoToolbox.framework in Frameworks */,
+				AB4306F6F1517C31999C12AE /* CoreMedia.framework in Frameworks */,
+				CE5D58F2F47D90C456059D9E /* CoreVideo.framework in Frameworks */,
+				F80D9410D75310D69F3C2FEE /* AudioToolbox.framework in Frameworks */,
+				E76BB9A8D1DA0710976C0FE6 /* CoreAudio.framework in Frameworks */,
+				2730DFB59316CD04B60F04B1 /* Accelerate.framework in Frameworks */,
+				371E0A05818BCC05C8B85782 /* QuartzCore.framework in Frameworks */,
+				AE2A11CC0C40E61954750FC1 /* CoreHaptics.framework in Frameworks */,
+				393315361EDB285A6C6B5492 /* CoreBluetooth.framework in Frameworks */,
+				C68C9CA35526181ADBA95DBD /* Security.framework in Frameworks */,
+				EF9B742EFB5D6FD7D423A53A /* CoreFoundation.framework in Frameworks */,
+				8383EC40F5B88B2BC138592A /* RealityKit.framework in Frameworks */,
+				F25066E03E5481699B202BF4 /* Metal.framework in Frameworks */,
+				D467D9959D313115C261CC2D /* MetalKit.framework in Frameworks */,
+				288D61C92D0E61F304A02EC2 /* libavcodec.xcframework in Frameworks */,
+				7EAC0BE1E1E465BAE5842C47 /* libavformat.xcframework in Frameworks */,
+				0F865BB42194DD7578338E10 /* libavutil.xcframework in Frameworks */,
+				90587A7CE047520D29F4EC67 /* libopus.xcframework in Frameworks */,
+				B94AD51D24CE2ED7CC2F55AD /* OpenSSL in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1CDC875A7519DFCFE2CA4607 /* Utility */ = {
+			isa = PBXGroup;
+			children = (
+				278CA05CC1FA13C67934000C /* Logger.h */,
+				96B2063B79F6514AB1F6F0A9 /* Logger.m */,
+				1D78A32A40BE722521125A03 /* Utils.h */,
+				2A795D60D3EFF92A95374117 /* Utils.m */,
+			);
+			path = Utility;
+			sourceTree = "<group>";
+		};
+		1F7B54F614E7922FDF305FAC /* Hosts */ = {
+			isa = PBXGroup;
+			children = (
+				6EF7F86A0E1C0DB3E8BC02A4 /* HostListModel.swift */,
+				09EF8B1CAA0B1C1B928649F2 /* HostListView.swift */,
+			);
+			path = Hosts;
+			sourceTree = "<group>";
+		};
+		3477572798CA286805B127DE /* Vendor */ = {
+			isa = PBXGroup;
+			children = (
+				6A8E1958BC72A2093C5B5A14 /* Limelight */,
+				57B1B3D485CF6364B73116F1 /* moonlight-common-c */,
+			);
+			path = Vendor;
+			sourceTree = "<group>";
+		};
+		37276D02FEDBB1743BF11DA9 /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				A8B7016F745BB3DDAC836A4E /* App+CoreDataClass.h */,
+				EA46EF8DB606A85CEB3D3ABE /* Host+CoreDataClass.h */,
+				AA713CDEE14B5DB7385AEE4F /* Settings+CoreDataClass.h */,
+			);
+			path = Support;
+			sourceTree = "<group>";
+		};
+		472BD715251D5519DD810BD8 /* Crypto */ = {
+			isa = PBXGroup;
+			children = (
+				04EEEB1053BE91BB4E0DFD88 /* CryptoManager.h */,
+				502E49FC7D8C96A8E0CF6EAB /* CryptoManager.m */,
+				829A1E011490210311862D05 /* IdManager.h */,
+				A7127A632C29B70D12A141FB /* IdManager.m */,
+				B915DFA60F6C2DB9703A4D05 /* mkcert.c */,
+				5B5D0267E13564B857A474EC /* mkcert.h */,
+			);
+			path = Crypto;
+			sourceTree = "<group>";
+		};
+		49A19454C33719E2E7A94DBC /* src */ = {
+			isa = PBXGroup;
+			children = (
+				B6095BACF9CB52C0BC46F074 /* AudioStream.c */,
+				7FE144CB8867660AB74C58E1 /* ByteBuffer.c */,
+				6198C172EA68AB6DFC8A3F82 /* ByteBuffer.h */,
+				22EDC52483C8B877C4E9BAE1 /* Connection.c */,
+				44177B189EA71C382F8BC229 /* ConnectionTester.c */,
+				C6DEDBEA606F416EC8BBF552 /* ControlStream.c */,
+				0391003611011508931501EE /* FakeCallbacks.c */,
+				CBB2159C12AEEAA627EE8AC5 /* Input.h */,
+				7A482E1B2225BFDD46747D14 /* InputStream.c */,
+				C09A4311334B8BC02389A694 /* Limelight-internal.h */,
+				8D6583EAF0CCE0002E9A40DA /* Limelight.h */,
+				94B30C7A81E3C06892813090 /* LinkedBlockingQueue.c */,
+				14AD9EAA1E0D9EE06F6008EA /* LinkedBlockingQueue.h */,
+				71773E1D06275423AC0D11DE /* Misc.c */,
+				7910D697DCEE910347286415 /* Platform.c */,
+				E8D7C1CC61D4081F9151E3BB /* Platform.h */,
+				36BCF42C3FD84A1EC8F92DE2 /* PlatformCrypto.c */,
+				0630FCD792A22EEA7D1C9368 /* PlatformCrypto.h */,
+				ABBF3A00DB01A2595EA76490 /* PlatformSockets.c */,
+				CDDCDC8867FF5C17F6AC40DB /* PlatformSockets.h */,
+				9161D052EA3BC8687B3E508E /* PlatformThreads.h */,
+				962D3E5BD6B6AE5C99489CB4 /* RecorderCallbacks.c */,
+				A8D06F942C8726D0D25E0DC4 /* RtpAudioQueue.c */,
+				CCA6A089358E9CD6DAB72D62 /* RtpAudioQueue.h */,
+				6BE7C2EFCA0BAF2474081507 /* RtpVideoQueue.c */,
+				E41CEEA7290C776CB3D5E042 /* RtpVideoQueue.h */,
+				B689599DE74EE6869344D861 /* Rtsp.h */,
+				527EDBBC8A03A8DFA1FD9913 /* RtspConnection.c */,
+				080BCAA7B457E9135D89596C /* RtspParser.c */,
+				007048C7DE554E5A76D3825D /* SdpGenerator.c */,
+				5082E40AC2E7122C4CAB24AA /* SimpleStun.c */,
+				64EABD2E4EA482876BF81F22 /* Video.h */,
+				89C91F19F8327BB39D9A87A4 /* VideoDepacketizer.c */,
+				EC0D9FEBEA82D56A218D0602 /* VideoStream.c */,
+			);
+			path = src;
+			sourceTree = "<group>";
+		};
+		4B8BF4DFFC91EE11103B7114 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				841FA3808F717AD9E86FEC7E /* Accelerate.framework */,
+				DF9A16E3B2AA9BA1F8D99656 /* AudioToolbox.framework */,
+				61692E8CC34B52B5A175834D /* AVFoundation.framework */,
+				E17F80E7C40D67D94E5D787B /* AVKit.framework */,
+				F2504B7B6F1A3275DC7E5FAF /* CoreAudio.framework */,
+				D7EEBFD6E792EA5057A76AE4 /* CoreBluetooth.framework */,
+				BDC6611C414C78F6DDDF355B /* CoreData.framework */,
+				4F22A0B5BE15E23B00FAE465 /* CoreFoundation.framework */,
+				6E5C6F1994E85D89AC95BDA8 /* CoreGraphics.framework */,
+				0377F5A4AF586CE2B28F95F9 /* CoreHaptics.framework */,
+				4D82988BCB4866ACEFD09C53 /* CoreMedia.framework */,
+				3B183999BDA20FC6D97B3A94 /* CoreMotion.framework */,
+				3F350301A40955714471923B /* CoreVideo.framework */,
+				015CD2387E6718C5FBE0D1B8 /* Foundation.framework */,
+				B9A432FEB18349711EFE56B9 /* GameController.framework */,
+				E25E5A062D9B3E41A5F7102F /* libavcodec.xcframework */,
+				8551BBB0EA532577BEE7FC53 /* libavformat.xcframework */,
+				B249D3A8DF774EE24905E845 /* libavutil.xcframework */,
+				32D2F4BA31DE6CE6886C8791 /* libopus.xcframework */,
+				E5BC4C64D035A62D6FBDFF46 /* Metal.framework */,
+				5CB5E46CF7409C5092769B9E /* MetalKit.framework */,
+				5D9B5D07D93F4F798B7AF708 /* QuartzCore.framework */,
+				BCBF3B607A19BBA67E971E57 /* RealityKit.framework */,
+				6A1E126494F57E8D0CB7D8C3 /* Security.framework */,
+				F0531F6201E245A9EB268E6B /* UIKit.framework */,
+				8BBFBC213172FECF6229296C /* VideoToolbox.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		4FF4E0EF90097073C9192864 /* include */ = {
+			isa = PBXGroup;
+			children = (
+				B18AE528FA5C05E6FC041FE1 /* enet */,
+			);
+			path = include;
+			sourceTree = "<group>";
+		};
+		55C9231F0904DE8D1743917F /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				12BF99342995B75EDAE40757 /* DepthAnythingV2-LICENSE.txt */,
+				147312C4037ADDC68D0DBC7B /* DepthAnythingV2-NOTICE.txt */,
+				D644B170AC831D779517D2CE /* DepthAnythingV2SmallF16P6.mlpackage */,
+				44671D30872A812B5E97C9B2 /* ZipDepth-LICENSE.txt */,
+				6BF5460AD2363D708929EBCC /* ZipDepth768x416.mlpackage */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		57B1B3D485CF6364B73116F1 /* moonlight-common-c */ = {
+			isa = PBXGroup;
+			children = (
+				7B292C70F457A34C8F051B46 /* enet */,
+				F3C96F2D3E7A1554D47B9AF5 /* nanors */,
+				49A19454C33719E2E7A94DBC /* src */,
+			);
+			path = "moonlight-common-c";
+			sourceTree = "<group>";
+		};
+		6182E48DF25A83735BFBB16B /* Network */ = {
+			isa = PBXGroup;
+			children = (
+				9DE81C6CA915DAD8750A0EEF /* AppAssetManager.h */,
+				18BDFD1D52ADD4BD588F3EF1 /* AppAssetManager.m */,
+				8CDA3C6A592E76C90A7944A5 /* AppAssetResponse.h */,
+				BB4C2142DB4A31C6A02CEAB1 /* AppAssetResponse.m */,
+				CB2045440256DB6E510E970C /* AppAssetRetriever.h */,
+				EE4308EE5B2976B2DE973E56 /* AppAssetRetriever.m */,
+				21ADDB801EA047F56E483FBB /* AppListResponse.h */,
+				9F93740BBD4C438848C34C85 /* AppListResponse.m */,
+				5A6756659FE027B8E909478A /* ConnectionHelper.h */,
+				A7DF52DE10580F0B31914668 /* ConnectionHelper.m */,
+				77A5C67E3A09E43AF1EE8439 /* DiscoveryManager.h */,
+				E4ED45BACC7D8700F21ED208 /* DiscoveryManager.m */,
+				9AAF74C4A3E97B69CDD8FBCD /* DiscoveryWorker.h */,
+				386232DA79738E9141A87AEA /* DiscoveryWorker.m */,
+				638502C8CF69E0C23CA0CB65 /* HttpManager.h */,
+				D59172194CA88F3AAD3E7518 /* HttpManager.m */,
+				31AEA32353AD69B785A6A41F /* HttpRequest.h */,
+				3464A82DC27F8678657D1EC5 /* HttpRequest.m */,
+				6ED03DB6D036E30E5C609997 /* HttpResponse.h */,
+				55A9741CAF5644E6D17C8D50 /* HttpResponse.m */,
+				CA7393BCA9C9228E92DC9CE0 /* MDNSManager.h */,
+				CEF2365E080FBA6410E5215F /* MDNSManager.m */,
+				19BD6199DBD3E703CDC60158 /* PairManager.h */,
+				45912E2F1C1F2794DF307F7C /* PairManager.m */,
+				E91CE39FAEE6EEEC0A11BF3B /* ServerInfoResponse.h */,
+				9B1C1A790B573C7E26AE73AC /* ServerInfoResponse.m */,
+				04ED9D1AC07D5240B743772E /* WakeOnLanManager.h */,
+				4DED51D734D1AB2AA2F52D4C /* WakeOnLanManager.m */,
+			);
+			path = Network;
+			sourceTree = "<group>";
+		};
+		6A8E1958BC72A2093C5B5A14 /* Limelight */ = {
+			isa = PBXGroup;
+			children = (
+				472BD715251D5519DD810BD8 /* Crypto */,
+				833CB87F62DF1E71795E679F /* Database */,
+				A80A88009EF3299CBEBDD98B /* Input */,
+				2597B90BFED631D0AB6921A3 /* Limelight.xcdatamodeld */,
+				6182E48DF25A83735BFBB16B /* Network */,
+				6E298FEFC12F98EB8BA4F196 /* Stream */,
+				1CDC875A7519DFCFE2CA4607 /* Utility */,
+				97F4EB1CAB4B2DCEE8A84B7C /* AppDelegate.h */,
+				AA30E27D57FE92618FAC2BDB /* AppDelegate.m */,
+				8F796791D7FC16F4E4BD5A91 /* LICENSE.txt */,
+				624BE9D787485F7A35002DB5 /* Limelight-Prefix.pch */,
+			);
+			path = Limelight;
+			sourceTree = "<group>";
+		};
+		6E298FEFC12F98EB8BA4F196 /* Stream */ = {
+			isa = PBXGroup;
+			children = (
+				F502C527A05D16C0E4CA228B /* AnyVideoDecoderRenderer.h */,
+				BAED1BB55E7CEC778488CB9B /* Connection.h */,
+				5169C045649E547513BA0BCA /* Connection.m */,
+				0398D549510C53DB3930D149 /* ConnectionCallbacks.h */,
+				11341156E6284C0B950FDF44 /* HDRParsingUtils.h */,
+				0A77802DF2870E8963C0C832 /* HDRParsingUtils.m */,
+				1CD70BA6356C74A77F818B0F /* StreamConfiguration.h */,
+				FA78DA6EE574D95F6B1D741A /* StreamConfiguration.m */,
+				52B8558080371CB0185BE2C1 /* StreamManager.h */,
+				D2C970882E2A1DD3A518F51C /* StreamManager.m */,
+			);
+			path = Stream;
+			sourceTree = "<group>";
+		};
+		724175FC3A855DE988FB0074 /* Stream */ = {
+			isa = PBXGroup;
+			children = (
+				95A0CA762F23E291F299CA7B /* Stream3DSettingsWindowView.swift */,
+				4F3932B20505BAE6EB773556 /* StreamChromePreview.swift */,
+				87EFCD98C322D06FF2CE3240 /* StreamControlBar.swift */,
+				A11A6B3B470C10BDEA2B7930 /* StreamKeyboardWindowState.swift */,
+				07E056BC80EA94BC1BFC732A /* StreamKeyboardWindowView.swift */,
+				7C38B652CF7B4BE2B22CA0CD /* StreamPresentation.swift */,
+				B387521D6AEAAFD7EAC96B82 /* StreamRestartSettings.swift */,
+				33624756A697C5F2B36EA07A /* StreamWindowRootView.swift */,
+				9AC745ED8495AC8AC043C41B /* StreamWindowView.swift */,
+				CE8699152E0A8A576C5C8D36 /* VideoMode.swift */,
+				436812829F9C1B68630FFB34 /* WindowAspectLock.swift */,
+			);
+			path = Stream;
+			sourceTree = "<group>";
+		};
+		781DD3121E61505C7ECBCCC5 /* Video */ = {
+			isa = PBXGroup;
+			children = (
+				C160093A1F78971D6F393876 /* AV1Parser.swift */,
+				E54752E8CE8D854F8A79E19D /* CVMetalHelpers.swift */,
+				F2BEC27BAA314F1481E34C25 /* DrawableVideoDecoder.swift */,
+				E07387F9805ABABF59A1261F /* EDRProbe.swift */,
+				9AA655338B62F7147B85A9CF /* SBSMaterial.usda */,
+				8BBCA92E1D5C3B43AC852295 /* Shaders.metal */,
+				BE8E656D419D3D3728E866F1 /* StreamFrameMailbox.swift */,
+				C0E18BAC298A8BB8B1CA8424 /* StreamHDRTrimState.swift */,
+				A131C346151B754D509641DC /* StreamVideoSurface.swift */,
+			);
+			path = Video;
+			sourceTree = "<group>";
+		};
+		7B292C70F457A34C8F051B46 /* enet */ = {
+			isa = PBXGroup;
+			children = (
+				4FF4E0EF90097073C9192864 /* include */,
+				C383ED1986738A9DFFFFD6D9 /* callbacks.c */,
+				469A1D7E7FF5D8E645CF5942 /* compress.c */,
+				2A203992E21BD054F90438CC /* host.c */,
+				62B3C6D705E20CB651AC365C /* list.c */,
+				AD3E99E5B51759F9BABA59D7 /* packet.c */,
+				4803C1F88B00FCB9671FEFC4 /* peer.c */,
+				7F2D59D42C3870B0099BA59D /* protocol.c */,
+				B9D3F6846FAEBCCFD4EE50E6 /* unix.c */,
+				87EC00F059A3808D4D6B5FA1 /* win32.c */,
+			);
+			path = enet;
+			sourceTree = "<group>";
+		};
+		80099CB64A0E403BA0552BBD /* Input */ = {
+			isa = PBXGroup;
+			children = (
+				3E27C04747167D6809986846 /* StreamKeyboardInput.swift */,
+				94DBC1C40229866B984E5523 /* StreamLocalCursor.swift */,
+				57B906D992F2E5ADE80D1ED9 /* StreamMouseStrategy.swift */,
+				5FC79E6BF7E09895B7BDA2DE /* StreamTouchInput.swift */,
+				6B03C20231DCC6D890F20531 /* StreamTouchpadInput.swift */,
+				7E7D23453FFBD5F9B9ED0666 /* StreamWindowInputView.swift */,
+				758F57CF0CA871D4F9B62C01 /* TouchscreenGCMouseStrategy.swift */,
+				DBBFA9FAB874AD6385B4EC86 /* VirtualKeyboardView.swift */,
+			);
+			path = Input;
+			sourceTree = "<group>";
+		};
+		825528AD43BF6FE7CCC57D34 /* deps */ = {
+			isa = PBXGroup;
+			children = (
+				888BA38589A38E9ED0118B2E /* obl */,
+			);
+			path = deps;
+			sourceTree = "<group>";
+		};
+		833CB87F62DF1E71795E679F /* Database */ = {
+			isa = PBXGroup;
+			children = (
+				B0200C7B42648AD35363221D /* DataManager.h */,
+				3461F8963E204157DC694ACE /* DataManager.m */,
+				15419160C36509322F983C80 /* TemporaryApp.h */,
+				263EFB2B88D18F94A847B065 /* TemporaryApp.m */,
+				7381F24E63A219AFEDABCFA5 /* TemporaryHost.h */,
+				D5173B87CD5A79916AB578E4 /* TemporaryHost.m */,
+				02F9F6B3B21226A8CDF9D0BB /* TemporarySettings.h */,
+				08531E504CB31B77EDF38FFB /* TemporarySettings.m */,
+			);
+			path = Database;
+			sourceTree = "<group>";
+		};
+		888BA38589A38E9ED0118B2E /* obl */ = {
+			isa = PBXGroup;
+			children = (
+				567F5FE173DCF84F5FCABC19 /* oblas_common.c */,
+				E3061F13CF3AA0B926B80CB6 /* oblas_lite.c */,
+			);
+			path = obl;
+			sourceTree = "<group>";
+		};
+		8CF539CEDFD25BF7CC81F725 /* Realtime3D */ = {
+			isa = PBXGroup;
+			children = (
+				55C9231F0904DE8D1743917F /* Models */,
+				4877082696060206E1576740 /* LSRealtime3DSettings.swift */,
+				B60A0C98421D901BDEBC7809 /* LSRealtimeDepthEstimator.swift */,
+				197980B23FF645364D5B6997 /* LSRealtimeDepthModel.swift */,
+				6054234081C5ED7DEA7EEA3F /* LSRealtimeStereoRenderer.swift */,
+				AEC3E762EB55996CFD08B4E4 /* LSRealtimeStereoScheme.swift */,
+				6AF9F07B1A550D43F96F72BA /* Realtime3DConverter.swift */,
+				F00306AC9F0F5182C87D0C4F /* Realtime3DSettingsStore.swift */,
+				F37FB3F4E36D38F543357525 /* RealtimeStereo.metal */,
+			);
+			path = Realtime3D;
+			sourceTree = "<group>";
+		};
+		91044DF55504B42C48BEE2C8 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A5DEE7B458F20D7F4716F92C /* Localizable.strings */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		9732508B4CB27309A163E48C /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				37276D02FEDBB1743BF11DA9 /* Support */,
+				ADC1E3030C03A4882FD5378E /* MouseInputGeometryTests.swift */,
+				8E586C8DC3A86B73AE2CB5C4 /* PairingFlowTests.swift */,
+				DF66FC87A2DE99DFB6DABDC8 /* Realtime3DTests.swift */,
+				77D0BFB6DC7CA2F25727A7D4 /* StreamPictureGeometryTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		A43E9B423C079A7EE1F67325 = {
+			isa = PBXGroup;
+			children = (
+				AD9FCD31F6118030FBCB4C91 /* App */,
+				9732508B4CB27309A163E48C /* Tests */,
+				3477572798CA286805B127DE /* Vendor */,
+				4B8BF4DFFC91EE11103B7114 /* Frameworks */,
+				F254E98142A7E1E1C128BE5A /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A80A88009EF3299CBEBDD98B /* Input */ = {
+			isa = PBXGroup;
+			children = (
+				D2F28AC1E2229F20D6882C4D /* AbsoluteTouchHandler.h */,
+				E6E961791C4085011E0882BA /* AbsoluteTouchHandler.m */,
+				22A57834AEE3E46B3CE9EAF6 /* Controller.h */,
+				BA60C3306969E2EBB088B826 /* Controller.m */,
+				1049C54585C71BCEE6E9C3CB /* ControllerSupport.h */,
+				D25503AA6C5262AAABB93124 /* ControllerSupport.m */,
+				B02879C7CDFA8C2BF586E604 /* HapticContext.h */,
+				7B87B2C51391B250ECDDCFA2 /* HapticContext.m */,
+				2C31329B3B584A3777222A6F /* KeyboardInputField.h */,
+				BDE5D58D322FFB7E96A87B65 /* KeyboardInputField.m */,
+				0913C96B10ABDADE61CF319B /* KeyboardSupport.h */,
+				DF55CCE115EA99B4F9DBF57D /* KeyboardSupport.m */,
+				E53212DC3DE6876D349B1DD4 /* Moonlight-Bridging-Header.h */,
+				DDBD651DF80798D809D6937B /* OnScreenControls.h */,
+				C4AB8DD629E3B2CDC0E7AC7B /* OnScreenControls.m */,
+				B2800B123942F1581DF9A9B7 /* RelativeTouchHandler.h */,
+				38496129684AD5520DF83ABE /* RelativeTouchHandler.m */,
+				C300D7CC03C25FE96154922F /* StreamView.h */,
+				D50D4EE3C362C4E9854E7396 /* StreamView.m */,
+			);
+			path = Input;
+			sourceTree = "<group>";
+		};
+		AD9FCD31F6118030FBCB4C91 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				D3A6A80B10212985C5677A57 /* Apps */,
+				ECBD8914922C2A6EBE8BB677 /* Audio */,
+				1F7B54F614E7922FDF305FAC /* Hosts */,
+				80099CB64A0E403BA0552BBD /* Input */,
+				8CF539CEDFD25BF7CC81F725 /* Realtime3D */,
+				91044DF55504B42C48BEE2C8 /* Resources */,
+				C12237A881C885B328D55FC3 /* Session */,
+				AEA8A06D926069E562EFF434 /* Settings */,
+				724175FC3A855DE988FB0074 /* Stream */,
+				781DD3121E61505C7ECBCCC5 /* Video */,
+				CC42A78E3AFEAE62FBBE1018 /* Assets.xcassets */,
+				5E9BDC43F7C8B95A5578B529 /* Info.plist */,
+				8D72587B5D185650205C8E03 /* MoonlightVision-Bridging-Header.h */,
+				BBEED58D3F3035B5B69E5BF1 /* MoonlightVisionApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		AEA8A06D926069E562EFF434 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				0A43BD49C0E6F88478F39948 /* SettingsView.swift */,
+				58969D420897AF62A3146745 /* Stereo3DSettingsView.swift */,
+				245BB410A9AE3F96D3A59793 /* StreamSettingsStore.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		B18AE528FA5C05E6FC041FE1 /* enet */ = {
+			isa = PBXGroup;
+			children = (
+				800BBB6BCA8C7068F13B0232 /* callbacks.h */,
+				E2AB8E7512D9C6BD5E4109B9 /* enet.h */,
+				897C5E8607BAA163167D0C63 /* list.h */,
+				B14705D233FD024F599F2BDA /* protocol.h */,
+				673901D6728882A9D40FDB9C /* time.h */,
+				128976A8C039649ADA0A081B /* types.h */,
+				CEB2EDC760C5C86265F08578 /* unix.h */,
+				8B1D187F28CBEF35376FE47F /* utility.h */,
+				C3D199B0B49EA25AFE97D74B /* win32.h */,
+			);
+			path = enet;
+			sourceTree = "<group>";
+		};
+		C12237A881C885B328D55FC3 /* Session */ = {
+			isa = PBXGroup;
+			children = (
+				28C9063026ABC04191155A1A /* ClientCertificateStore.swift */,
+				DDEE54C7EF384C257B5ADC76 /* HostSessionModel.swift */,
+				B89D2D9024206A0EF997A10E /* PairingFlow.swift */,
+				7279C9CE482412F3817A4A25 /* StreamSessionModel.swift */,
+			);
+			path = Session;
+			sourceTree = "<group>";
+		};
+		D3A6A80B10212985C5677A57 /* Apps */ = {
+			isa = PBXGroup;
+			children = (
+				916EF9BB7A6D5BAF81DC8EA5 /* BoxArtCache.swift */,
+				0DD1A9DDA68F8FAF0A4B90BE /* HostSessionView.swift */,
+			);
+			path = Apps;
+			sourceTree = "<group>";
+		};
+		ECBD8914922C2A6EBE8BB677 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				282E32A6B62242D615EE2AD7 /* MVAudioConfig.c */,
+				7AD5783451B73BEADA12CE28 /* MVAudioConfig.h */,
+				EF1527FA61B6BF7A65FEAF73 /* MVAudioRing.c */,
+				F7C1C7884BC7102119CE4A91 /* MVAudioRing.h */,
+				D5C84096141ACCB25AFDCC41 /* MVRingBuffer.c */,
+				0100885282DA52B9761A4391 /* MVRingBuffer.h */,
+				876F9868D08C7DB72F4A8053 /* StreamAudioRenderer.swift */,
+			);
+			path = Audio;
+			sourceTree = "<group>";
+		};
+		F254E98142A7E1E1C128BE5A /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				0081D894EDA75111B0E9D02E /* Moonlight Vision.app */,
+				2F52B747557D7AA31B755A54 /* Moonlight VisionTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		F3C96F2D3E7A1554D47B9AF5 /* nanors */ = {
+			isa = PBXGroup;
+			children = (
+				825528AD43BF6FE7CCC57D34 /* deps */,
+				3FF750012B2167012BEC9499 /* rs.c */,
+			);
+			path = nanors;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		6CB92094C9462B5D4FE0E94E /* Moonlight VisionTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 646D2AE8AB825FC5894B25AE /* Build configuration list for PBXNativeTarget "Moonlight VisionTests" */;
+			buildPhases = (
+				20B9E1E8D67D93FB41842E96 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				4DA8E521752152BCA0179750 /* PBXTargetDependency */,
+			);
+			name = "Moonlight VisionTests";
+			packageProductDependencies = (
+			);
+			productName = "Moonlight VisionTests";
+			productReference = 2F52B747557D7AA31B755A54 /* Moonlight VisionTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		D890BFBCCD861D91E4DA9894 /* Moonlight Vision */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 31A0B3F877C81755B44B6DEC /* Build configuration list for PBXNativeTarget "Moonlight Vision" */;
+			buildPhases = (
+				1C004481BB0F88D6E902BD15 /* Sources */,
+				20243D758BFC98E9A3846C6C /* Resources */,
+				B072AE3791CD615F92DD6E5F /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "Moonlight Vision";
+			packageProductDependencies = (
+				0E9EBD673CE0645FA9005EC0 /* OpenSSL */,
+			);
+			productName = "Moonlight Vision";
+			productReference = 0081D894EDA75111B0E9D02E /* Moonlight Vision.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		786AC4CE9E91C44D5ED52CCE /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					D890BFBCCD861D91E4DA9894 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 083B4022994194C749B01562 /* Build configuration list for PBXProject "Moonlight Vision" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+				"zh-Hans",
+			);
+			mainGroup = A43E9B423C079A7EE1F67325;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				CA8E885F6B9941F198B7CFAB /* XCRemoteSwiftPackageReference "OpenSSL" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F254E98142A7E1E1C128BE5A /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				D890BFBCCD861D91E4DA9894 /* Moonlight Vision */,
+				6CB92094C9462B5D4FE0E94E /* Moonlight VisionTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		20243D758BFC98E9A3846C6C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8AD5FF547BBF9DE1E3FF6EBB /* Assets.xcassets in Resources */,
+				FD37591150DF0A2105B3DFBB /* DepthAnythingV2-LICENSE.txt in Resources */,
+				3C69188F8D7BA41888F3C7C9 /* DepthAnythingV2-NOTICE.txt in Resources */,
+				2178256FB35F8384E1D65D4C /* LICENSE.txt in Resources */,
+				BD2AE3C40F8CF8D05CB1FCDF /* Localizable.strings in Resources */,
+				92A88EA7A7532A6539F679FC /* SBSMaterial.usda in Resources */,
+				61DDA43602B5C6D661ED7405 /* ZipDepth-LICENSE.txt in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1C004481BB0F88D6E902BD15 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8FE9FB041066D78C1E5E5C3A /* AV1Parser.swift in Sources */,
+				A9B378E30AE7D5674B922FF7 /* AbsoluteTouchHandler.m in Sources */,
+				312CC69993806C5E4832A24A /* AppAssetManager.m in Sources */,
+				5E390BC2A45D7AD4735E5E7E /* AppAssetResponse.m in Sources */,
+				4A0A79ED42BFF8FF2121A21D /* AppAssetRetriever.m in Sources */,
+				4DB012D12946601D10938EAB /* AppDelegate.m in Sources */,
+				B176CFA19D5E32926D816536 /* AppListResponse.m in Sources */,
+				8E3A664B1DDADBB86436A5E3 /* AudioStream.c in Sources */,
+				1EDEBE8D283B1E72582A5C85 /* BoxArtCache.swift in Sources */,
+				969A4C05A8D70EB8DA7B9CD9 /* ByteBuffer.c in Sources */,
+				A5883BC123E0777F5DBF45D8 /* CVMetalHelpers.swift in Sources */,
+				1DDB787B5929061EDAE6AEE9 /* ClientCertificateStore.swift in Sources */,
+				73C4156BE6CDE5E20AA00402 /* Connection.c in Sources */,
+				F75816B70DD25E5C14044CFD /* Connection.m in Sources */,
+				E56153318BC7F197269C0791 /* ConnectionHelper.m in Sources */,
+				3E226AC9D4AE0F3E8E022F52 /* ConnectionTester.c in Sources */,
+				3E541B77305019D2A51FFB8C /* ControlStream.c in Sources */,
+				401D4A12087A11C98478FE48 /* Controller.m in Sources */,
+				B87B2FEA48E7849E2C2D94AC /* ControllerSupport.m in Sources */,
+				7943C9706B6B3B741B01308D /* CryptoManager.m in Sources */,
+				8CB6F9BC21D63CC769A7C450 /* DataManager.m in Sources */,
+				A33A15B148811EB22CAD8D0C /* DepthAnythingV2SmallF16P6.mlpackage in Sources */,
+				FCEAA51765752F675AE806E4 /* DiscoveryManager.m in Sources */,
+				D81A44D7FE5E9E78A3696378 /* DiscoveryWorker.m in Sources */,
+				8AB7ED45B317E5A0EF860B2D /* DrawableVideoDecoder.swift in Sources */,
+				E3C86672C5F8327CBB6E2F6D /* EDRProbe.swift in Sources */,
+				FC286CD7199E788E0FB24522 /* FakeCallbacks.c in Sources */,
+				CE308807B94C2B10F43450C2 /* HDRParsingUtils.m in Sources */,
+				F5FC1A2E9D1A806D1754FCE1 /* HapticContext.m in Sources */,
+				D9558608F40881370B432D16 /* HostListModel.swift in Sources */,
+				6C95A9FD0B8FD621B51D2680 /* HostListView.swift in Sources */,
+				EA8A6BF1885E3E1CBB50F671 /* HostSessionModel.swift in Sources */,
+				38CFEEBE724F5722B16687D0 /* HostSessionView.swift in Sources */,
+				34A04BB1F7F7E7A9CEE23E5E /* HttpManager.m in Sources */,
+				9A5171EEC79B8013EB7ECEAF /* HttpRequest.m in Sources */,
+				466866B1174BB115025250CF /* HttpResponse.m in Sources */,
+				FAF5C6A81915880546AC4957 /* IdManager.m in Sources */,
+				AACE67B096E345A54A2F4929 /* InputStream.c in Sources */,
+				263D2BECDDBA3D695697E75E /* KeyboardInputField.m in Sources */,
+				3FED5883C69CD584E5D03624 /* KeyboardSupport.m in Sources */,
+				4C245F7CF60F79FF8F22777D /* LSRealtime3DSettings.swift in Sources */,
+				7D009853834ACA9E89DD538B /* LSRealtimeDepthEstimator.swift in Sources */,
+				64500C9D5227004F4DF3BAFB /* LSRealtimeDepthModel.swift in Sources */,
+				92F152EFC8CA3C00D239ABD6 /* LSRealtimeStereoRenderer.swift in Sources */,
+				F3583047F69F109EA9C386E7 /* LSRealtimeStereoScheme.swift in Sources */,
+				465BCFF098241C6207FFADB9 /* Limelight.xcdatamodeld in Sources */,
+				0A603F794ED9E6C12388B403 /* LinkedBlockingQueue.c in Sources */,
+				B1F1FC4770AFDFE1F22FA3F9 /* Logger.m in Sources */,
+				8B533AC5FF6190FCCE7819F4 /* MDNSManager.m in Sources */,
+				C450E992DB29E266060A883F /* MVAudioConfig.c in Sources */,
+				BD64F39ADD51741F928D0D22 /* MVAudioRing.c in Sources */,
+				63AC9AFCC506DB1C8AF64CAC /* MVRingBuffer.c in Sources */,
+				7E68BD037BCBA3E5745F60C6 /* Misc.c in Sources */,
+				F04E6D4AE394215B46F66BE2 /* MoonlightVisionApp.swift in Sources */,
+				B35005D4C48C8D74BCF551A4 /* OnScreenControls.m in Sources */,
+				1CACEB7113BD772922B90D7F /* PairManager.m in Sources */,
+				75EE17745F2B944AF1E938C2 /* PairingFlow.swift in Sources */,
+				A3289ED5B26E59620CEB94DB /* Platform.c in Sources */,
+				6F682483D7D2D0648F76FB64 /* PlatformCrypto.c in Sources */,
+				32B850A9FAF1A4867A4CC022 /* PlatformSockets.c in Sources */,
+				3C03C2E1BBBFDD2642960BA1 /* Realtime3DConverter.swift in Sources */,
+				AB99F642D0C3BFE832459164 /* Realtime3DSettingsStore.swift in Sources */,
+				32DB13D8C170BFE0AB87BC57 /* RealtimeStereo.metal in Sources */,
+				41F041EA75F7F369EB913166 /* RecorderCallbacks.c in Sources */,
+				BF739ACA121997BB29249409 /* RelativeTouchHandler.m in Sources */,
+				0ACC06BEAA2F13F85C1AF667 /* RtpAudioQueue.c in Sources */,
+				9B141029724BBD9E9177534E /* RtpVideoQueue.c in Sources */,
+				F5E95B2769342369340C0DAB /* RtspConnection.c in Sources */,
+				6921C3B710DEBCFB735035E4 /* RtspParser.c in Sources */,
+				C8CD1B7C22D3321D6FDD6E48 /* SdpGenerator.c in Sources */,
+				01EE9D0A904F88314AD2C2D5 /* ServerInfoResponse.m in Sources */,
+				7EED2F43E72B60520323B374 /* SettingsView.swift in Sources */,
+				D030321135DC3574372F70B3 /* Shaders.metal in Sources */,
+				A257D42CAC4BB9E75263F80D /* SimpleStun.c in Sources */,
+				6DC66583039391A677584698 /* Stereo3DSettingsView.swift in Sources */,
+				C2BBAA25E6F11BA496DDFB29 /* Stream3DSettingsWindowView.swift in Sources */,
+				44B180ACC70C1C558BC27D1D /* StreamAudioRenderer.swift in Sources */,
+				360391FCC8244A6B81252341 /* StreamChromePreview.swift in Sources */,
+				03C2703E4E08777094A13CB5 /* StreamConfiguration.m in Sources */,
+				D5712CDADD86407CF07DF96B /* StreamControlBar.swift in Sources */,
+				F317B3FC32734574800B32E9 /* StreamFrameMailbox.swift in Sources */,
+				B486C74BCF72D5DC8E6B99CF /* StreamHDRTrimState.swift in Sources */,
+				D706DF8109525DA9C2FB98C8 /* StreamKeyboardInput.swift in Sources */,
+				453E185A9A521CAD65BD843D /* StreamKeyboardWindowState.swift in Sources */,
+				B2F39298235ACB7EF87B672A /* StreamKeyboardWindowView.swift in Sources */,
+				5C12638C4FA6C3395760A065 /* StreamLocalCursor.swift in Sources */,
+				41492CD2E452B43CB47DEBB9 /* StreamManager.m in Sources */,
+				3E6DD10AFAABD4DA05ED6C62 /* StreamMouseStrategy.swift in Sources */,
+				92E96AEAF7A418C953BCAD4A /* StreamPresentation.swift in Sources */,
+				A4EA35D89AAF45CF489D9455 /* StreamRestartSettings.swift in Sources */,
+				FF1DDA6616D312927BA1EC68 /* StreamSessionModel.swift in Sources */,
+				7964A458A4916F39DEFD7448 /* StreamSettingsStore.swift in Sources */,
+				23D7E96887F18CF2942CE758 /* StreamTouchInput.swift in Sources */,
+				0C6360FD1A84DD6676A29C0A /* StreamTouchpadInput.swift in Sources */,
+				0369A64E9231B39E52A24DDB /* StreamVideoSurface.swift in Sources */,
+				8B2C117DAF04702B48E3345E /* StreamView.m in Sources */,
+				96221AC3551BE2DC359AB283 /* StreamWindowInputView.swift in Sources */,
+				D3119348E076DD480CA6FA10 /* StreamWindowRootView.swift in Sources */,
+				B295B8BAF9C7F3B98D0D4A9E /* StreamWindowView.swift in Sources */,
+				ADDDA6BA4C5303A055E4A33C /* TemporaryApp.m in Sources */,
+				85EF3B9C3A26455587B76DAB /* TemporaryHost.m in Sources */,
+				793800C5460909D46F6E7F9D /* TemporarySettings.m in Sources */,
+				E7F0276FBBE0ACB5312FC0E7 /* TouchscreenGCMouseStrategy.swift in Sources */,
+				F0BCC0C52322FDCD2B09A0C6 /* Utils.m in Sources */,
+				2BDA97AA18D22216C67AC5D7 /* VideoDepacketizer.c in Sources */,
+				A9AEB6DBF052F75B2B6FFE52 /* VideoMode.swift in Sources */,
+				934B6DA113FFBA59C038648C /* VideoStream.c in Sources */,
+				C81165249F41AB5AA2F5AB9E /* VirtualKeyboardView.swift in Sources */,
+				59E128F0024DF2428EB741EE /* WakeOnLanManager.m in Sources */,
+				528940DC6CCFF75922AEAF2E /* WindowAspectLock.swift in Sources */,
+				B4F390C5203B4DE19FB35C83 /* ZipDepth768x416.mlpackage in Sources */,
+				927C41655190D2F5E916993B /* callbacks.c in Sources */,
+				B82EE437C5B58860DAD3A125 /* compress.c in Sources */,
+				3D0D8FA1C608F660D2379B16 /* host.c in Sources */,
+				998183C1E2A5AF30C60C44AF /* list.c in Sources */,
+				AB82F1B6AC17CF9ACAB83D04 /* mkcert.c in Sources */,
+				E7B007D652C88EEFA14A28AE /* oblas_common.c in Sources */,
+				EB58F2107F2A7AB145C80926 /* oblas_lite.c in Sources */,
+				FBE719FB61AE82146B24CD39 /* packet.c in Sources */,
+				DDD2570FDE253458D609702B /* peer.c in Sources */,
+				B3CEF7F0ADF60ED2B48AA5D8 /* protocol.c in Sources */,
+				11FB9A2A1A256BAFFC27A190 /* rs.c in Sources */,
+				7897940BA20B82E8851EAD8A /* unix.c in Sources */,
+				7583170475F33E10C9EAB606 /* win32.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		20B9E1E8D67D93FB41842E96 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7FE52ECEE138C1C3159507F8 /* MouseInputGeometryTests.swift in Sources */,
+				E464FDA588D5C35E399D55A0 /* PairingFlowTests.swift in Sources */,
+				741ACC4EAB6B1F361768A4CB /* Realtime3DTests.swift in Sources */,
+				B9F5A7EACCD34D31BC4FD97D /* StreamPictureGeometryTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		4DA8E521752152BCA0179750 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D890BFBCCD861D91E4DA9894 /* Moonlight Vision */;
+			targetProxy = 6D2CC82F29AC801AF7485BDB /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXVariantGroup section */
+		A5DEE7B458F20D7F4716F92C /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				3E97C69AE7A529922789FC7D /* en */,
+				3CA0152BAD6FC356CFE3B4DC /* zh-Hans */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+/* End PBXVariantGroup section */
+
+/* Begin XCBuildConfiguration section */
+		246460A99797C21C382A4CFC /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = "Vendor/Limelight/Limelight-Prefix.pch";
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/Vendor/Limelight",
+					"$(SRCROOT)/Vendor/Limelight/Utility",
+					"$(SRCROOT)/Vendor/Limelight/Input",
+					"$(SRCROOT)/Vendor/Limelight/Database",
+					"$(SRCROOT)/Vendor/Limelight/Network",
+					"$(SRCROOT)/Vendor/Limelight/Stream",
+					"$(SRCROOT)/Vendor/Limelight/Crypto",
+					"$(SRCROOT)/Vendor/moonlight-common-c",
+					"$(SRCROOT)/Vendor/moonlight-common-c/src",
+					"$(SRCROOT)/Vendor/moonlight-common-c/enet",
+					"$(SRCROOT)/Vendor/moonlight-common-c/enet/include",
+					"$(SRCROOT)/Vendor/moonlight-common-c/nanors",
+					"$(SRCROOT)/Vendor/moonlight-common-c/nanors/deps/obl",
+					"$(SRCROOT)/Vendor/ThirdParty/FFmpeg/include",
+					"$(SRCROOT)/Vendor/ThirdParty/opus/include",
+					"$(SRCROOT)/Vendor/ThirdParty/opus/include/opus",
+					"$(SDKROOT)/usr/include/libxml2",
+				);
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lxml2",
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = xros;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+				XROS_DEPLOYMENT_TARGET = 27.0;
+			};
+			name = Debug;
+		};
+		36D475D3B454AF0B4469258A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = MoonlightVision.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = SPWK26VR22;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"Vendor/ThirdParty/FFmpeg\"",
+					"\"Vendor/ThirdParty/opus\"",
+				);
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.lingganua.moonlight-stream-moonlightvision";
+				PRODUCT_MODULE_NAME = MoonlightVision;
+				SDKROOT = xros;
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_OBJC_BRIDGING_HEADER = "App/MoonlightVision-Bridging-Header.h";
+				SWIFT_OBJC_INTERFACE_HEADER_NAME = "MoonlightVision-Swift.h";
+				TARGETED_DEVICE_FAMILY = 7;
+				XROS_DEPLOYMENT_TARGET = 27.0;
+			};
+			name = Debug;
+		};
+		74C44D3147E6A477DBAF777B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/Tests/Support",
+					"$(inherited)",
+				);
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.lingganua.moonlight-stream-moonlightvision.tests";
+				SDKROOT = xros;
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_OBJC_BRIDGING_HEADER = "App/MoonlightVision-Bridging-Header.h";
+				TARGETED_DEVICE_FAMILY = 7;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Moonlight Vision.app/Moonlight Vision";
+				XROS_DEPLOYMENT_TARGET = 27.0;
+			};
+			name = Debug;
+		};
+		DD24C1C2A878E3E4191052DD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = MoonlightVision.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = SPWK26VR22;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"Vendor/ThirdParty/FFmpeg\"",
+					"\"Vendor/ThirdParty/opus\"",
+				);
+				INFOPLIST_FILE = App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.lingganua.moonlight-stream-moonlightvision";
+				PRODUCT_MODULE_NAME = MoonlightVision;
+				SDKROOT = xros;
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_OBJC_BRIDGING_HEADER = "App/MoonlightVision-Bridging-Header.h";
+				SWIFT_OBJC_INTERFACE_HEADER_NAME = "MoonlightVision-Swift.h";
+				TARGETED_DEVICE_FAMILY = 7;
+				XROS_DEPLOYMENT_TARGET = 27.0;
+			};
+			name = Release;
+		};
+		E5931DEABEBA6DAB999A9B26 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/Tests/Support",
+					"$(inherited)",
+				);
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.lingganua.moonlight-stream-moonlightvision.tests";
+				SDKROOT = xros;
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_OBJC_BRIDGING_HEADER = "App/MoonlightVision-Bridging-Header.h";
+				TARGETED_DEVICE_FAMILY = 7;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Moonlight Vision.app/Moonlight Vision";
+				XROS_DEPLOYMENT_TARGET = 27.0;
+			};
+			name = Release;
+		};
+		ED3860AFB5CD09F599E23750 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = arm64;
+				CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_PRECOMPILE_PREFIX_HEADER = YES;
+				GCC_PREFIX_HEADER = "Vendor/Limelight/Limelight-Prefix.pch";
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/Vendor/Limelight",
+					"$(SRCROOT)/Vendor/Limelight/Utility",
+					"$(SRCROOT)/Vendor/Limelight/Input",
+					"$(SRCROOT)/Vendor/Limelight/Database",
+					"$(SRCROOT)/Vendor/Limelight/Network",
+					"$(SRCROOT)/Vendor/Limelight/Stream",
+					"$(SRCROOT)/Vendor/Limelight/Crypto",
+					"$(SRCROOT)/Vendor/moonlight-common-c",
+					"$(SRCROOT)/Vendor/moonlight-common-c/src",
+					"$(SRCROOT)/Vendor/moonlight-common-c/enet",
+					"$(SRCROOT)/Vendor/moonlight-common-c/enet/include",
+					"$(SRCROOT)/Vendor/moonlight-common-c/nanors",
+					"$(SRCROOT)/Vendor/moonlight-common-c/nanors/deps/obl",
+					"$(SRCROOT)/Vendor/ThirdParty/FFmpeg/include",
+					"$(SRCROOT)/Vendor/ThirdParty/opus/include",
+					"$(SRCROOT)/Vendor/ThirdParty/opus/include/opus",
+					"$(SDKROOT)/usr/include/libxml2",
+				);
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lxml2",
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = xros;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 5.0;
+				XROS_DEPLOYMENT_TARGET = 27.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		083B4022994194C749B01562 /* Build configuration list for PBXProject "Moonlight Vision" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				246460A99797C21C382A4CFC /* Debug */,
+				ED3860AFB5CD09F599E23750 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		31A0B3F877C81755B44B6DEC /* Build configuration list for PBXNativeTarget "Moonlight Vision" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				36D475D3B454AF0B4469258A /* Debug */,
+				DD24C1C2A878E3E4191052DD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		646D2AE8AB825FC5894B25AE /* Build configuration list for PBXNativeTarget "Moonlight VisionTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				74C44D3147E6A477DBAF777B /* Debug */,
+				E5931DEABEBA6DAB999A9B26 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		CA8E885F6B9941F198B7CFAB /* XCRemoteSwiftPackageReference "OpenSSL" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/krzyzanowskim/OpenSSL";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.6.3000;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		0E9EBD673CE0645FA9005EC0 /* OpenSSL */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CA8E885F6B9941F198B7CFAB /* XCRemoteSwiftPackageReference "OpenSSL" */;
+			productName = OpenSSL;
+		};
+/* End XCSwiftPackageProductDependency section */
+
+/* Begin XCVersionGroup section */
+		2597B90BFED631D0AB6921A3 /* Limelight.xcdatamodeld */ = {
+			isa = XCVersionGroup;
+			children = (
+				28E5BE0EEB35495B801156DF /* Limelight 0.3.0.xcdatamodel */,
+				6423770E04206B540200EF02 /* Limelight 0.3.1.xcdatamodel */,
+				3A5E03A0BFE7F9F5944D48A7 /* Limelight.xcdatamodel */,
+				5778D173F20E3FAA81C870A3 /* Moonlight v1.0-2.xcdatamodel */,
+				B99FFF2B3A480EF3E0D87920 /* Moonlight v1.0.xcdatamodel */,
+				0CB8F42831C8F5CBACFF5141 /* Moonlight v1.1.xcdatamodel */,
+				01509CA1ABF855449ED5F54D /* Moonlight v1.2.xcdatamodel */,
+				529674ACA01DC29BEB8652C3 /* Moonlight v1.3.xcdatamodel */,
+				9391C211C2823BD0A9E02171 /* Moonlight v1.4.xcdatamodel */,
+				E44700751CBE5D73EFCE4BC6 /* Moonlight v1.5.xcdatamodel */,
+				14626929C686C8A23A7D236F /* Moonlight v1.6.xcdatamodel */,
+				8406F9FA90264D2E06AF185A /* Moonlight v1.7.xcdatamodel */,
+				D1E1D87B0E7971308B38FBD0 /* Moonlight v1.8.xcdatamodel */,
+				D0FA8C66DF416805C0C5D0B2 /* Moonlight v1.9.xcdatamodel */,
+				91BEB82E41521C5580654764 /* Moonlight v1.10.xcdatamodel */,
+			);
+			currentVersion = 91BEB82E41521C5580654764 /* Moonlight v1.10.xcdatamodel */;
+			path = Limelight.xcdatamodeld;
+			sourceTree = "<group>";
+			versionGroupType = wrapper.xcdatamodel;
+		};
+/* End XCVersionGroup section */
+	};
+	rootObject = 786AC4CE9E91C44D5ED52CCE /* Project object */;
+}

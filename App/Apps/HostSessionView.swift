@@ -21,9 +21,11 @@ struct HostSessionView: View {
     }
 
     var body: some View {
-        content
-            .task { await model.start() }
-            .navigationTitle(model.hostName)
+        VStack(spacing: 0) {
+            HostHeader(host: model.host, runningAppID: model.runningAppID)
+            content
+        }
+        .task { await model.start() }
         .confirmationDialog(
             "Another app is running",
             isPresented: $showQuitConfirm,
@@ -51,14 +53,14 @@ struct HostSessionView: View {
     private var content: some View {
         switch model.phase {
         case .checking:
-            StatusView(
+            StatusPanel(
                 title: "Connecting to \(model.hostName)…",
                 systemImage: "antenna.radiowaves.left.and.right"
             )
         case .pairing(let pin):
             PairingView(hostName: model.hostName, pin: pin)
         case .loadingApps:
-            StatusView(title: "Loading apps…", systemImage: "square.grid.2x2")
+            StatusPanel(title: "Loading apps…", systemImage: "square.grid.2x2")
         case .ready:
             AppsView(
                 apps: model.displayedApps,
@@ -72,9 +74,15 @@ struct HostSessionView: View {
                 onRefresh: { Task { await model.refreshApps() } }
             )
         case .failed(let message):
-            FailureView(message: message) {
-                model.retry()
+            ContentUnavailableView {
+                Label("Connection Failed", systemImage: "exclamationmark.triangle")
+            } description: {
+                Text(message)
+            } actions: {
+                Button("Retry", action: model.retry)
+                    .buttonStyle(.borderedProminent)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -119,21 +127,71 @@ struct HostSessionView: View {
     }
 }
 
-private struct StatusView: View {
+private struct HostHeader: View {
+    let host: TemporaryHost
+    let runningAppID: String?
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(.quaternary)
+                Image(systemName: "desktopcomputer")
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 52, height: 52)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(host.name)
+                    .font(.title3.bold())
+                    .lineLimit(1)
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(host.state == .online ? Color.green : Color.secondary.opacity(0.4))
+                        .frame(width: 8, height: 8)
+                    Text(host.activeAddress ?? host.address ?? "—")
+                    Text(host.pairState == .paired ? String(localized: "Paired") : String(localized: "Not Paired"))
+                    if runningAppID != nil {
+                        Text("Running")
+                            .font(.caption2.bold())
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .background(.green.opacity(0.25), in: Capsule())
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .padding(.horizontal, 24)
+        .padding(.top, 20)
+    }
+}
+
+private struct StatusPanel: View {
     let title: LocalizedStringKey
     let systemImage: String
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 18) {
             ProgressView()
             Image(systemName: systemImage)
-                .font(.system(size: 44))
+                .font(.system(size: 40))
                 .foregroundStyle(.secondary)
             Text(title)
                 .font(.headline)
                 .multilineTextAlignment(.center)
         }
-        .padding(48)
+        .padding(32)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .padding(40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -142,9 +200,9 @@ private struct PairingView: View {
     let pin: String
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 22) {
             Image(systemName: "lock.shield")
-                .font(.system(size: 44))
+                .font(.system(size: 40))
                 .foregroundStyle(.secondary)
             Text("Pair with \(hostName)")
                 .font(.title2.bold())
@@ -158,33 +216,13 @@ private struct PairingView: View {
                 .tracking(10)
                 .padding(.horizontal, 32)
                 .padding(.vertical, 16)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             ProgressView()
         }
-        .padding(48)
-    }
-}
-
-private struct FailureView: View {
-    let message: String
-    let retry: () -> Void
-
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 44))
-                .foregroundStyle(.yellow)
-            Text("Connection Failed")
-                .font(.title2.bold())
-            Text(message)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 460)
-            Button("Retry", action: retry)
-                .buttonStyle(.borderedProminent)
-        }
-        .padding(48)
+        .padding(32)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .padding(40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -199,37 +237,26 @@ private struct AppsView: View {
     let onToggleAppHidden: (TemporaryApp) -> Void
     let onRefresh: () -> Void
 
-    private let columns = [GridItem(.adaptive(minimum: 180, maximum: 240), spacing: 24)]
+    private let columns = [GridItem(.adaptive(minimum: 170, maximum: 220), spacing: 28)]
 
     @State private var searchText = ""
 
     var body: some View {
         Group {
             if apps.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: "square.grid.2x2")
-                        .font(.system(size: 44))
-                        .foregroundStyle(.secondary)
-                    Text("No apps available")
-                        .font(.headline)
+                ContentUnavailableView {
+                    Label("No apps available", systemImage: "square.grid.2x2")
+                } description: {
                     Text("Add apps in Sunshine on your PC, then refresh.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                } actions: {
+                    Button("Refresh", action: onRefresh)
+                        .buttonStyle(.borderedProminent)
                 }
-                .padding(48)
             } else if filteredApps.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 40))
-                        .foregroundStyle(.secondary)
-                    Text("No apps match your search.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(48)
+                ContentUnavailableView.search(text: searchText)
             } else {
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 24) {
+                    LazyVGrid(columns: columns, spacing: 28) {
                         ForEach(filteredApps, id: \.id) { app in
                             Button {
                                 onLaunch(app)
@@ -245,8 +272,9 @@ private struct AppsView: View {
                             .hoverEffect(.lift)
                         }
                     }
-                    .padding(32)
+                    .padding(24)
                 }
+                .contentMargins(20, for: .scrollContent)
             }
         }
         .searchable(text: $searchText, prompt: "Search apps")
@@ -286,53 +314,57 @@ private struct AppCard: View {
     }
 
     var body: some View {
-        VStack(spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(.quaternary)
-                if let boxArt {
-                    Image(uiImage: boxArt)
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    Image(systemName: "app.fill")
-                        .font(.system(size: 42))
-                        .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 10) {
+            ZStack(alignment: .topTrailing) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(.quaternary)
+                    if let boxArt {
+                        Image(uiImage: boxArt)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        Image(systemName: "app.fill")
+                            .font(.system(size: 52))
+                            .foregroundStyle(.secondary)
+                    }
                 }
+
+                VStack(alignment: .trailing, spacing: 6) {
+                    if isRunning {
+                        Text("Running")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.green.opacity(0.9), in: Capsule())
+                    }
+                    if app.hdrSupported {
+                        Text("HDR")
+                            .font(.caption2.bold())
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.ultraThinMaterial, in: Capsule())
+                    }
+                }
+                .padding(10)
             }
-            .frame(height: 150)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .aspectRatio(2.0 / 3.0, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
             )
+            .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
             .id(boxArtToken)
 
             Text(app.name ?? String(localized: "Unknown App"))
                 .font(.headline)
                 .lineLimit(1)
-
-            HStack(spacing: 6) {
-                if isRunning {
-                    Text("Running")
-                        .font(.caption2.bold())
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(.green.opacity(0.25), in: Capsule())
-                }
-                if app.hdrSupported {
-                    Text("HDR")
-                        .font(.caption2.bold())
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(.thinMaterial, in: Capsule())
-                }
-            }
+                .padding(.horizontal, 4)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
+        .contentShape(.rect)
         .contextMenu {
             Button(app.hidden ? String(localized: "Show App") : String(localized: "Hide App"), action: onToggleHidden)
         }

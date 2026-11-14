@@ -121,3 +121,13 @@
 "Stream Volume" = "Stream Volume";
 "Disconnect. The game keeps running on the host." = "Disconnect. The game keeps running on the host.";
 "Mute or unmute the stream. Other apps aren't affected." = "Mute or unmute the stream. Other apps aren't affected.";
+
+/* Main split view */
+"Hosts" = "Hosts";
+"No Hosts" = "No Hosts";
+"Start Sunshine on a PC on the same network, or add one by address." = "Start Sunshine on a PC on the same network, or add one by address.";
+"Choose a Host" = "Choose a Host";
+"Select a computer on the left to see its games." = "Select a computer on the left to see its games.";
+"HDR" = "HDR";
+
+"Host is unreachable" = "Host is unreachable";

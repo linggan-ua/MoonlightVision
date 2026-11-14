@@ -121,3 +121,13 @@
 "Stream Volume" = "串流音量";
 "Disconnect. The game keeps running on the host." = "断开连接，主机上的游戏会继续运行。";
 "Mute or unmute the stream. Other apps aren't affected." = "静音或取消静音串流，不影响其他应用。";
+
+/* Main split view */
+"Hosts" = "主机";
+"No Hosts" = "没有主机";
+"Start Sunshine on a PC on the same network, or add one by address." = "请在同一网络中的 PC 上启动 Sunshine，或按地址添加。";
+"Choose a Host" = "选择主机";
+"Select a computer on the left to see its games." = "在左侧选择一台电脑以查看游戏。";
+"HDR" = "HDR";
+
+"Host is unreachable" = "主机不可达";

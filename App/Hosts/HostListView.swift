@@ -9,6 +9,7 @@ import SwiftUI
 
 struct HostListView: View {
     @State private var model = HostListModel()
+    @State private var selection: String?
     @State private var showingAddHost = false
     @State private var showingSettings = false
     @State private var showingRename = false
@@ -18,72 +19,46 @@ struct HostListView: View {
     @State private var showingDeleteConfirm = false
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if model.hosts.isEmpty {
-                    emptyState
-                } else {
-                    List(model.hosts, id: \.uuid) { host in
-                        NavigationLink {
-                            HostSessionView(host: host, discovery: model.discoveryManager)
-                        } label: {
-                            HostRow(host: host)
-                        }
-                        .contextMenu {
-                            Button {
-                                model.wakeHost(host)
-                            } label: {
-                                Label("Wake PC", systemImage: "power")
-                            }
-                            .disabled(host.state == .online)
-
-                            Button {
-                                renamingHost = host
-                                renameText = host.name
-                                showingRename = true
-                            } label: {
-                                Label("Rename Host", systemImage: "pencil")
-                            }
-
-                            Button(role: .destructive) {
-                                pendingDeleteHost = host
-                                showingDeleteConfirm = true
-                            } label: {
-                                Label("Delete Host", systemImage: "trash")
-                            }
-                        }
-                    }
+        NavigationSplitView {
+            sidebar
+                .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 340)
+        } detail: {
+            detail
+        }
+        .navigationSplitViewStyle(.balanced)
+        .navigationTitle("MoonlightVision")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showingAddHost = true
+                } label: {
+                    Label("Add Host", systemImage: "plus")
                 }
             }
-            .navigationTitle("MoonlightVision")
-            .toolbar {
-                ToolbarItem(placement: .automatic) {
-                    Button {
-                        showingAddHost = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                    .accessibilityLabel("Add Host")
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    model.refresh()
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
                 }
-                ToolbarItem(placement: .automatic) {
-                    Button {
-                        model.refresh()
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .accessibilityLabel("Refresh")
-                }
-                ToolbarItem(placement: .automatic) {
-                    Button {
-                        showingSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                    }
-                    .accessibilityLabel("Settings")
+            }
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    showingSettings = true
+                } label: {
+                    Label("Settings", systemImage: "gearshape")
                 }
             }
         }
         .task { model.start() }
+        .onAppear { selectFirstIfNeeded() }
+        .onChange(of: model.hosts.map(\.uuid)) { _, ids in
+            if let selection, !ids.contains(selection) {
+                self.selection = ids.first
+            } else if selection == nil {
+                selection = ids.first
+            }
+        }
         .sheet(isPresented: $showingAddHost) {
             AddHostSheet(model: model)
         }
@@ -117,24 +92,86 @@ struct HostListView: View {
         }
     }
 
-    private var emptyState: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-            Image(systemName: "desktopcomputer")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-            Text("Searching for hosts…")
-                .font(.headline)
-            Text("Start Sunshine on a PC on the same network.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            Button("Add Host") {
-                showingAddHost = true
+    @ViewBuilder
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles.tv")
+                    .font(.title3)
+                    .foregroundStyle(.tint)
+                Text("MoonlightVision")
+                    .font(.title3.bold())
+                Spacer()
             }
-            .buttonStyle(.borderedProminent)
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
+            .padding(.bottom, 10)
+
+            if model.hosts.isEmpty {
+                ContentUnavailableView {
+                    Label("No Hosts", systemImage: "desktopcomputer")
+                } description: {
+                    Text("Start Sunshine on a PC on the same network, or add one by address.")
+                } actions: {
+                    Button("Add Host") {
+                        showingAddHost = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .frame(maxHeight: .infinity)
+            } else {
+                List(selection: $selection) {
+                    ForEach(model.hosts, id: \.uuid) { host in
+                        HostRow(host: host)
+                            .tag(host.uuid)
+                            .contextMenu {
+                                Button {
+                                    model.wakeHost(host)
+                                } label: {
+                                    Label("Wake PC", systemImage: "power")
+                                }
+                                .disabled(host.state == .online)
+
+                                Button {
+                                    renamingHost = host
+                                    renameText = host.name
+                                    showingRename = true
+                                } label: {
+                                    Label("Rename Host", systemImage: "pencil")
+                                }
+
+                                Button(role: .destructive) {
+                                    pendingDeleteHost = host
+                                    showingDeleteConfirm = true
+                                } label: {
+                                    Label("Delete Host", systemImage: "trash")
+                                }
+                            }
+                    }
+                }
+                .listStyle(.sidebar)
+            }
         }
-        .padding(48)
+    }
+
+    @ViewBuilder
+    private var detail: some View {
+        if let selection, let host = model.hosts.first(where: { $0.uuid == selection }) {
+            HostSessionView(host: host, discovery: model.discoveryManager)
+                .id(host.uuid)
+        } else {
+            ContentUnavailableView {
+                Label("Choose a Host", systemImage: "sparkles.tv")
+            } description: {
+                Text("Select a computer on the left to see its games.")
+            }
+        }
+    }
+
+    private func selectFirstIfNeeded() {
+        if selection == nil {
+            selection = model.hosts.first?.uuid
+        }
     }
 }
 
@@ -142,37 +179,40 @@ private struct HostRow: View {
     let host: TemporaryHost
 
     var body: some View {
-        HStack(spacing: 16) {
-            Image(systemName: "desktopcomputer")
-                .font(.title2)
-                .foregroundStyle(.secondary)
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(.quaternary)
+                Image(systemName: "desktopcomputer")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 38, height: 38)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(host.name)
                     .font(.headline)
-                if let address = host.activeAddress ?? host.address {
-                    Text(address)
+                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(host.state == .online ? Color.green : Color.secondary.opacity(0.4))
+                        .frame(width: 7, height: 7)
+                    Text(host.activeAddress ?? host.address ?? "—")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
             }
 
-            Spacer()
+            Spacer(minLength: 4)
 
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(host.state == .online ? Color.green : Color.secondary.opacity(0.35))
-                    .frame(width: 8, height: 8)
-
-                Text(host.pairState == .paired ? String(localized: "Paired") : String(localized: "Not Paired"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(.thinMaterial, in: Capsule())
+            if host.pairState != .paired {
+                Image(systemName: "lock.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 4)
     }
 }
 

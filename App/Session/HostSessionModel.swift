@@ -121,7 +121,7 @@ final class HostSessionModel {
 
         let response = await fetchServerInfo()
         guard response.isStatusOk() else {
-            phase = .failed(response.statusMessage ?? String(localized: "Could not reach the host."))
+            phase = .failed(response.statusMessage.map(localizedHostError) ?? String(localized: "Could not reach the host."))
             return
         }
 
@@ -177,6 +177,15 @@ final class HostSessionModel {
         }
         pairingFlow = flow
         flow.start(host: host, clientCert: clientCert)
+    }
+
+    private func localizedHostError(_ message: String) -> String {
+        switch message {
+        case "Host is unreachable":
+            return String(localized: "Host is unreachable")
+        default:
+            return message
+        }
     }
 
     private func handlePairingEvent(_ event: PairingFlow.Event) {

@@ -606,9 +606,12 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         return DR_NEED_IDR;
     }
     
-    // Check for previous decoder errors before doing anything
-    if (displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
-        Log(LOG_E, @"Display layer rendering failed: %@", displayLayer.error);
+    // Check for previous decoder errors before doing anything. Use the
+    // supported AVSampleBufferVideoRenderer surface; the queued-rendering
+    // methods on AVSampleBufferDisplayLayer itself are deprecated on visionOS.
+    AVSampleBufferVideoRenderer *videoRenderer = displayLayer.sampleBufferRenderer;
+    if (videoRenderer.status == AVQueuedSampleBufferRenderingStatusFailed) {
+        Log(LOG_E, @"Display layer rendering failed: %@", videoRenderer.error);
         
         // Recreate the display layer. We are already on the main thread,
         // so this is safe to do right here.
@@ -685,8 +688,8 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         return DR_NEED_IDR;
     }
 
-    // Enqueue the next frame
-    [self->displayLayer enqueueSampleBuffer:sampleBuffer];
+    // Enqueue the next frame through the supported renderer interface.
+    [self->displayLayer.sampleBufferRenderer enqueueSampleBuffer:sampleBuffer];
     
     if (du->frameType == FRAME_TYPE_IDR) {
         // Ensure the layer is visible now

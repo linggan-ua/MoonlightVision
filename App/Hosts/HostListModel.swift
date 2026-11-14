@@ -41,6 +41,22 @@ final class HostListModel {
         start()
     }
 
+    /// Temporarily pause discovery without discarding the current host objects
+    /// or the DiscoveryManager. Used for app backgrounding and active streams.
+    func suspendDiscovery() {
+        discoveryManager?.stopDiscovery()
+        isDiscovering = false
+    }
+
+    func resumeDiscovery() {
+        guard let manager = discoveryManager else {
+            start()
+            return
+        }
+        manager.startDiscovery()
+        isDiscovering = true
+    }
+
     func stop() {
         discoveryManager?.stopDiscovery()
         discoveryManager = nil

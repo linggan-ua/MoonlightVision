@@ -8,7 +8,10 @@
 import SwiftUI
 
 struct HostListView: View {
+    @Environment(\.scenePhase) private var scenePhase
+
     @State private var model = HostListModel()
+    @State private var presentation = StreamPresentation.shared
     @State private var selection: String?
     @State private var showingAddHost = false
     @State private var newHostIp = ""
@@ -34,6 +37,12 @@ struct HostListView: View {
         }
         .task { model.start() }
         .onAppear { selectFirstIfNeeded() }
+        .onChange(of: scenePhase) { _, _ in
+            syncDiscovery()
+        }
+        .onChange(of: hasActiveStream) { _, _ in
+            syncDiscovery()
+        }
         .onChange(of: model.hosts.map(\.uuid)) { _, ids in
             if let selection, !ids.contains(selection) {
                 self.selection = ids.first
@@ -166,10 +175,22 @@ struct HostListView: View {
         }
     }
 
+    private var hasActiveStream: Bool {
+        presentation.session != nil
+    }
+
     private func selectFirstIfNeeded() {
         guard selection == nil else { return }
         selection = model.hosts.first(where: { $0.pairState == .paired })?.uuid
             ?? model.hosts.first?.uuid
+    }
+
+    private func syncDiscovery() {
+        if scenePhase == .active && !hasActiveStream {
+            model.resumeDiscovery()
+        } else {
+            model.suspendDiscovery()
+        }
     }
 
     private func addHost() {

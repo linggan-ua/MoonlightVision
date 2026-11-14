@@ -36,6 +36,7 @@ public final class StreamAudioRenderer: NSObject {
     private var engine: AVAudioEngine?
     private var sourceNode: AVAudioSourceNode?
     private var observers: [NSObjectProtocol] = []
+    private var engineObserver: NSObjectProtocol?
     private var volume: Float = 1.0
     private var spatialAudioEnabled = false
     private var running = false
@@ -184,6 +185,10 @@ public final class StreamAudioRenderer: NSObject {
             sourceNode = nil
             observers.forEach(NotificationCenter.default.removeObserver)
             observers.removeAll()
+            if let engineObserver {
+                NotificationCenter.default.removeObserver(engineObserver)
+                self.engineObserver = nil
+            }
             self.deactivateSession()
         }
 
@@ -299,6 +304,7 @@ public final class StreamAudioRenderer: NSObject {
         )
 
         let engine = AVAudioEngine()
+        installEngineObserver(for: engine)
         let ring = self.ring
         let node = AVAudioSourceNode(format: format) { isSilence, _, frameCount, audioBufferList in
             ring.read(
@@ -362,13 +368,13 @@ public final class StreamAudioRenderer: NSObject {
         }
     }
 
-    private func installObserversIfNeeded() {
-        guard observers.isEmpty else { return }
-        let center = NotificationCenter.default
-
-        center.addObserver(
+    private func installEngineObserver(for engine: AVAudioEngine) {
+        if let engineObserver {
+            NotificationCenter.default.removeObserver(engineObserver)
+        }
+        engineObserver = NotificationCenter.default.addObserver(
             forName: .AVAudioEngineConfigurationChange,
-            object: nil,
+            object: engine,
             queue: nil
         ) { [weak self] _ in
             self?.engineQueue.async {
@@ -377,6 +383,11 @@ public final class StreamAudioRenderer: NSObject {
                 self.startEngine(reason: "configurationChange")
             }
         }
+    }
+
+    private func installObserversIfNeeded() {
+        guard observers.isEmpty else { return }
+        let center = NotificationCenter.default
 
         center.addObserver(
             forName: AVAudioSession.interruptionNotification,

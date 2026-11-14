@@ -9,6 +9,8 @@
 #import "VideoDecoderRenderer.h"
 #import "StreamView.h"
 
+#import <QuartzCore/QuartzCore.h>
+
 #include <libavcodec/avcodec.h>
 #include <libavcodec/cbs.h>
 #include <libavcodec/cbs_av1.h>
@@ -37,6 +39,7 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     BOOL framePacing;
     CFTimeInterval lastFrameSubmitTime;
     CFTimeInterval lastIdrRequestTime;
+    BOOL hdrEnabled;
 }
 
 - (void)reinitializeDisplayLayer
@@ -45,6 +48,11 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     
     displayLayer = [[AVSampleBufferDisplayLayer alloc] init];
     displayLayer.backgroundColor = [UIColor blackColor].CGColor;
+
+    // visionOS 26+ tone-maps layers to SDR unless high dynamic range is requested.
+    if (@available(visionOS 26.0, *)) {
+        displayLayer.preferredDynamicRange = hdrEnabled ? CADynamicRangeHigh : CADynamicRangeStandard;
+    }
     
     // Ensure the AVSampleBufferDisplayLayer is sized to preserve the aspect ratio
     // of the video stream. We used to use AVLayerVideoGravityResizeAspect, but that
@@ -628,6 +636,13 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 }
 
 - (void)setHdrMode:(BOOL)enabled {
+    hdrEnabled = enabled;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (@available(visionOS 26.0, *)) {
+            self->displayLayer.preferredDynamicRange = enabled ? CADynamicRangeHigh : CADynamicRangeStandard;
+        }
+    });
+
     SS_HDR_METADATA hdrMetadata;
     
     BOOL hasMetadata = enabled && LiGetHdrMetadata(&hdrMetadata);

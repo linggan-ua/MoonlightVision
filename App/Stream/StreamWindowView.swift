@@ -12,6 +12,7 @@ struct StreamWindowView: View {
     @Bindable private var settings = StreamSettingsStore.shared
 
     @State private var model: StreamSessionModel
+    @State private var showKeyboard = false
     private let onExit: () -> Void
 
     init(model: StreamSessionModel, onExit: @escaping () -> Void) {
@@ -32,6 +33,17 @@ struct StreamWindowView: View {
             model.setBackgrounded(newPhase != .active)
         }
         .onDisappear { model.stop() }
+        .overlay(alignment: .bottom) {
+            if showKeyboard {
+                VirtualKeyboardView(input: model.keyboardInput) {
+                    showKeyboard = false
+                    _ = model.renderView.becomeFirstResponder()
+                }
+                .padding(24)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: showKeyboard)
     }
 
     private var overlay: some View {
@@ -41,6 +53,17 @@ struct StreamWindowView: View {
                 onExit()
             } label: {
                 Label("Disconnect", systemImage: "xmark.circle.fill")
+                    .font(.callout)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(.ultraThinMaterial, in: Capsule())
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                showKeyboard.toggle()
+            } label: {
+                Label(showKeyboard ? "Hide Keyboard" : "Keyboard", systemImage: "keyboard")
                     .font(.callout)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)

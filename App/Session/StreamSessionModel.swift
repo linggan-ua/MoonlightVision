@@ -30,6 +30,7 @@ final class StreamSessionModel {
     let host: TemporaryHost
     let app: TemporaryApp
     let renderView = StreamRenderView()
+    let keyboardInput = StreamKeyboardInput()
 
     private(set) var phase: Phase = .idle
     private(set) var statsText = ""

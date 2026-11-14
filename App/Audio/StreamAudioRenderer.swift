@@ -65,13 +65,9 @@ public final class StreamAudioRenderer: NSObject {
             trimToSeconds: Self.trimToSeconds
         )
 
-        // GameStream's 7.1 order is FL FR C LFE BL BR SL SR; CoreAudio's MPEG 7.1 C
-        // expects the side pair before the rear pair, so swap them in the mapping.
-        var mapping = withUnsafeBytes(of: config.mapping) { Array($0) }
-        if channelCount == 8 {
-            mapping.swapAt(4, 6)
-            mapping.swapAt(5, 7)
-        }
+        // GameStream's channel order already matches the WAVE layouts used
+        // below, so the Opus mapping is passed through unchanged.
+        let mapping = withUnsafeBytes(of: config.mapping) { Array($0) }
 
         var error: Int32 = 0
         decoder = mapping.withUnsafeBufferPointer { pointer in
@@ -250,8 +246,8 @@ public final class StreamAudioRenderer: NSObject {
     private func channelLayoutTag() -> AudioChannelLayoutTag {
         switch channelCount {
         case 2: return kAudioChannelLayoutTag_Stereo
-        case 6: return kAudioChannelLayoutTag_MPEG_5_1_A
-        case 8: return kAudioChannelLayoutTag_MPEG_7_1_C
+        case 6: return kAudioChannelLayoutTag_WAVE_5_1_A
+        case 8: return kAudioChannelLayoutTag_WAVE_7_1
         default: return kAudioChannelLayoutTag_DiscreteInOrder | UInt32(channelCount)
         }
     }

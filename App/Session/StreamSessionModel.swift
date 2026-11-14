@@ -446,6 +446,12 @@ final class StreamSessionModel {
         statsTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self, let manager = self.streamManager else { return }
+                guard StreamSettingsStore.shared.showStats else {
+                    if !self.statsText.isEmpty {
+                        self.statsText = ""
+                    }
+                    return
+                }
                 self.statsText = manager.getStatsOverlayText() ?? ""
             }
         }

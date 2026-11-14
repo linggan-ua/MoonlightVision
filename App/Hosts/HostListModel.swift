@@ -22,6 +22,9 @@ final class HostListModel {
         guard discoveryManager == nil else { return }
 
         hosts = (dataManager.getHosts() as? [TemporaryHost]) ?? []
+        for host in hosts where host.activeAddress?.isEmpty != false {
+            host.activeAddress = host.localAddress ?? host.externalAddress ?? host.address ?? host.ipv6Address
+        }
 
         let delegate = DiscoveryDelegate { [weak self] discovered in
             Task { @MainActor in

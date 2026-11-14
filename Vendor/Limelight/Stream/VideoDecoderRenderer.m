@@ -55,9 +55,9 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
         displayLayer.preferredDynamicRange = hdrEnabled ? CADynamicRangeHigh : CADynamicRangeStandard;
     }
     
-    // Ensure the AVSampleBufferDisplayLayer is sized to preserve the aspect ratio
-    // of the video stream. The layer is relaid out when the hosting view resizes.
-    displayLayer.videoGravity = AVLayerVideoGravityResize;
+    // Let AVFoundation do the aspect-fit. The layer fills the hosting view and
+    // ResizeAspect creates the letterbox using the sample's real dimensions/PAR.
+    displayLayer.videoGravity = AVLayerVideoGravityResizeAspect;
     [self layoutDisplayLayer];
 
     // Hide the layer until we get an IDR frame. This ensures we
@@ -83,19 +83,16 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     if (displayLayer == nil || _view == nil) {
         return;
     }
-    CGSize bounds = _view.bounds.size;
-    if (bounds.width <= 0 || bounds.height <= 0) {
+    CGRect bounds = _view.bounds;
+    if (bounds.size.width <= 0 || bounds.size.height <= 0) {
         return;
     }
 
-    CGSize videoSize;
-    if (bounds.width > bounds.height * _streamAspectRatio) {
-        videoSize = CGSizeMake(bounds.height * _streamAspectRatio, bounds.height);
-    } else {
-        videoSize = CGSizeMake(bounds.width, bounds.width / _streamAspectRatio);
-    }
-    displayLayer.position = CGPointMake(CGRectGetMidX(_view.bounds), CGRectGetMidY(_view.bounds));
-    displayLayer.bounds = CGRectMake(0, 0, videoSize.width, videoSize.height);
+    // Keep the video rect from animating during a live window resize.
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    displayLayer.frame = bounds;
+    [CATransaction commit];
 }
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context

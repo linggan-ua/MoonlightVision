@@ -397,6 +397,12 @@ public final class StreamAudioRenderer: NSObject {
             guard let self else { return }
             let type = (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt)
                 .flatMap(AVAudioSession.InterruptionType.init(rawValue:))
+            if type == .began {
+                self.engineQueue.async {
+                    self.setEngineRunning(false)
+                }
+                return
+            }
             guard type == .ended else { return }
             self.engineQueue.async {
                 guard self.isRunning else { return }

@@ -830,6 +830,9 @@ static const double MOUSE_SPEED_DIVISOR = 1.25;
 }
 
 -(void) unregisterMouseCallbacks:(GCMouse*)mouse API_AVAILABLE(ios(14.0)) {
+    // Mouse input is owned by MouseInputController in the app layer; keep
+    // ControllerSupport gamepad-only so handlers are never installed twice.
+    return;
     mouse.mouseInput.mouseMovedHandler = nil;
     
     mouse.mouseInput.leftButton.pressedChangedHandler = nil;
@@ -847,6 +850,8 @@ static const double MOUSE_SPEED_DIVISOR = 1.25;
 }
 
 -(void) registerMouseCallbacks:(GCMouse*) mouse API_AVAILABLE(ios(14.0)) {
+    // See unregisterMouseCallbacks: the app layer owns mouse input.
+    return;
     mouse.mouseInput.mouseMovedHandler = ^(GCMouseInput * _Nonnull mouse, float deltaX, float deltaY) {
         self->accumulatedDeltaX += deltaX / MOUSE_SPEED_DIVISOR;
         self->accumulatedDeltaY += -deltaY / MOUSE_SPEED_DIVISOR;

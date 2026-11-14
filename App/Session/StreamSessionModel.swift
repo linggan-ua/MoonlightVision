@@ -8,7 +8,9 @@
 import AVFoundation
 import CoreMedia
 import Foundation
+import GameController
 import Observation
+import UIKit
 import VideoToolbox
 
 /// Owns one game stream: configuration, start/stop, connection callbacks and stats.
@@ -36,6 +38,14 @@ final class StreamSessionModel {
     private var connectionDelegate: StreamConnectionDelegate?
     private var statsTimer: Timer?
     private var started = false
+
+    private let mouseInput = MouseInputController()
+    private let pointerHider = StreamPointerHider()
+    private var pointerInteraction: UIPointerInteraction?
+    private var gameControllerInteraction: GCEventInteraction?
+    private var controllerSupport: ControllerSupport?
+    private var controllerDelegate: StreamControllerDelegate?
+    private var inputActive = false
 
     init(host: TemporaryHost, app: TemporaryApp) {
         self.host = host
@@ -83,6 +93,7 @@ final class StreamSessionModel {
         }
 
         phase = .stopping
+        teardownInput()
         streamManager?.stopStream()
 
         Task { @MainActor [weak self] in
@@ -99,6 +110,7 @@ final class StreamSessionModel {
 
         phase = .preparing
         let config = makeConfiguration()
+        setupInput(config: config)
 
         let delegate = StreamConnectionDelegate()
         delegate.onStage = { [weak self] stage in
@@ -112,6 +124,7 @@ final class StreamSessionModel {
         delegate.onConnected = { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
+                self.controllerSupport?.connectionEstablished()
                 if case .connecting = self.phase {
                     self.phase = .connecting(stage: "Connected")
                 }
@@ -136,6 +149,26 @@ final class StreamSessionModel {
         delegate.onStageFailed = { [weak self] stage, code, _ in
             Task { @MainActor in
                 self?.finish(message: "\(stage) failed (\(code))")
+            }
+        }
+        delegate.onRumble = { [weak self] controller, low, high in
+            Task { @MainActor in
+                self?.controllerSupport?.rumble(controller, lowFreqMotor: low, highFreqMotor: high)
+            }
+        }
+        delegate.onRumbleTriggers = { [weak self] controller, left, right in
+            Task { @MainActor in
+                self?.controllerSupport?.rumbleTriggers(controller, leftTrigger: left, rightTrigger: right)
+            }
+        }
+        delegate.onSetMotionEventState = { [weak self] controller, motionType, rate in
+            Task { @MainActor in
+                self?.controllerSupport?.setMotionEventState(controller, motionType: motionType, reportRateHz: rate)
+            }
+        }
+        delegate.onSetControllerLed = { [weak self] controller, r, g, b in
+            Task { @MainActor in
+                self?.controllerSupport?.setControllerLed(controller, r: r, g: g, b: b)
             }
         }
 
@@ -166,7 +199,7 @@ final class StreamSessionModel {
         config.optimizeGameSettings = true
         config.swapABXYButtons = false
         config.multiController = false
-        config.gamepadMask = 0
+        config.gamepadMask = Int32(ControllerSupport.getConnectedGamepadMask(config))
         // AUDIO_CONFIGURATION_STEREO expands through a function-like macro, so the
         // Clang importer cannot expose it. This is MAKE_AUDIO_CONFIGURATION(2, 0x3).
         config.audioConfiguration = (0x3 << 16) | (2 << 8) | 0xCA
@@ -180,9 +213,58 @@ final class StreamSessionModel {
         return config
     }
 
+    // MARK: - Input
+
+    private func setupInput(config: StreamConfiguration) {
+        guard !inputActive else { return }
+        inputActive = true
+
+        let pointer = UIPointerInteraction(delegate: pointerHider)
+        renderView.addInteraction(pointer)
+        pointerInteraction = pointer
+
+        // Receive raw gamepad events instead of letting visionOS turn them into
+        // gaze/pinch events on the focused view.
+        let gameController = GCEventInteraction()
+        gameController.receivesEventsInView = false
+        renderView.addInteraction(gameController)
+        gameControllerInteraction = gameController
+
+        mouseInput.start(mode: .relative, streamWidth: config.width, streamHeight: config.height)
+
+        let delegate = StreamControllerDelegate()
+        delegate.onExitRequested = { [weak self] in
+            Task { @MainActor in
+                self?.stop()
+            }
+        }
+        controllerDelegate = delegate
+        controllerSupport = ControllerSupport(config: config, delegate: delegate)
+    }
+
+    private func teardownInput() {
+        guard inputActive else { return }
+        inputActive = false
+
+        mouseInput.stop()
+        controllerSupport?.cleanup()
+        controllerSupport = nil
+        controllerDelegate = nil
+
+        if let pointerInteraction {
+            renderView.removeInteraction(pointerInteraction)
+            self.pointerInteraction = nil
+        }
+        if let gameControllerInteraction {
+            renderView.removeInteraction(gameControllerInteraction)
+            self.gameControllerInteraction = nil
+        }
+    }
+
     // MARK: - Teardown and stats
 
     private func finish(message: String?) {
+        teardownInput()
         statsTimer?.invalidate()
         statsTimer = nil
         streamManager = nil
@@ -209,6 +291,10 @@ final class StreamConnectionDelegate: NSObject, ConnectionCallbacks {
     var onTerminated: ((Int32) -> Void)?
     var onLaunchFailed: ((String) -> Void)?
     var onStageFailed: ((String, Int32, Int32) -> Void)?
+    var onRumble: ((UInt16, UInt16, UInt16) -> Void)?
+    var onRumbleTriggers: ((UInt16, UInt16, UInt16) -> Void)?
+    var onSetMotionEventState: ((UInt16, UInt8, UInt16) -> Void)?
+    var onSetControllerLed: ((UInt16, UInt8, UInt8, UInt8) -> Void)?
 
     func stageStarting(_ stageName: UnsafePointer<CChar>!) {
         guard let stageName else { return }
@@ -237,15 +323,35 @@ final class StreamConnectionDelegate: NSObject, ConnectionCallbacks {
         onFirstFrame?()
     }
 
-    func rumble(_ controllerNumber: UInt16, lowFreqMotor: UInt16, highFreqMotor: UInt16) {}
+    func rumble(_ controllerNumber: UInt16, lowFreqMotor: UInt16, highFreqMotor: UInt16) {
+        onRumble?(controllerNumber, lowFreqMotor, highFreqMotor)
+    }
 
     func connectionStatusUpdate(_ status: Int32) {}
 
     func setHdrMode(_ enabled: Bool) {}
 
-    func rumbleTriggers(_ controllerNumber: UInt16, leftTrigger: UInt16, rightTrigger: UInt16) {}
+    func rumbleTriggers(_ controllerNumber: UInt16, leftTrigger: UInt16, rightTrigger: UInt16) {
+        onRumbleTriggers?(controllerNumber, leftTrigger, rightTrigger)
+    }
 
-    func setMotionEventState(_ controllerNumber: UInt16, motionType: UInt8, reportRateHz: UInt16) {}
+    func setMotionEventState(_ controllerNumber: UInt16, motionType: UInt8, reportRateHz: UInt16) {
+        onSetMotionEventState?(controllerNumber, motionType, reportRateHz)
+    }
 
-    func setControllerLed(_ controllerNumber: UInt16, r: UInt8, g: UInt8, b: UInt8) {}
+    func setControllerLed(_ controllerNumber: UInt16, r: UInt8, g: UInt8, b: UInt8) {
+        onSetControllerLed?(controllerNumber, r, g, b)
+    }
+}
+
+final class StreamControllerDelegate: NSObject, ControllerSupportDelegate {
+    var onExitRequested: (() -> Void)?
+
+    func gamepadPresenceChanged() {}
+
+    func mousePresenceChanged() {}
+
+    func streamExitRequested() {
+        onExitRequested?()
+    }
 }

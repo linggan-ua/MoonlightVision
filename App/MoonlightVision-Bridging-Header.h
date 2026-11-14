@@ -24,5 +24,7 @@
 #import "StreamConfiguration.h"
 #import "StreamManager.h"
 #import "ConnectionCallbacks.h"
+#import "ControllerSupport.h"
+#import "KeyboardSupport.h"
 
 #include <Limelight.h>

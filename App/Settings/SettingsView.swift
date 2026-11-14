@@ -33,6 +33,12 @@ struct SettingsView: View {
                     }
                     Toggle("HDR (HDR10)", isOn: $settings.hdrEnabled)
                     Toggle("Frame Pacing", isOn: $settings.framePacing)
+                    Picker("Frame Buffer", selection: $settings.framePacingDepth) {
+                        Text("Off").tag(0)
+                        Text("1 frame").tag(1)
+                        Text("2 frames").tag(2)
+                        Text("3 frames").tag(3)
+                    }
                 }
 
                 Section("Host") {
@@ -46,6 +52,10 @@ struct SettingsView: View {
                             Text(mode.title).tag(mode)
                         }
                     }
+                    Toggle("Spatial Audio (Head-Tracked)", isOn: $settings.spatialAudio)
+                        .onChange(of: settings.spatialAudio) { _, value in
+                            MVSetStreamSpatialAudio(value)
+                        }
                     Text("This device supports up to \(StreamSettingsStore.maximumOutputChannels) output channels.")
                         .font(.caption)
                         .foregroundStyle(.secondary)

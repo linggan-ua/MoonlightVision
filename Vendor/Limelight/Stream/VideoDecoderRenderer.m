@@ -40,10 +40,20 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     CFTimeInterval lastFrameSubmitTime;
     CFTimeInterval lastIdrRequestTime;
     BOOL hdrEnabled;
+    int decodeWarningCount;
+    CFTimeInterval lastDecodeWarningTime;
+
+    int pacingDepth;
+    NSMutableArray<NSValue*>* pacedBuffers;
+    NSLock* pacedBuffersLock;
+    BOOL pacerPrimed;
+    CFTimeInterval pacerNextRelease;
 }
 
 - (void)reinitializeDisplayLayer
 {
+    [self flushPacedBuffers];
+
     CALayer *oldLayer = displayLayer;
     
     displayLayer = [[AVSampleBufferDisplayLayer alloc] init];
@@ -55,19 +65,9 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     }
     
     // Ensure the AVSampleBufferDisplayLayer is sized to preserve the aspect ratio
-    // of the video stream. We used to use AVLayerVideoGravityResizeAspect, but that
-    // respects the PAR encoded in the SPS which causes our computed video-relative
-    // touch location to be wrong in StreamView if the aspect ratio of the host
-    // desktop doesn't match the aspect ratio of the stream.
-    CGSize videoSize;
-    if (_view.bounds.size.width > _view.bounds.size.height * _streamAspectRatio) {
-        videoSize = CGSizeMake(_view.bounds.size.height * _streamAspectRatio, _view.bounds.size.height);
-    } else {
-        videoSize = CGSizeMake(_view.bounds.size.width, _view.bounds.size.width / _streamAspectRatio);
-    }
-    displayLayer.position = CGPointMake(CGRectGetMidX(_view.bounds), CGRectGetMidY(_view.bounds));
-    displayLayer.bounds = CGRectMake(0, 0, videoSize.width, videoSize.height);
+    // of the video stream. The layer is relaid out when the hosting view resizes.
     displayLayer.videoGravity = AVLayerVideoGravityResize;
+    [self layoutDisplayLayer];
 
     // Hide the layer until we get an IDR frame. This ensures we
     // can see the loading progress label as the stream is starting.
@@ -87,19 +87,192 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     }
 }
 
-- (id)initWithView:(StreamView*)view callbacks:(id<ConnectionCallbacks>)callbacks streamAspectRatio:(float)aspectRatio useFramePacing:(BOOL)useFramePacing
+- (void)layoutDisplayLayer
 {
-    self = [super init];
-    
+    if (displayLayer == nil || _view == nil) {
+        return;
+    }
+    CGSize bounds = _view.bounds.size;
+    if (bounds.width <= 0 || bounds.height <= 0) {
+        return;
+    }
+
+    CGSize videoSize;
+    if (bounds.width > bounds.height * _streamAspectRatio) {
+        videoSize = CGSizeMake(bounds.height * _streamAspectRatio, bounds.height);
+    } else {
+        videoSize = CGSizeMake(bounds.width, bounds.width / _streamAspectRatio);
+    }
+    displayLayer.position = CGPointMake(CGRectGetMidX(_view.bounds), CGRectGetMidY(_view.bounds));
+    displayLayer.bounds = CGRectMake(0, 0, videoSize.width, videoSize.height);
+}
+
+- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context
+{
+    if ([keyPath isEqualToString:@"bounds"]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self layoutDisplayLayer];
+        });
+        return;
+    }
+    [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
+}
+
+- (void)dealloc
+{
+    [self flushPacedBuffers];
+    @try {
+        [_view removeObserver:self forKeyPath:@"bounds"];
+    } @catch (__unused NSException *exception) {
+    }
+}
+
+- (void)noteDecodeWarning
+{
+    CFTimeInterval now = CACurrentMediaTime();
+    if (now - lastDecodeWarningTime > 1.0) {
+        decodeWarningCount = 0;
+    }
+    lastDecodeWarningTime = now;
+    decodeWarningCount++;
+
+    if (decodeWarningCount >= 30) {
+        Log(LOG_W, @"[Video] %d decode warnings; rebuilding the display layer and requesting an IDR", decodeWarningCount);
+        decodeWarningCount = 0;
+        [self reinitializeDisplayLayer];
+        LiRequestIdrFrame();
+    } else if (decodeWarningCount >= 12) {
+        Log(LOG_W, @"[Video] %d decode warnings; requesting an IDR", decodeWarningCount);
+        LiRequestIdrFrame();
+    }
+}
+
+- (NSString*)getColorDescription
+{
+    if (formatDesc == NULL) {
+        return nil;
+    }
+
+    NSMutableArray *parts = [NSMutableArray array];
+
+    NSNumber *bits = (__bridge NSNumber*)CMFormatDescriptionGetExtension(formatDesc, kCMFormatDescriptionExtension_BitsPerComponent);
+    if (bits != nil) {
+        [parts addObject:[NSString stringWithFormat:@"%d-bit", bits.intValue]];
+    }
+
+    NSString *primaries = (__bridge NSString*)CMFormatDescriptionGetExtension(formatDesc, kCMFormatDescriptionExtension_ColorPrimaries);
+    if ([primaries isEqualToString:(__bridge NSString*)kCMFormatDescriptionColorPrimaries_ITU_R_2020]) {
+        [parts addObject:@"BT.2020"];
+    } else if ([primaries isEqualToString:(__bridge NSString*)kCMFormatDescriptionColorPrimaries_ITU_R_709_2]) {
+        [parts addObject:@"BT.709"];
+    } else if (primaries.length > 0) {
+        [parts addObject:primaries];
+    }
+
+    NSString *transfer = (__bridge NSString*)CMFormatDescriptionGetExtension(formatDesc, kCMFormatDescriptionExtension_TransferFunction);
+    if ([transfer isEqualToString:(__bridge NSString*)kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ]) {
+        [parts addObject:@"PQ (HDR)"];
+    } else if ([transfer isEqualToString:(__bridge NSString*)kCMFormatDescriptionTransferFunction_ITU_R_2100_HLG]) {
+        [parts addObject:@"HLG (HDR)"];
+    } else if ([transfer isEqualToString:(__bridge NSString*)kCMFormatDescriptionTransferFunction_ITU_R_709_2]) {
+        [parts addObject:@"BT.709"];
+    } else if (transfer.length > 0) {
+        [parts addObject:transfer];
+    }
+
+    return parts.count > 0 ? [parts componentsJoinedByString:@" · "] : nil;
+}
+
+- (void)enqueuePacedSampleBuffer:(CMSampleBufferRef)sampleBuffer
+{
+    if (sampleBuffer == NULL) {
+        return;
+    }
+    CFRetain(sampleBuffer);
+    [pacedBuffersLock lock];
+    [pacedBuffers addObject:[NSValue valueWithPointer:sampleBuffer]];
+    if (!pacerPrimed && (int)pacedBuffers.count >= pacingDepth) {
+        pacerPrimed = YES;
+        pacerNextRelease = CACurrentMediaTime();
+    }
+    [pacedBuffersLock unlock];
+}
+
+- (void)drainPacedBuffers
+{
+    if (pacingDepth <= 0) {
+        return;
+    }
+
+    CFTimeInterval now = CACurrentMediaTime();
+    NSMutableArray<NSValue*>* due = [NSMutableArray array];
+
+    [pacedBuffersLock lock];
+    if (!pacerPrimed) {
+        if ((int)pacedBuffers.count >= pacingDepth) {
+            pacerPrimed = YES;
+            pacerNextRelease = now;
+        }
+    }
+
+    if (pacerPrimed && now + 0.002 >= pacerNextRelease) {
+        if (pacedBuffers.count == 0) {
+            pacerPrimed = NO;
+        } else {
+            int releaseCount = ((int)pacedBuffers.count > pacingDepth + 1) ? 2 : 1;
+            for (int i = 0; i < releaseCount && pacedBuffers.count > 0; i++) {
+                [due addObject:pacedBuffers.firstObject];
+                [pacedBuffers removeObjectAtIndex:0];
+            }
+
+            CFTimeInterval interval = 1.0 / MAX(frameRate, 1);
+            pacerNextRelease += interval;
+            if (pacerNextRelease < now - interval) {
+                pacerNextRelease = now + interval;
+            }
+            if (pacedBuffers.count == 0) {
+                pacerPrimed = NO;
+            }
+        }
+    }
+    [pacedBuffersLock unlock];
+
+    for (NSValue* value in due) {
+        CMSampleBufferRef sampleBuffer = (CMSampleBufferRef)value.pointerValue;
+        [displayLayer enqueueSampleBuffer:sampleBuffer];
+        CFRelease(sampleBuffer);
+    }
+}
+
+- (void)flushPacedBuffers
+{
+    [pacedBuffersLock lock];
+    for (NSValue* value in pacedBuffers) {
+        CFRelease((CMSampleBufferRef)value.pointerValue);
+    }
+    [pacedBuffers removeAllObjects];
+    pacerPrimed = NO;
+    pacerNextRelease = 0;
+    [pacedBuffersLock unlock];
+}
+
+- (id)initWithView:(StreamView*)view callbacks:(id<ConnectionCallbacks>)callbacks streamAspectRatio:(float)aspectRatio useFramePacing:(BOOL)useFramePacing pacingDepth:(int)pacingDepth
+{    self = [super init];
+
     _view = view;
     _callbacks = callbacks;
     _streamAspectRatio = aspectRatio;
     framePacing = useFramePacing;
-    
+
+    self->pacingDepth = MAX(0, pacingDepth);
+    pacedBuffers = [[NSMutableArray alloc] init];
+    pacedBuffersLock = [[NSLock alloc] init];
+
     parameterSetBuffers = [[NSMutableArray alloc] init];
-    
+
     [self reinitializeDisplayLayer];
-    
+    [_view addObserver:self forKeyPath:@"bounds" options:NSKeyValueObservingOptionNew context:NULL];
+
     return self;
 }
 
@@ -107,6 +280,8 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 {
     self->videoFormat = videoFormat;
     self->frameRate = frameRate;
+    decodeWarningCount = 0;
+    lastDecodeWarningTime = 0;
 }
 
 - (void)start
@@ -130,8 +305,13 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     PDECODE_UNIT du;
     
     while (LiPollNextVideoFrame(&handle, &du)) {
-        LiCompleteVideoFrame(handle, DrSubmitDecodeUnit(du));
+        int decodeResult = DrSubmitDecodeUnit(du);
+        LiCompleteVideoFrame(handle, decodeResult);
         lastFrameSubmitTime = CACurrentMediaTime();
+
+        if (decodeResult != DR_OK) {
+            [self noteDecodeWarning];
+        }
 
         if (framePacing) {
             // Calculate the actual display refresh rate
@@ -150,6 +330,8 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         }
     }
 
+    [self drainPacedBuffers];
+
     // Mid-stream freeze recovery: if frames are queued but nothing has been
     // submitted for 450 ms, ask the host for an IDR frame (at most once per 2 s).
     CFTimeInterval now = CACurrentMediaTime();
@@ -165,6 +347,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 - (void)stop
 {
     [_displayLink invalidate];
+    [self flushPacedBuffers];
 }
 
 #define NALU_START_PREFIX_SIZE 3
@@ -617,7 +800,11 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     }
 
     // Enqueue the next frame
-    [self->displayLayer enqueueSampleBuffer:sampleBuffer];
+    if (pacingDepth > 0) {
+        [self enqueuePacedSampleBuffer:sampleBuffer];
+    } else {
+        [self->displayLayer enqueueSampleBuffer:sampleBuffer];
+    }
     
     if (du->frameType == FRAME_TYPE_IDR) {
         // Ensure the layer is visible now

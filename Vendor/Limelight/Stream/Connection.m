@@ -38,11 +38,18 @@ static NSLock* videoStatsLock;
 
 static MVStreamAudioRenderer* audioRenderer;
 static float streamVolume = 1.0f;
+static bool streamSpatialAudio = false;
 
 void MVSetStreamVolume(float volume)
 {
     streamVolume = MAX(0.0f, MIN(1.0f, volume));
     [audioRenderer setVolume:streamVolume];
+}
+
+void MVSetStreamSpatialAudio(bool enabled)
+{
+    streamSpatialAudio = enabled;
+    [audioRenderer setSpatialAudio:enabled];
 }
 
 static VideoDecoderRenderer* renderer;
@@ -131,6 +138,11 @@ void DrStop(void)
     }
 }
 
+-(NSString*) getVideoColorDescription
+{
+    return [renderer getColorDescription];
+}
+
 int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
 {
     int offset = 0;
@@ -217,6 +229,7 @@ int ArInit(int audioConfiguration, POPUS_MULTISTREAM_CONFIGURATION opusConfig, v
         return -1;
     }
     [audioRenderer setVolume:streamVolume];
+    [audioRenderer setSpatialAudio:streamSpatialAudio];
     return 0;
 }
 

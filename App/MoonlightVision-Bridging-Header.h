@@ -33,3 +33,4 @@
 #include "opus_multistream.h"
 
 void MVSetStreamVolume(float volume);
+void MVSetStreamSpatialAudio(bool enabled);

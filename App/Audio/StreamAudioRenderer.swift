@@ -37,6 +37,7 @@ public final class StreamAudioRenderer: NSObject {
     private var sourceNode: AVAudioSourceNode?
     private var observers: [NSObjectProtocol] = []
     private var volume: Float = 1.0
+    private var spatialAudioEnabled = false
     private var running = false
     private var stopped = false
     private var lastRecoveryTime: CFAbsoluteTime = 0
@@ -156,6 +157,14 @@ public final class StreamAudioRenderer: NSObject {
         }
     }
 
+    @objc public func setSpatialAudio(_ enabled: Bool) {
+        engineQueue.async { [weak self] in
+            guard let self else { return }
+            self.spatialAudioEnabled = enabled
+            self.applySpatialExperience()
+        }
+    }
+
     @objc public func cleanup() {
         lifecycleLock.lock()
         stopped = true
@@ -244,13 +253,26 @@ public final class StreamAudioRenderer: NSObject {
                 try? session.setPreferredOutputNumberOfChannels(channelCount)
             }
             #if os(visionOS)
-            try? session.setIntendedSpatialExperience(.bypassed)
+            applySpatialExperience()
             #endif
             try session.setActive(true)
         } catch {
             NSLog("[Audio] session activation failed: %@", error.localizedDescription)
         }
     }
+
+    #if os(visionOS)
+    private func applySpatialExperience() {
+        let session = AVAudioSession.sharedInstance()
+        if spatialAudioEnabled {
+            try? session.setIntendedSpatialExperience(
+                .headTracked(soundStageSize: .automatic, anchoringStrategy: .automatic)
+            )
+        } else {
+            try? session.setIntendedSpatialExperience(.bypassed)
+        }
+    }
+    #endif
 
     private func buildEngine() {
         activateSession()

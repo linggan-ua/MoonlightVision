@@ -115,6 +115,9 @@ final class StreamSettingsStore {
     var framePacing: Bool {
         didSet { save() }
     }
+    var framePacingDepth: Int {
+        didSet { save() }
+    }
     var optimizeGameSettings: Bool {
         didSet { save() }
     }
@@ -125,6 +128,9 @@ final class StreamSettingsStore {
         didSet { save() }
     }
     var multiController: Bool {
+        didSet { save() }
+    }
+    var spatialAudio: Bool {
         didSet { save() }
     }
 
@@ -138,10 +144,12 @@ final class StreamSettingsStore {
         var mouseMode: String
         var showStats: Bool
         var framePacing: Bool?
+        var framePacingDepth: Int?
         var optimizeGameSettings: Bool?
         var playAudioOnPC: Bool?
         var swapABXY: Bool?
         var multiController: Bool?
+        var spatialAudio: Bool?
     }
 
     private init() {
@@ -160,10 +168,12 @@ final class StreamSettingsStore {
         mouseMode = MouseTrackingMode(rawValue: stored?.mouseMode ?? "") ?? .relative
         showStats = stored?.showStats ?? true
         framePacing = stored?.framePacing ?? true
+        framePacingDepth = min(max(stored?.framePacingDepth ?? 0, 0), 3)
         optimizeGameSettings = stored?.optimizeGameSettings ?? true
         playAudioOnPC = stored?.playAudioOnPC ?? false
         swapABXY = stored?.swapABXY ?? false
         multiController = stored?.multiController ?? false
+        spatialAudio = stored?.spatialAudio ?? false
     }
 
     private func save() {
@@ -177,10 +187,12 @@ final class StreamSettingsStore {
             mouseMode: mouseMode.rawValue,
             showStats: showStats,
             framePacing: framePacing,
+            framePacingDepth: framePacingDepth,
             optimizeGameSettings: optimizeGameSettings,
             playAudioOnPC: playAudioOnPC,
             swapABXY: swapABXY,
-            multiController: multiController
+            multiController: multiController,
+            spatialAudio: spatialAudio
         )
         guard let data = try? JSONEncoder().encode(stored) else { return }
         UserDefaults.standard.set(data, forKey: Self.storageKey)

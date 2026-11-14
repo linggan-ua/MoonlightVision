@@ -132,3 +132,22 @@
 
 "Host is unreachable" = "主机不可达";
 "Apps" = "应用";
+"Online" = "在线";
+"All Apps" = "全部应用";
+"Running now" = "正在运行";
+"Select a host on the left to see its games." = "在左侧选择一台主机以查看游戏。";
+"Toggle Hidden Apps" = "显示/隐藏已隐藏应用";
+"Offline" = "离线";
+"Unpaired" = "未配对";
+"Computers" = "电脑";
+"No Host Selected" = "未选择主机";
+"Select a computer on the left to see its apps." = "在左侧选择一台电脑以查看应用。";
+"Click to stop discovery" = "点击停止搜索";
+"Click to scan hosts" = "点击搜索主机";
+"Add Server" = "添加服务器";
+"Enter server" = "输入服务器";
+"IP or hostname" = "IP 或主机名";
+"Unable to add host" = "无法添加主机";
+"Ready to pair" = "可以配对";
+"Refresh Status" = "刷新状态";
+"Stop" = "停止";

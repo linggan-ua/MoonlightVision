@@ -12,6 +12,8 @@ struct SettingsView: View {
     @Bindable private var settings = StreamSettingsStore.shared
     @State private var showResetConfirm = false
 
+    var showsDoneButton = true
+
     var body: some View {
         NavigationStack {
             Form {
@@ -95,9 +97,11 @@ struct SettingsView: View {
                 Text("This restores the default video, audio, and input settings.")
             }
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        dismiss()
+                if showsDoneButton {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") {
+                            dismiss()
+                        }
                     }
                 }
             }

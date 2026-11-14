@@ -132,3 +132,22 @@
 
 "Host is unreachable" = "Host is unreachable";
 "Apps" = "Apps";
+"Online" = "Online";
+"All Apps" = "All Apps";
+"Running now" = "Running now";
+"Select a host on the left to see its games." = "Select a host on the left to see its games.";
+"Toggle Hidden Apps" = "Toggle Hidden Apps";
+"Offline" = "Offline";
+"Unpaired" = "Unpaired";
+"Computers" = "Computers";
+"No Host Selected" = "No Host Selected";
+"Select a computer on the left to see its apps." = "Select a computer on the left to see its apps.";
+"Click to stop discovery" = "Click to stop discovery";
+"Click to scan hosts" = "Click to scan hosts";
+"Add Server" = "Add Server";
+"Enter server" = "Enter server";
+"IP or hostname" = "IP or hostname";
+"Unable to add host" = "Unable to add host";
+"Ready to pair" = "Ready to pair";
+"Refresh Status" = "Refresh Status";
+"Stop" = "Stop";

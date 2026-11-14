@@ -12,6 +12,7 @@ struct HostSessionView: View {
     @Environment(\.openWindow) private var openWindow
 
     @State private var model: HostSessionModel
+    @State private var searchText = ""
     @State private var pendingApp: TemporaryApp?
     @State private var showQuitConfirm = false
     @State private var actionError: String?
@@ -21,9 +22,35 @@ struct HostSessionView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            HostHeader(host: model.host, runningAppID: model.runningAppID)
+        VStack(spacing: 16) {
+            Text(model.host.name)
+                .font(.largeTitle)
+                .padding(.top)
+
             content
+        }
+        .navigationTitle(model.hostName)
+        .searchable(text: $searchText, prompt: "Search apps")
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    Task { await model.refreshApps() }
+                } label: {
+                    Label("Refresh Status", systemImage: "arrow.clockwise")
+                }
+            }
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    model.showHiddenApps.toggle()
+                } label: {
+                    Label(
+                        model.showHiddenApps
+                            ? String(localized: "Hide Hidden Apps")
+                            : String(localized: "Show Hidden Apps"),
+                        systemImage: model.showHiddenApps ? "eye.slash" : "eye"
+                    )
+                }
+            }
         }
         .task { await model.start() }
         .confirmationDialog(
@@ -53,35 +80,48 @@ struct HostSessionView: View {
     private var content: some View {
         switch model.phase {
         case .checking:
-            StatusPanel(
-                title: "Connecting to \(model.hostName)…",
-                systemImage: "antenna.radiowaves.left.and.right"
-            )
+            ProgressView("Connecting to \(model.hostName)…")
+                .scaleEffect(1.5)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .pairing(let pin):
-            PairingView(hostName: model.hostName, pin: pin)
+            PairingView(pin: pin)
         case .loadingApps:
-            StatusPanel(title: "Loading apps…", systemImage: "square.grid.2x2")
+            ProgressView("Loading apps…")
+                .scaleEffect(1.5)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .ready:
-            AppsView(
+            AppsListView(
                 apps: model.displayedApps,
-                hostName: model.hostName,
                 runningAppID: model.runningAppID,
+                searchText: searchText,
                 boxArtToken: model.boxArtToken,
-                showHiddenApps: model.showHiddenApps,
                 onLaunch: requestLaunch,
-                onToggleShowHidden: { model.showHiddenApps.toggle() },
                 onToggleAppHidden: { model.toggleHidden($0) },
-                onRefresh: { Task { await model.refreshApps() } }
+                onQuitRunningApp: { Task { _ = await model.quitCurrentApp() } },
+                onRefresh: { await model.refreshApps() }
             )
         case .failed(let message):
-            ContentUnavailableView {
-                Label("Connection Failed", systemImage: "exclamationmark.triangle")
-            } description: {
+            VStack(spacing: 15) {
+                Label("Offline", systemImage: "desktopcomputer.trianglebadge.exclamationmark")
+                    .font(.title2)
+                    .foregroundStyle(.red)
                 Text(message)
-            } actions: {
-                Button("Retry", action: model.retry)
-                    .buttonStyle(.borderedProminent)
+                    .font(.body)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                Button {
+                    model.retry()
+                } label: {
+                    Label("Refresh Status", systemImage: "arrow.clockwise")
+                }
+                Button {
+                    WakeOnLanManager.wake(model.host)
+                } label: {
+                    Label("Wake PC", systemImage: "sun.horizon")
+                }
+                .disabled(model.host.mac == nil || model.host.mac == "00:00:00:00:00:00")
             }
+            .padding(.vertical)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
@@ -116,8 +156,6 @@ struct HostSessionView: View {
     }
 
     private func startStream(_ app: TemporaryApp) {
-        // One stream at a time: bring the existing stream window forward rather
-        // than replacing a live session mid-connection.
         guard StreamPresentation.shared.session == nil else {
             openWindow(id: "stream")
             return
@@ -127,171 +165,80 @@ struct HostSessionView: View {
     }
 }
 
-private struct HostHeader: View {
-    let host: TemporaryHost
-    let runningAppID: String?
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "desktopcomputer")
-                .font(.system(size: 24, weight: .regular))
-                .foregroundStyle(.secondary)
-                .frame(width: 32)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(host.name)
-                    .font(.title2.bold())
-                    .lineLimit(1)
-                HStack(spacing: 7) {
-                    Circle()
-                        .fill(host.state == .online ? Color.green : Color.secondary.opacity(0.4))
-                        .frame(width: 7, height: 7)
-                    Text(host.activeAddress ?? host.address ?? "—")
-                    Text(host.pairState == .paired ? String(localized: "Paired") : String(localized: "Not Paired"))
-                    if runningAppID != nil {
-                        Text("Running")
-                            .font(.caption2.bold())
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 2)
-                            .background(.green.opacity(0.25), in: Capsule())
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-        }
-        .padding(.horizontal, 28)
-        .padding(.top, 20)
-        .padding(.bottom, 8)
-    }
-}
-
-private struct StatusPanel: View {
-    let title: LocalizedStringKey
-    let systemImage: String
-
-    var body: some View {
-        VStack(spacing: 18) {
-            ProgressView()
-            Image(systemName: systemImage)
-                .font(.system(size: 40))
-                .foregroundStyle(.secondary)
-            Text(title)
-                .font(.headline)
-                .multilineTextAlignment(.center)
-        }
-        .padding(40)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
 private struct PairingView: View {
-    let hostName: String
     let pin: String
 
     var body: some View {
-        VStack(spacing: 22) {
-            Image(systemName: "lock.shield")
-                .font(.system(size: 40))
-                .foregroundStyle(.secondary)
-            Text("Pair with \(hostName)")
-                .font(.title2.bold())
+        VStack(spacing: 15) {
+            Label("Ready to pair", systemImage: "lock.desktopcomputer")
+                .font(.title2)
+                .foregroundStyle(.orange)
             Text("Enter this PIN in Sunshine on your PC to accept the pairing request.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
+                .font(.body)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 420)
+                .padding(.horizontal)
             Text(pin)
-                .font(.system(size: 64, weight: .semibold, design: .monospaced))
-                .tracking(10)
-                .padding(.horizontal, 32)
-                .padding(.vertical, 16)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .font(.system(size: 48, weight: .semibold, design: .monospaced))
+                .tracking(8)
             ProgressView()
         }
-        .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
-private struct AppsView: View {
+private struct AppsListView: View {
     let apps: [TemporaryApp]
-    let hostName: String
     let runningAppID: String?
+    let searchText: String
     let boxArtToken: Int
-    let showHiddenApps: Bool
     let onLaunch: (TemporaryApp) -> Void
-    let onToggleShowHidden: () -> Void
     let onToggleAppHidden: (TemporaryApp) -> Void
-    let onRefresh: () -> Void
-
-    private let columns = [GridItem(.adaptive(minimum: 240, maximum: 320), spacing: 20)]
-
-    @State private var searchText = ""
+    let onQuitRunningApp: () -> Void
+    let onRefresh: () async -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("Apps")
-                    .font(.headline)
-                Spacer()
-            }
-            .padding(.horizontal, 28)
-            .padding(.top, 2)
-            .padding(.bottom, 4)
-
-            Group {
-                if apps.isEmpty {
-                    ContentUnavailableView {
-                        Label("No apps available", systemImage: "square.grid.2x2")
-                    } description: {
-                        Text("Add apps in Sunshine on your PC, then refresh.")
-                    } actions: {
-                        Button("Refresh", action: onRefresh)
-                            .buttonStyle(.borderedProminent)
+        Group {
+            if apps.isEmpty {
+                ContentUnavailableView {
+                    Label("No apps available", systemImage: "square.grid.2x2")
+                } description: {
+                    Text("Add apps in Sunshine on your PC, then refresh.")
+                } actions: {
+                    Button("Refresh") {
+                        Task { await onRefresh() }
                     }
-                } else if filteredApps.isEmpty {
-                    ContentUnavailableView.search(text: searchText)
-                } else {
-                    ScrollView {
-                        LazyVGrid(columns: columns, spacing: 20) {
-                            ForEach(filteredApps, id: \.id) { app in
-                                Button {
-                                    onLaunch(app)
-                                } label: {
-                                    AppCard(
-                                        app: app,
-                                        isRunning: app.id == runningAppID,
-                                        boxArtToken: boxArtToken,
-                                        onToggleHidden: { onToggleAppHidden(app) }
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                                .hoverEffect(.lift)
-                            }
+                }
+            } else if filteredApps.isEmpty {
+                ContentUnavailableView.search(text: searchText)
+            } else {
+                List {
+                    ForEach(filteredApps, id: \.id) { app in
+                        Button {
+                            onLaunch(app)
+                        } label: {
+                            AppRow(
+                                app: app,
+                                isRunning: app.id == runningAppID,
+                                boxArtToken: boxArtToken
+                            )
                         }
-                        .padding(.horizontal, 28)
-                        .padding(.top, 4)
-                        .padding(.bottom, 24)
+                        .buttonStyle(.plain)
+                        .contextMenu {
+                            if app.id == runningAppID {
+                                Button(role: .destructive, action: onQuitRunningApp) {
+                                    Label("Stop", systemImage: "stop.circle")
+                                }
+                            }
+                            Button(
+                                app.hidden ? String(localized: "Show App") : String(localized: "Hide App"),
+                                action: { onToggleAppHidden(app) }
+                            )
+                        }
                     }
                 }
-            }
-        }
-        .searchable(text: $searchText, prompt: "Search apps")
-        .toolbar {
-            ToolbarItem(placement: .automatic) {
-                Button(action: onRefresh) {
-                    Label("Refresh", systemImage: "arrow.clockwise")
-                }
-            }
-            ToolbarItem(placement: .automatic) {
-                Button(action: onToggleShowHidden) {
-                    Label(
-                        showHiddenApps ? String(localized: "Hide Hidden Apps") : String(localized: "Show Hidden Apps"),
-                        systemImage: showHiddenApps ? "eye.slash" : "eye"
-                    )
+                .listStyle(.inset)
+                .refreshable {
+                    await onRefresh()
                 }
             }
         }
@@ -304,11 +251,10 @@ private struct AppsView: View {
     }
 }
 
-private struct AppCard: View {
+private struct AppRow: View {
     let app: TemporaryApp
     let isRunning: Bool
     let boxArtToken: Int
-    let onToggleHidden: () -> Void
 
     private var boxArt: UIImage? {
         let path: String = AppAssetManager.boxArtPath(for: app)
@@ -316,67 +262,44 @@ private struct AppCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Color.clear
-                .aspectRatio(16.0 / 9.0, contentMode: .fit)
-                .overlay {
-                    ZStack(alignment: .topTrailing) {
-                        ZStack {
-                            LinearGradient(
-                                colors: [Color(white: 0.16), Color(white: 0.06)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                            if let boxArt {
-                                Image(uiImage: boxArt)
-                                    .resizable()
-                                    .scaledToFit()
-                            } else {
-                                Image(systemName: "app.fill")
-                                    .font(.system(size: 44))
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipped()
-
-                        VStack(alignment: .trailing, spacing: 6) {
-                            if isRunning {
-                                Text("Running")
-                                    .font(.caption2.bold())
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(.green.opacity(0.9), in: Capsule())
-                            }
-                            if app.hdrSupported {
-                                Text("HDR")
-                                    .font(.caption2.bold())
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(.ultraThinMaterial, in: Capsule())
-                            }
-                        }
-                        .padding(10)
-                    }
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(.quaternary)
+                if let boxArt {
+                    Image(uiImage: boxArt)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Image(systemName: "app.fill")
+                        .foregroundStyle(.secondary)
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
-                .id(boxArtToken)
+            }
+            .frame(width: 96, height: 54)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .id(boxArtToken)
 
-            Text(app.name ?? String(localized: "Unknown App"))
-                .font(.headline)
-                .lineLimit(2)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 4)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(app.name ?? String(localized: "Unknown App"))
+                    .font(.body)
+                if app.hdrSupported {
+                    Text("HDR")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+
+            if isRunning {
+                Text("Running")
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(.green.opacity(0.2), in: Capsule())
+            }
         }
+        .padding(.vertical, 4)
         .contentShape(.rect)
-        .contextMenu {
-            Button(app.hidden ? String(localized: "Show App") : String(localized: "Hide App"), action: onToggleHidden)
-        }
     }
 }

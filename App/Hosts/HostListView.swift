@@ -11,7 +11,9 @@ struct HostListView: View {
     @State private var model = HostListModel()
     @State private var selection: String?
     @State private var showingAddHost = false
-    @State private var showingSettings = false
+    @State private var newHostIp = ""
+    @State private var addError: String?
+    @State private var showingAddError = false
     @State private var showingRename = false
     @State private var renamingHost: TemporaryHost?
     @State private var renameText = ""
@@ -19,36 +21,16 @@ struct HostListView: View {
     @State private var showingDeleteConfirm = false
 
     var body: some View {
-        NavigationSplitView {
-            sidebar
-                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 300)
-        } detail: {
-            detail
-        }
-        .navigationSplitViewStyle(.balanced)
-        .navigationTitle("MoonlightVision")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    showingAddHost = true
-                } label: {
-                    Label("Add Host", systemImage: "plus")
+        TabView {
+            computersTab
+                .tabItem {
+                    Label("Computers", systemImage: "desktopcomputer")
                 }
-            }
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    model.refresh()
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+
+            SettingsView(showsDoneButton: false)
+                .tabItem {
+                    Label("Settings", systemImage: "gear")
                 }
-            }
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    showingSettings = true
-                } label: {
-                    Label("Settings", systemImage: "gearshape")
-                }
-            }
         }
         .task { model.start() }
         .onAppear { selectFirstIfNeeded() }
@@ -59,11 +41,21 @@ struct HostListView: View {
                 selection = ids.first
             }
         }
-        .sheet(isPresented: $showingAddHost) {
-            AddHostSheet(model: model)
+        .alert("Enter server", isPresented: $showingAddHost) {
+            TextField("IP or hostname", text: $newHostIp)
+            Button("Add") {
+                addHost()
+            }
+            Button("Cancel", role: .cancel) {
+                newHostIp = ""
+            }
+        } message: {
+            Text("Enter the IP address or hostname of a PC running Sunshine.")
         }
-        .sheet(isPresented: $showingSettings) {
-            SettingsView()
+        .alert("Unable to add host", isPresented: $showingAddError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(addError ?? "")
         }
         .sheet(isPresented: $showingRename) {
             RenameHostSheet(initialName: renameText) { name in
@@ -92,32 +84,53 @@ struct HostListView: View {
         }
     }
 
+    private var computersTab: some View {
+        NavigationSplitView {
+            sidebar
+                .navigationTitle("Computers")
+                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 300)
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
+                            showingAddHost = true
+                        } label: {
+                            Label("Add Server", systemImage: "plus")
+                        }
+                    }
+                }
+        } detail: {
+            detail
+        }
+        .navigationSplitViewStyle(.balanced)
+    }
+
     @ViewBuilder
     private var sidebar: some View {
-        if model.hosts.isEmpty {
-            ContentUnavailableView {
-                Label("No Hosts", systemImage: "desktopcomputer")
-            } description: {
-                Text("Start Sunshine on a PC on the same network, or add one by address.")
-            } actions: {
-                Button("Add Host") {
-                    showingAddHost = true
+        VStack(spacing: 0) {
+            if model.hosts.isEmpty {
+                ContentUnavailableView {
+                    Label("No Hosts", systemImage: "desktopcomputer")
+                } description: {
+                    Text("Start Sunshine on a PC on the same network, or add one by address.")
+                } actions: {
+                    Button("Add Server") {
+                        showingAddHost = true
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-            }
-        } else {
-            List(selection: $selection) {
-                Section("Hosts") {
+            } else {
+                List(selection: $selection) {
                     ForEach(model.hosts, id: \.uuid) { host in
                         HostRow(host: host)
                             .tag(host.uuid)
                             .contextMenu {
-                                Button {
-                                    model.wakeHost(host)
-                                } label: {
-                                    Label("Wake PC", systemImage: "power")
+                                if host.state != .online {
+                                    Button {
+                                        model.wakeHost(host)
+                                    } label: {
+                                        Label("Wake PC", systemImage: "sun.horizon")
+                                    }
+                                    .disabled(host.mac == nil || host.mac == "00:00:00:00:00:00")
                                 }
-                                .disabled(host.state == .online)
 
                                 Button {
                                     renamingHost = host
@@ -136,8 +149,22 @@ struct HostListView: View {
                             }
                     }
                 }
+                .listStyle(.sidebar)
             }
-            .listStyle(.sidebar)
+
+            Button {
+                if model.isDiscovering {
+                    model.stop()
+                } else {
+                    model.start()
+                }
+            } label: {
+                Text(model.isDiscovering ? "Click to stop discovery" : "Click to scan hosts")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .padding(.vertical, 8)
         }
     }
 
@@ -148,16 +175,27 @@ struct HostListView: View {
                 .id(host.uuid)
         } else {
             ContentUnavailableView {
-                Label("Choose a Host", systemImage: "sparkles.tv")
+                Label("No Host Selected", systemImage: "sparkles.tv")
             } description: {
-                Text("Select a computer on the left to see its games.")
+                Text("Select a computer on the left to see its apps.")
             }
         }
     }
 
     private func selectFirstIfNeeded() {
-        if selection == nil {
-            selection = model.hosts.first?.uuid
+        guard selection == nil else { return }
+        selection = model.hosts.first(where: { $0.pairState == .paired })?.uuid
+            ?? model.hosts.first?.uuid
+    }
+
+    private func addHost() {
+        let address = newHostIp
+        newHostIp = ""
+        model.addHost(address: address) { message in
+            if let message {
+                addError = message
+                showingAddError = true
+            }
         }
     }
 }
@@ -165,90 +203,37 @@ struct HostListView: View {
 private struct HostRow: View {
     let host: TemporaryHost
 
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "desktopcomputer")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-                .frame(width: 28)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(host.name)
-                    .font(.headline)
-                    .lineLimit(1)
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(host.state == .online ? Color.green : Color.secondary.opacity(0.4))
-                        .frame(width: 6, height: 6)
-                    Text(host.activeAddress ?? host.address ?? "—")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-
-            Spacer(minLength: 4)
-
-            if host.pairState != .paired {
-                Image(systemName: "lock.fill")
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
-            }
+    private var iconName: String {
+        switch host.state {
+        case .online:
+            return host.pairState == .paired ? "desktopcomputer" : "lock.desktopcomputer"
+        case .offline:
+            return "desktopcomputer.trianglebadge.exclamationmark"
+        case .unknown:
+            return "questionmark.circle.fill"
         }
-        .padding(.vertical, 2)
     }
-}
 
-private struct AddHostSheet: View {
-    @Environment(\.dismiss) private var dismiss
-
-    let model: HostListModel
-
-    @State private var address = ""
-    @State private var errorMessage: String?
-    @State private var isWorking = false
+    private var iconColor: Color {
+        switch host.state {
+        case .online:
+            return host.pairState == .paired ? .green : .orange
+        case .offline:
+            return .red
+        case .unknown:
+            return .gray
+        }
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Text("Add Host Manually")
-                .font(.title2.bold())
-            Text("Enter the IP address or hostname of a PC running Sunshine.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-
-            TextField("192.168.1.10", text: $address)
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: 420)
-
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.callout)
-                    .foregroundStyle(.red)
-            }
-
-            HStack {
-                Button("Cancel") {
-                    dismiss()
-                }
-                Spacer()
-                Button(isWorking ? String(localized: "Adding…") : String(localized: "Add")) {
-                    isWorking = true
-                    errorMessage = nil
-                    model.addHost(address: address) { message in
-                        isWorking = false
-                        if let message {
-                            errorMessage = message
-                        } else {
-                            dismiss()
-                        }
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isWorking || address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
+        Label {
+            Text(host.name)
+        } icon: {
+            Image(systemName: iconName)
+                .foregroundStyle(iconColor)
         }
-        .padding(36)
-        .frame(minWidth: 480)
+        .foregroundStyle(host.state == .online ? .primary : .secondary)
+        .opacity(host.state == .online ? 1.0 : 0.6)
     }
 }
 

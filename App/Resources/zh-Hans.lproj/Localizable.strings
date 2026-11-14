@@ -89,8 +89,6 @@
 "Keyboard" = "键盘";
 "Hide Keyboard" = "隐藏键盘";
 "Connected" = "已连接";
-"Reconnecting… (%d/3)" = "正在重连…（%d/3）";
-"Restarting for frame rate…" = "因帧率不匹配正在重启…";
 "Connection lost (%d)" = "连接中断（%d）";
 "%@ failed (%d)" = "%@ 失败（%d）";
 "Failed to launch the app." = "启动应用失败。";

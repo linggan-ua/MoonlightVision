@@ -89,8 +89,6 @@
 "Keyboard" = "Keyboard";
 "Hide Keyboard" = "Hide Keyboard";
 "Connected" = "Connected";
-"Reconnecting… (%d/3)" = "Reconnecting… (%d/3)";
-"Restarting for frame rate…" = "Restarting for frame rate…";
 "Connection lost (%d)" = "Connection lost (%d)";
 "%@ failed (%d)" = "%@ failed (%d)";
 "Failed to launch the app." = "Failed to launch the app.";

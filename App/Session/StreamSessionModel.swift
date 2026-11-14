@@ -14,7 +14,7 @@ import UIKit
 import VideoToolbox
 
 /// Owns one game stream: configuration, start/stop, connection callbacks,
-/// input, reconnect and stats.
+/// input and stats.
 @MainActor
 @Observable
 final class StreamSessionModel {
@@ -49,13 +49,8 @@ final class StreamSessionModel {
     private var streamManager: StreamManager?
     private var connectionDelegate: StreamConnectionDelegate?
     private var statsTimer: Timer?
-    private var fpsMonitorTimer: Timer?
-    private var lowFpsSeconds = 0
-    private var fpsRestartInProgress = false
     private var started = false
     private var userInitiatedStop = false
-    private var reconnectAttempts = 0
-    private var pendingTerminationCode: Int32?
     private var activeConfig: StreamConfiguration?
 
     private let mouseInput = StreamMouseInput()
@@ -152,12 +147,6 @@ final class StreamSessionModel {
             return
         }
 
-        if let code = pendingTerminationCode {
-            pendingTerminationCode = nil
-            reconnect(message: String(format: String(localized: "Connection lost (%d)"), code))
-            return
-        }
-
         switch phase {
         case .streaming, .connecting:
             if let config = activeConfig {
@@ -207,11 +196,8 @@ final class StreamSessionModel {
         delegate.onFirstFrame = { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
-                self.reconnectAttempts = 0
-                self.lowFpsSeconds = 0
                 self.phase = .streaming
                 self.startStatsTimer()
-                self.startFpsMonitor()
             }
         }
         delegate.onTerminated = { [weak self] code in
@@ -265,34 +251,12 @@ final class StreamSessionModel {
             finish(message: nil)
             return
         }
-        if isBackgrounded {
-            pendingTerminationCode = code
-            return
-        }
-        if code == 0 {
-            finish(message: nil)
-            return
-        }
-        reconnect(message: String(format: String(localized: "Connection lost (%d)"), code))
-    }
-
-    private func reconnect(message: String) {
-        guard reconnectAttempts < 3 else {
-            finish(message: message)
-            return
-        }
-
-        reconnectAttempts += 1
-        teardownInput()
-        streamManager = nil
-        connectionDelegate = nil
-        phase = .connecting(stage: String(format: String(localized: "Reconnecting… (%d/3)"), Int32(reconnectAttempts)))
-
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(2.5))
-            guard let self, !self.userInitiatedStop, !self.isBackgrounded else { return }
-            await self.start()
-        }
+        // Terminated-connection behavior: a terminated connection ends the stream
+        // and reports the error. Reconnecting is a user action, not a hidden
+        // automatic retry.
+        finish(message: code == 0
+            ? nil
+            : String(format: String(localized: "Connection lost (%d)"), code))
     }
 
     // MARK: - Configuration
@@ -424,8 +388,6 @@ final class StreamSessionModel {
         teardownInput()
         statsTimer?.invalidate()
         statsTimer = nil
-        fpsMonitorTimer?.invalidate()
-        fpsMonitorTimer = nil
         streamManager = nil
         connectionDelegate = nil
         statsText = ""
@@ -444,70 +406,7 @@ final class StreamSessionModel {
         }
     }
 
-    // MARK: - Frame-rate mismatch
 
-    private func startFpsMonitor() {
-        fpsMonitorTimer?.invalidate()
-        fpsMonitorTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.checkFrameRate()
-            }
-        }
-    }
-
-    private func checkFrameRate() {
-        guard phase == .streaming, !fpsRestartInProgress, !isBackgrounded,
-              let manager = streamManager else {
-            return
-        }
-
-        let requested = Double(StreamSettingsStore.shared.frameRate)
-        guard requested >= 100 else {
-            lowFpsSeconds = 0
-            return
-        }
-
-        var stats = video_stats_t()
-        guard manager.getVideoStats(&stats) else { return }
-        let interval = stats.endTime - stats.startTime
-        guard interval > 0 else { return }
-        let actual = Double(stats.totalFrames) / interval
-
-        if actual > 0, actual < requested * 0.95 {
-            lowFpsSeconds += 1
-        } else {
-            lowFpsSeconds = 0
-        }
-
-        guard lowFpsSeconds >= 10 else { return }
-        lowFpsSeconds = 0
-
-        // an earlier GPL-3.0 project's rule: at most one mismatch restart per host every 300 s.
-        let key = "mv.lastFpsRestart.\(host.uuid)"
-        let now = Date().timeIntervalSince1970
-        let last = UserDefaults.standard.double(forKey: key)
-        guard now - last >= 300 else { return }
-        UserDefaults.standard.set(now, forKey: key)
-
-        restartForFrameRate(actual: actual, requested: requested)
-    }
-
-    private func restartForFrameRate(actual: Double, requested: Double) {
-        guard !userInitiatedStop, !fpsRestartInProgress, let manager = streamManager else { return }
-        fpsRestartInProgress = true
-        NSLog("[Stream] FPS mismatch: requested %.0f, received %.0f; restarting once", requested, actual)
-        phase = .connecting(stage: String(localized: "Restarting for frame rate…"))
-        teardownInput()
-        streamManager = nil
-
-        manager.stopStream(completion: { [weak self] in
-            Task { @MainActor in
-                guard let self, !self.userInitiatedStop, case .connecting = self.phase else { return }
-                self.fpsRestartInProgress = false
-                await self.start()
-            }
-        })
-    }
 
 }
 

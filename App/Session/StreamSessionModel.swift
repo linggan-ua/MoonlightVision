@@ -291,26 +291,63 @@ final class StreamSessionModel {
     private func preferredVideoFormats(settings: StreamSettingsStore) -> Int32 {
         let hevcSupported = VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC)
         let av1Supported = VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1)
+
+        // Match the mature clients' policy: HDR is requested only when the user
+        // enabled it, the selected codec can carry 10-bit, and the host reports
+        // the matching Main10 capability. Do not gate this on
+        // AVPlayer.availableHDRModes; it is not a reliable HDR capability signal
+        // on visionOS, and gating on it silently disables HDR entirely.
+        let hostMask = UInt32(truncatingIfNeeded: host.serverCodecModeSupport)
+        let hostHEVCMain10 = (hostMask & UInt32(SCM_HEVC_MAIN10)) != 0
+        let hostAV1Main10 = (hostMask & UInt32(SCM_AV1_MAIN10)) != 0
+        let hdrRequested = settings.hdrEnabled && settings.codec.supportsHDR
+
         var formats = Int32(VIDEO_FORMAT_H264)
 
         switch settings.codec {
         case .auto:
-            if hevcSupported { formats |= Int32(VIDEO_FORMAT_H265) }
-            if av1Supported { formats |= Int32(VIDEO_FORMAT_AV1_MAIN8) }
+            if hevcSupported {
+                formats |= Int32(VIDEO_FORMAT_H265)
+                if hdrRequested && hostHEVCMain10 {
+                    formats |= Int32(VIDEO_FORMAT_H265_MAIN10)
+                }
+            }
+            if av1Supported {
+                formats |= Int32(VIDEO_FORMAT_AV1_MAIN8)
+                if hdrRequested && hostAV1Main10 {
+                    formats |= Int32(VIDEO_FORMAT_AV1_MAIN10)
+                }
+            }
         case .h264:
             break
         case .hevc:
-            if hevcSupported { formats |= Int32(VIDEO_FORMAT_H265) }
+            if hevcSupported {
+                formats |= Int32(VIDEO_FORMAT_H265)
+                if hdrRequested && hostHEVCMain10 {
+                    formats |= Int32(VIDEO_FORMAT_H265_MAIN10)
+                }
+            }
         case .av1:
-            if av1Supported { formats |= Int32(VIDEO_FORMAT_AV1_MAIN8) }
-            if hevcSupported { formats |= Int32(VIDEO_FORMAT_H265) }
+            if av1Supported {
+                formats |= Int32(VIDEO_FORMAT_AV1_MAIN8)
+                if hdrRequested && hostAV1Main10 {
+                    formats |= Int32(VIDEO_FORMAT_AV1_MAIN10)
+                }
+            }
+            // HEVC is a fallback when the host or client cannot do AV1.
+            if hevcSupported {
+                formats |= Int32(VIDEO_FORMAT_H265)
+                if hdrRequested && hostHEVCMain10 {
+                    formats |= Int32(VIDEO_FORMAT_H265_MAIN10)
+                }
+            }
         }
 
-        if settings.hdrEnabled, AVPlayer.availableHDRModes.contains(.hdr10) {
-            if hevcSupported { formats |= Int32(VIDEO_FORMAT_H265_MAIN10) }
-            if av1Supported { formats |= Int32(VIDEO_FORMAT_AV1_MAIN10) }
-        }
-
+        NSLog("[Stream] HDR requested=%d codec=%@ hostMask=0x%x formats=0x%x",
+              hdrRequested ? 1 : 0,
+              settings.codec.rawValue,
+              hostMask,
+              formats)
         return formats
     }
 

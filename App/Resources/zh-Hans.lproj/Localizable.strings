@@ -143,3 +143,4 @@
 "Start Pairing" = "开始配对";
 "Waiting for PIN…" = "正在等待 PIN…";
 "Pairing is required to stream from this host." = "需要与此主机配对后才能串流。";
+"HDR requires HEVC or AV1." = "HDR 需要 HEVC 或 AV1 编码。";

@@ -35,6 +35,12 @@ struct SettingsView: View {
                         }
                     }
                     Toggle("HDR (HDR10)", isOn: $settings.hdrEnabled)
+                        .disabled(!settings.codec.supportsHDR)
+                    if !settings.codec.supportsHDR {
+                        Text("HDR requires HEVC or AV1.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     Toggle("Frame Pacing", isOn: $settings.framePacing)
                     Picker("Frame Buffer", selection: $settings.framePacingDepth) {
                         Text("Off").tag(0)
@@ -84,6 +90,11 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .onChange(of: settings.codec) { _, codec in
+                if !codec.supportsHDR {
+                    settings.hdrEnabled = false
+                }
+            }
             .confirmationDialog(
                 "Reset Settings?",
                 isPresented: $showResetConfirm,

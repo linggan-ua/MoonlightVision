@@ -61,6 +61,11 @@ enum CodecPreference: String, CaseIterable, Identifiable {
         case .av1: return "AV1"
         }
     }
+
+    /// HDR10 requires a 10-bit codec. H.264 has no 10-bit profile.
+    var supportsHDR: Bool {
+        self != .h264
+    }
 }
 
 enum AudioMode: String, CaseIterable, Identifiable {

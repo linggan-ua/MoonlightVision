@@ -143,3 +143,4 @@
 "Start Pairing" = "Start Pairing";
 "Waiting for PIN…" = "Waiting for PIN…";
 "Pairing is required to stream from this host." = "Pairing is required to stream from this host.";
+"HDR requires HEVC or AV1." = "HDR requires HEVC or AV1.";

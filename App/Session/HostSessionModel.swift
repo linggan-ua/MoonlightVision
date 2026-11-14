@@ -77,7 +77,10 @@ final class HostSessionModel {
 
     func refreshApps() async {
         guard phase == .ready else { return }
-        let info = await fetchServerInfo()
+        var info = await fetchServerInfo(overHTTP: false)
+        if !info.isStatusOk() {
+            info = await fetchServerInfo(overHTTP: true)
+        }
         if info.isStatusOk() {
             info.populateHost(host)
             dataManager.update(host)
@@ -103,7 +106,7 @@ final class HostSessionModel {
 
         for _ in 0..<12 {
             try? await Task.sleep(for: .milliseconds(750))
-            let info = await fetchServerInfo()
+            let info = await fetchServerInfo(overHTTP: true)
             guard info.isStatusOk() else { continue }
             info.populateHost(host)
             if host.currentGame == "0" || (host.currentGame?.isEmpty ?? true) {
@@ -119,7 +122,11 @@ final class HostSessionModel {
     private func checkHost() async {
         phase = .checking
 
-        let response = await fetchServerInfo()
+        var response = await fetchServerInfo(overHTTP: false)
+        let usedHTTPFallback = !response.isStatusOk()
+        if usedHTTPFallback {
+            response = await fetchServerInfo(overHTTP: true)
+        }
         guard response.isStatusOk() else {
             phase = .failed(response.statusMessage.map(localizedHostError) ?? String(localized: "Could not reach the host."))
             return
@@ -127,15 +134,17 @@ final class HostSessionModel {
 
         response.populateHost(host)
         host.state = .online
-
-        if host.pairState != .paired {
-            // The host no longer recognizes our pinned certificate (it was reset,
-            // updated, unpaired, or its unique ID changed). Drop the stale cert so
-            // no later HTTPS request can reuse it; pairing starts from HTTP.
-            host.serverCert = nil
-            host.httpsPort = 0
-        }
         dataManager.update(host)
+
+        // HTTPS with our pinned server certificate failed, so the host's
+        // certificate or TLS endpoint changed. HTTP has no client certificate
+        // and cannot tell us whether this client is still paired, so go straight
+        // to pairing: Sunshine returns the current server certificate when our
+        // client certificate is still trusted, or asks for a PIN if it is not.
+        guard !usedHTTPFallback else {
+            await pair()
+            return
+        }
 
         if host.pairState == .paired {
             await loadApps()
@@ -144,17 +153,20 @@ final class HostSessionModel {
         }
     }
 
-    private func fetchServerInfo() async -> ServerInfoResponse {
+    private func fetchServerInfo(overHTTP: Bool) async -> ServerInfoResponse {
         guard let http = HttpManager(host: host) else {
             return ServerInfoResponse()
         }
         let response = ServerInfoResponse()
-        // Always probe over HTTP first. This endpoint is public and lets us see
-        // the host's real PairStatus even when our pinned certificate is stale
-        // (for example after Sunshine is updated or its pairing state is reset).
-        // Preferring HTTPS here makes a stale cert look like an unreachable host,
-        // preventing the app from re-pairing.
-        let request = HttpRequest(for: response, with: http.newHttpServerInfoRequest())
+        let request: HttpRequest
+        if overHTTP {
+            request = HttpRequest(for: response, with: http.newHttpServerInfoRequest())
+        } else {
+            request = HttpRequest(for: response,
+                                  with: http.newServerInfoRequest(false),
+                                  fallbackError: 401,
+                                  fallbackRequest: http.newHttpServerInfoRequest())
+        }
 
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             DispatchQueue.global(qos: .userInitiated).async {

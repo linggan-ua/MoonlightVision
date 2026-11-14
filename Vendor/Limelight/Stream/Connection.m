@@ -10,12 +10,13 @@
 #import "Utils.h"
 
 #import <VideoToolbox/VideoToolbox.h>
-
-#define SDL_MAIN_HANDLED
-#import <SDL.h>
+#import <AVFoundation/AVFoundation.h>
+#import <QuartzCore/QuartzCore.h>
 
 #include "Limelight.h"
 #include "opus_multistream.h"
+
+#import "CoreAudioRenderer.h"
 
 @implementation Connection {
     SERVER_INFORMATION _serverInfo;
@@ -38,10 +39,10 @@ static video_stats_t currentVideoStats;
 static video_stats_t lastVideoStats;
 static NSLock* videoStatsLock;
 
-static SDL_AudioDeviceID audioDevice;
+static CoreAudioRenderer* audioRenderer;
 static OPUS_MULTISTREAM_CONFIGURATION audioConfig;
-static void* audioBuffer;
-static int audioFrameSize;
+static bool audioIsStopping;
+volatile int volume = 127;
 
 static VideoDecoderRenderer* renderer;
 
@@ -207,38 +208,19 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
                              decodeUnit:decodeUnit];
 }
 
+void ArCleanup(void);
+
 int ArInit(int audioConfiguration, POPUS_MULTISTREAM_CONFIGURATION opusConfig, void* context, int flags)
 {
     int err;
-    SDL_AudioSpec want, have;
-    
-    if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
-        Log(LOG_E, @"Failed to initialize audio subsystem: %s\n", SDL_GetError());
-        return -1;
-    }
-        
-    SDL_zero(want);
-    want.freq = opusConfig->sampleRate;
-    want.format = AUDIO_S16;
-    want.channels = opusConfig->channelCount;
-    want.samples = opusConfig->samplesPerFrame;
 
-    audioDevice = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
-    if (audioDevice == 0) {
-        Log(LOG_E, @"Failed to open audio device: %s\n", SDL_GetError());
-        ArCleanup();
+    audioRenderer = [[CoreAudioRenderer alloc] initWithConfig:opusConfig];
+    if (!audioRenderer) {
+        Log(LOG_E, @"Failed to initialize the CoreAudio renderer");
         return -1;
     }
-    
+
     audioConfig = *opusConfig;
-    audioFrameSize = opusConfig->samplesPerFrame * sizeof(short) * opusConfig->channelCount;
-    audioBuffer = SDL_malloc(audioFrameSize);
-    if (audioBuffer == NULL) {
-        Log(LOG_E, @"Failed to allocate audio frame buffer");
-        ArCleanup();
-        return -1;
-    }
-    
     opusDecoder = opus_multistream_decoder_create(opusConfig->sampleRate,
                                                   opusConfig->channelCount,
                                                   opusConfig->streams,
@@ -250,61 +232,68 @@ int ArInit(int audioConfiguration, POPUS_MULTISTREAM_CONFIGURATION opusConfig, v
         ArCleanup();
         return -1;
     }
-    
-    // Start playback
-    SDL_PauseAudioDevice(audioDevice, 0);
-    
-    // Disable lowering volume of other audio streams (SDL sets AVAudioSessionCategoryOptionDuckOthers by default)
-    [[AVAudioSession sharedInstance] setCategory:AVAudioSessionCategoryPlayback withOptions:AVAudioSessionCategoryOptionMixWithOthers error:nil];
-    
+
     return 0;
+}
+
+void ArStart(void)
+{
+    audioIsStopping = false;
+    [audioRenderer start];
+}
+
+void ArStop(void)
+{
+    [audioRenderer stop];
+    audioIsStopping = true;
 }
 
 void ArCleanup(void)
 {
+    [audioRenderer stop];
+    audioRenderer = nil;
+
     if (opusDecoder != NULL) {
         opus_multistream_decoder_destroy(opusDecoder);
         opusDecoder = NULL;
     }
-    
-    if (audioDevice != 0) {
-        SDL_CloseAudioDevice(audioDevice);
-        audioDevice = 0;
-    }
-    
-    if (audioBuffer != NULL) {
-        SDL_free(audioBuffer);
-        audioBuffer = NULL;
-    }
-    
-    SDL_QuitSubSystem(SDL_INIT_AUDIO);
 }
 
 void ArDecodeAndPlaySample(char* sampleData, int sampleLength)
 {
-    int decodeLen;
-    
-    // Don't queue if there's already more than 30 ms of audio data waiting
-    // in Moonlight's audio queue.
-    if (LiGetPendingAudioDuration() > 30) {
+    if (audioIsStopping || audioRenderer == nil) {
         return;
     }
-    
-    decodeLen = opus_multistream_decode(opusDecoder, (unsigned char *)sampleData, sampleLength,
-                                        (short*)audioBuffer, audioConfig.samplesPerFrame, 0);
-    if (decodeLen > 0) {
-        // Provide backpressure on the queue to ensure too many frames don't build up
-        // in SDL's audio queue.
-        while (SDL_GetQueuedAudioSize(audioDevice) / audioFrameSize > 10) {
-            SDL_Delay(1);
-        }
-        
-        if (SDL_QueueAudio(audioDevice,
-                           audioBuffer,
-                           sizeof(short) * decodeLen * audioConfig.channelCount) < 0) {
-            Log(LOG_E, @"Failed to queue audio sample: %s\n", SDL_GetError());
+
+    CFTimeInterval decodeStartTime = CACurrentMediaTime();
+
+    int desiredBufferSize;
+    void* buffer = [audioRenderer getAudioBuffer:&desiredBufferSize];
+    if (!buffer) {
+        return;
+    }
+
+    int decodeRet = opus_multistream_decode_float(opusDecoder,
+                                                  (unsigned char *)sampleData,
+                                                  sampleLength,
+                                                  (float*)buffer,
+                                                  desiredBufferSize / sizeof(float) / audioConfig.channelCount,
+                                                  0);
+    if (decodeRet <= 0) {
+        return;
+    }
+
+    if (volume != 127) {
+        float volMultiplier = (float)volume / 127.0f;
+        int numFloats = decodeRet * audioConfig.channelCount;
+        float *floatBuf = (float *)buffer;
+        for (int i = 0; i < numFloats; i++) {
+            floatBuf[i] *= volMultiplier;
         }
     }
+
+    int bytesWritten = decodeRet * sizeof(float) * audioConfig.channelCount;
+    [audioRenderer submitAudio:bytesWritten opusBytes:sampleLength decodeStartTime:decodeStartTime];
 }
 
 void ClStageStarting(int stage)
@@ -474,6 +463,8 @@ void ClSetControllerLED(uint16_t controllerNumber, uint8_t r, uint8_t g, uint8_t
 
     LiInitializeAudioCallbacks(&_arCallbacks);
     _arCallbacks.init = ArInit;
+    _arCallbacks.start = ArStart;
+    _arCallbacks.stop = ArStop;
     _arCallbacks.cleanup = ArCleanup;
     _arCallbacks.decodeAndPlaySample = ArDecodeAndPlaySample;
     _arCallbacks.capabilities = CAPABILITY_SUPPORTS_ARBITRARY_AUDIO_DURATION;

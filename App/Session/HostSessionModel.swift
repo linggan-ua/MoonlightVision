@@ -29,16 +29,18 @@ final class HostSessionModel {
 
     private let discovery: DiscoveryManager?
     private let dataManager = DataManager()
-    private let operationQueue = OperationQueue()
-    private var pairingDelegate: PairingDelegate?
-    private var pairManager: PairManager?
+    private let pairingFactory: PairingSessionFactory
+    private var pairingFlow: PairingFlow?
     private var assetManager: AppAssetManager?
     private var assetDelegate: AppAssetDelegate?
     private var started = false
 
-    init(host: TemporaryHost, discovery: DiscoveryManager?) {
+    init(host: TemporaryHost,
+         discovery: DiscoveryManager?,
+         pairingFactory: PairingSessionFactory = LimelightPairingSessionFactory()) {
         self.host = host
         self.discovery = discovery
+        self.pairingFactory = pairingFactory
     }
 
     var hostName: String {
@@ -167,49 +169,35 @@ final class HostSessionModel {
             discovery?.stopDiscoveryBlocking()
         }.value
 
-        guard let http = HttpManager(host: host) else {
-            phase = .failed("Could not create the HTTP client.")
-            return
-        }
-        let delegate = PairingDelegate()
-        delegate.onPIN = { [weak self] pin in
+        let flow = PairingFlow(factory: pairingFactory)
+        flow.onEvent = { [weak self] event in
             Task { @MainActor in
-                self?.phase = .pairing(pin)
+                self?.handlePairingEvent(event)
             }
         }
-        delegate.onPaired = { [weak self] serverCert in
-            Task { @MainActor in
-                guard let self else { return }
-                self.host.serverCert = serverCert
-                self.host.pairState = .paired
-                self.dataManager.update(self.host)
-                self.discovery?.startDiscovery()
-                await self.loadApps()
-            }
-        }
-        delegate.onAlreadyPaired = { [weak self] in
-            Task { @MainActor in
-                guard let self else { return }
-                self.host.pairState = .paired
-                self.dataManager.update(self.host)
-                self.discovery?.startDiscovery()
-                await self.loadApps()
-            }
-        }
-        delegate.onFailed = { [weak self] message in
-            Task { @MainActor in
-                self?.discovery?.startDiscovery()
-                self?.phase = .failed(message)
-            }
-        }
+        pairingFlow = flow
+        flow.start(host: host, clientCert: clientCert)
+    }
 
-        pairingDelegate = delegate
-        guard let manager = PairManager(manager: http, clientCert: clientCert, callback: delegate) else {
-            phase = .failed("Could not start pairing.")
-            return
+    private func handlePairingEvent(_ event: PairingFlow.Event) {
+        switch event {
+        case .pin(let pin):
+            phase = .pairing(pin)
+        case .paired(let serverCert):
+            host.serverCert = serverCert
+            host.pairState = .paired
+            dataManager.update(host)
+            discovery?.startDiscovery()
+            Task { await self.loadApps() }
+        case .alreadyPaired:
+            host.pairState = .paired
+            dataManager.update(host)
+            discovery?.startDiscovery()
+            Task { await self.loadApps() }
+        case .failed(let message):
+            discovery?.startDiscovery()
+            phase = .failed(message)
         }
-        pairManager = manager
-        operationQueue.addOperation(manager)
     }
 
     // MARK: - App list
@@ -285,34 +273,6 @@ final class HostSessionModel {
         apps = merged.sorted {
             ($0.name ?? "").localizedCaseInsensitiveCompare($1.name ?? "") == .orderedAscending
         }
-    }
-}
-
-/// Forwards PairManager callbacks (delivered on its operation queue) as closures.
-final class PairingDelegate: NSObject, PairCallback {
-    var onPIN: ((String) -> Void)?
-    var onPaired: ((Data) -> Void)?
-    var onAlreadyPaired: (() -> Void)?
-    var onFailed: ((String) -> Void)?
-
-    func startPairing(_ PIN: String!) {
-        onPIN?(PIN ?? "")
-    }
-
-    func pairSuccessful(_ serverCert: Data!) {
-        guard let serverCert else {
-            onFailed?("The host returned an invalid certificate.")
-            return
-        }
-        onPaired?(serverCert)
-    }
-
-    func pairFailed(_ message: String!) {
-        onFailed?(message ?? "Pairing failed.")
-    }
-
-    func alreadyPaired() {
-        onAlreadyPaired?()
     }
 }
 

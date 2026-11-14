@@ -129,6 +129,11 @@
     [_connection terminateWithCompletion:completion];
 }
 
+- (BOOL) getVideoStats:(video_stats_t*)stats
+{
+    return [_connection getVideoStats:stats];
+}
+
 - (BOOL) launchApp:(HttpManager*)hMan receiveSessionUrl:(NSString**)sessionUrl {
     HttpResponse* launchResp = [[HttpResponse alloc] init];
     [hMan executeRequestSynchronously:[HttpRequest requestForResponse:launchResp withUrlRequest:[hMan newLaunchOrResumeRequest:@"launch" config:_config]]];

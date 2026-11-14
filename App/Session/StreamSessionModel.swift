@@ -48,6 +48,9 @@ final class StreamSessionModel {
     private var streamManager: StreamManager?
     private var connectionDelegate: StreamConnectionDelegate?
     private var statsTimer: Timer?
+    private var fpsMonitorTimer: Timer?
+    private var lowFpsSeconds = 0
+    private var fpsRestartInProgress = false
     private var started = false
     private var userInitiatedStop = false
     private var reconnectAttempts = 0
@@ -216,8 +219,10 @@ final class StreamSessionModel {
             Task { @MainActor in
                 guard let self else { return }
                 self.reconnectAttempts = 0
+                self.lowFpsSeconds = 0
                 self.phase = .streaming
                 self.startStatsTimer()
+                self.startFpsMonitor()
             }
         }
         delegate.onTerminated = { [weak self] code in
@@ -429,6 +434,8 @@ final class StreamSessionModel {
         teardownInput()
         statsTimer?.invalidate()
         statsTimer = nil
+        fpsMonitorTimer?.invalidate()
+        fpsMonitorTimer = nil
         streamManager = nil
         connectionDelegate = nil
         statsText = ""
@@ -443,6 +450,81 @@ final class StreamSessionModel {
                 guard let self, let manager = self.streamManager else { return }
                 self.statsText = manager.getStatsOverlayText() ?? ""
             }
+        }
+    }
+
+    // MARK: - Frame-rate mismatch
+
+    private func startFpsMonitor() {
+        fpsMonitorTimer?.invalidate()
+        fpsMonitorTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.checkFrameRate()
+            }
+        }
+    }
+
+    private func checkFrameRate() {
+        guard phase == .streaming, !fpsRestartInProgress, !isBackgrounded,
+              let manager = streamManager else {
+            return
+        }
+
+        let requested = Double(StreamSettingsStore.shared.frameRate)
+        guard requested >= 100 else {
+            lowFpsSeconds = 0
+            return
+        }
+
+        var stats = video_stats_t()
+        guard manager.getVideoStats(&stats) else { return }
+        let interval = stats.endTime - stats.startTime
+        guard interval > 0 else { return }
+        let actual = Double(stats.totalFrames) / interval
+
+        if actual > 0, actual < requested * 0.95 {
+            lowFpsSeconds += 1
+        } else {
+            lowFpsSeconds = 0
+        }
+
+        guard lowFpsSeconds >= 10 else { return }
+        lowFpsSeconds = 0
+
+        // an earlier GPL-3.0 project's rule: at most one mismatch restart per host every 300 s.
+        let key = "mv.lastFpsRestart.\(host.uuid)"
+        let now = Date().timeIntervalSince1970
+        let last = UserDefaults.standard.double(forKey: key)
+        guard now - last >= 300 else { return }
+        UserDefaults.standard.set(now, forKey: key)
+
+        restartForFrameRate(actual: actual, requested: requested)
+    }
+
+    private func restartForFrameRate(actual: Double, requested: Double) {
+        guard !userInitiatedStop, !fpsRestartInProgress, let manager = streamManager else { return }
+        fpsRestartInProgress = true
+        NSLog("[Stream] FPS mismatch: requested %.0f, received %.0f; restarting once", requested, actual)
+        phase = .connecting(stage: "Restarting for frame rate…")
+        teardownInput()
+        streamManager = nil
+
+        StreamStartGate.shared.beginStop()
+        manager.stopStream(completion: { [weak self] in
+            Task { @MainActor in
+                StreamStartGate.shared.endStop()
+                guard let self, !self.userInitiatedStop, case .connecting = self.phase else { return }
+                self.fpsRestartInProgress = false
+                await self.start()
+            }
+        })
+
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(8))
+            guard let self, self.fpsRestartInProgress, case .connecting = self.phase else { return }
+            self.fpsRestartInProgress = false
+            StreamStartGate.shared.endStop()
+            self.finish(message: "Frame-rate restart timed out.")
         }
     }
 }

@@ -17,5 +17,6 @@
 - (void) stopStreamWithCompletion:(void (^)(void))completion;
 
 - (NSString*) getStatsOverlayText;
+- (BOOL) getVideoStats:(video_stats_t*)stats;
 
 @end

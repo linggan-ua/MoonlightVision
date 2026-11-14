@@ -36,6 +36,7 @@ final class StreamSessionModel {
     private(set) var statsText = ""
     private(set) var isBackgrounded = false
     private(set) var isMuted = false
+    private(set) var connectionPoor = false
     var volume: Double = 1.0 {
         didSet {
             isMuted = volume <= 0
@@ -191,6 +192,7 @@ final class StreamSessionModel {
         guard !userInitiatedStop, streamManager == nil else { return }
 
         phase = .preparing
+        connectionPoor = false
         let config = makeConfiguration()
         activeConfig = config
         setupInput(config: config)
@@ -204,6 +206,11 @@ final class StreamSessionModel {
                     self?.phase = .connecting(stage: stage)
                     return
                 }
+            }
+        }
+        delegate.onConnectionStatus = { [weak self] status in
+            Task { @MainActor in
+                self?.connectionPoor = (status == Int32(CONN_STATUS_POOR))
             }
         }
         delegate.onConnected = { [weak self] in
@@ -439,6 +446,7 @@ final class StreamSessionModel {
         streamManager = nil
         connectionDelegate = nil
         statsText = ""
+        connectionPoor = false
         if case .ended = phase { return }
         phase = .ended(message)
     }
@@ -537,6 +545,7 @@ final class StreamConnectionDelegate: NSObject, ConnectionCallbacks {
     var onTerminated: ((Int32) -> Void)?
     var onLaunchFailed: ((String) -> Void)?
     var onStageFailed: ((String, Int32, Int32) -> Void)?
+    var onConnectionStatus: ((Int32) -> Void)?
     var onRumble: ((UInt16, UInt16, UInt16) -> Void)?
     var onRumbleTriggers: ((UInt16, UInt16, UInt16) -> Void)?
     var onSetMotionEventState: ((UInt16, UInt8, UInt16) -> Void)?
@@ -573,7 +582,9 @@ final class StreamConnectionDelegate: NSObject, ConnectionCallbacks {
         onRumble?(controllerNumber, lowFreqMotor, highFreqMotor)
     }
 
-    func connectionStatusUpdate(_ status: Int32) {}
+    func connectionStatusUpdate(_ status: Int32) {
+        onConnectionStatus?(status)
+    }
 
     func setHdrMode(_ enabled: Bool) {}
 

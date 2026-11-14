@@ -112,3 +112,12 @@
 "Discovery is not running." = "Discovery is not running.";
 "Enter an IP address or hostname." = "Enter an IP address or hostname.";
 "Host not found." = "Host not found.";
+
+/* Stream window controls */
+"Stream" = "Stream";
+"Poor Connection" = "Poor Connection";
+"Stats" = "Stats";
+"Close" = "Close";
+"Stream Volume" = "Stream Volume";
+"Disconnect. The game keeps running on the host." = "Disconnect. The game keeps running on the host.";
+"Mute or unmute the stream. Other apps aren't affected." = "Mute or unmute the stream. Other apps aren't affected.";

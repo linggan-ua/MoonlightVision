@@ -112,3 +112,12 @@
 "Discovery is not running." = "发现服务未运行。";
 "Enter an IP address or hostname." = "请输入 IP 地址或主机名。";
 "Host not found." = "未找到主机。";
+
+/* Stream window controls */
+"Stream" = "串流";
+"Poor Connection" = "连接质量差";
+"Stats" = "统计";
+"Close" = "关闭";
+"Stream Volume" = "串流音量";
+"Disconnect. The game keeps running on the host." = "断开连接，主机上的游戏会继续运行。";
+"Mute or unmute the stream. Other apps aren't affected." = "静音或取消静音串流，不影响其他应用。";

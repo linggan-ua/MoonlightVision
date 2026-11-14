@@ -9,8 +9,9 @@ import SwiftUI
 import UIKit
 
 struct HostSessionView: View {
+    @Environment(\.openWindow) private var openWindow
+
     @State private var model: HostSessionModel
-    @State private var streamModel: StreamSessionModel?
     @State private var pendingApp: TemporaryApp?
     @State private var showQuitConfirm = false
     @State private var actionError: String?
@@ -20,17 +21,9 @@ struct HostSessionView: View {
     }
 
     var body: some View {
-        Group {
-            if let streamModel {
-                StreamWindowView(model: streamModel) {
-                    self.streamModel = nil
-                }
-            } else {
-                content
-            }
-        }
-        .task { await model.start() }
-        .navigationTitle(model.hostName)
+        content
+            .task { await model.start() }
+            .navigationTitle(model.hostName)
         .confirmationDialog(
             "Another app is running",
             isPresented: $showQuitConfirm,
@@ -115,7 +108,14 @@ struct HostSessionView: View {
     }
 
     private func startStream(_ app: TemporaryApp) {
-        streamModel = StreamSessionModel(host: model.host, app: app)
+        // One stream at a time: bring the existing stream window forward rather
+        // than replacing a live session mid-connection.
+        guard StreamPresentation.shared.session == nil else {
+            openWindow(id: "stream")
+            return
+        }
+        StreamPresentation.shared.session = StreamSessionModel(host: model.host, app: app)
+        openWindow(id: "stream")
     }
 }
 

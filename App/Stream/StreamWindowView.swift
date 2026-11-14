@@ -7,6 +7,8 @@
 
 import SwiftUI
 
+/// The stream window: the picture fills a plain window, controls live in a
+/// visionOS ornament below it, and stats sit in a compact HUD over the picture.
 struct StreamWindowView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Bindable private var settings = StreamSettingsStore.shared
@@ -20,12 +22,59 @@ struct StreamWindowView: View {
         self.onExit = onExit
     }
 
+    private var isEnded: Bool {
+        if case .ended = model.phase { return true }
+        return false
+    }
+
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack(alignment: .topLeading) {
             Color.black.ignoresSafeArea()
+
             StreamRenderViewRepresentable(view: model.renderView)
                 .ignoresSafeArea()
-            overlay
+
+            if settings.showStats, model.isStreaming, !model.statsText.isEmpty {
+                Text(model.statsText)
+                    .font(.system(.callout, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .padding(14)
+                    .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 12))
+                    .padding(20)
+            }
+
+            if model.connectionPoor, model.isStreaming {
+                Label("Poor Connection", systemImage: "wifi.exclamationmark")
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(.yellow)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(.black.opacity(0.6), in: Capsule())
+                    .frame(maxWidth: .infinity, alignment: .top)
+                    .padding(.top, 20)
+            }
+
+            if !model.isStreaming {
+                VStack(spacing: 14) {
+                    if !isEnded {
+                        ProgressView()
+                    }
+                    Text(model.statusText)
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(24)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .allowsHitTesting(false)
+            }
+        }
+        .background(.black)
+        .clipShape(.rect(cornerRadius: 24))
+        .persistentSystemOverlays(.hidden)
+        .ornament(attachmentAnchor: .scene(.bottom), contentAlignment: .top) {
+            controls
         }
         .task { await model.startWhenReady() }
         .onAppear { model.setBackgrounded(scenePhase != .active) }
@@ -33,86 +82,33 @@ struct StreamWindowView: View {
             model.setBackgrounded(newPhase != .active)
         }
         .onDisappear { model.stop() }
-        .overlay(alignment: .bottom) {
+    }
+
+    private var controls: some View {
+        VStack(spacing: 12) {
+            StreamControlBar(
+                isEnded: isEnded,
+                volume: Binding(
+                    get: { model.volume },
+                    set: { model.volume = $0 }
+                ),
+                showStats: $settings.showStats,
+                showKeyboard: $showKeyboard,
+                onDisconnect: {
+                    model.stop()
+                    onExit()
+                },
+                onToggleMute: {
+                    model.toggleMute()
+                }
+            )
+
             if showKeyboard {
                 VirtualKeyboardView(input: model.keyboardInput) {
                     showKeyboard = false
                     _ = model.renderView.becomeFirstResponder()
                 }
-                .padding(24)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: showKeyboard)
-    }
-
-    private var overlay: some View {
-        VStack(alignment: .trailing, spacing: 12) {
-            Button {
-                model.stop()
-                onExit()
-            } label: {
-                Label("Disconnect", systemImage: "xmark.circle.fill")
-                    .font(.callout)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: Capsule())
-            }
-            .buttonStyle(.plain)
-
-            Button {
-                showKeyboard.toggle()
-            } label: {
-                Label(showKeyboard ? String(localized: "Hide Keyboard") : String(localized: "Keyboard"), systemImage: "keyboard")
-                    .font(.callout)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: Capsule())
-            }
-            .buttonStyle(.plain)
-
-            HStack(spacing: 10) {
-                Button {
-                    model.toggleMute()
-                } label: {
-                    Image(systemName: model.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                        .font(.callout)
-                }
-                .buttonStyle(.plain)
-
-                Slider(
-                    value: Binding(
-                        get: { model.volume },
-                        set: { model.volume = $0 }
-                    ),
-                    in: 0...1
-                )
-                .frame(width: 140)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(.ultraThinMaterial, in: Capsule())
-
-            if !model.isStreaming {
-                HStack(spacing: 10) {
-                    ProgressView()
-                    Text(model.statusText)
-                        .font(.callout)
-                }
-                .padding(12)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-            }
-
-            if model.isStreaming && settings.showStats && !model.statsText.isEmpty {
-                Text(model.statsText)
-                    .font(.caption.monospaced())
-                    .multilineTextAlignment(.leading)
-                    .padding(10)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
-            }
-
-            Spacer()
-        }
-        .padding(24)
     }
 }

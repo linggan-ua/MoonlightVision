@@ -30,6 +30,7 @@
 #import "KeyboardSupport.h"
 
 #include <Limelight.h>
+#import "Audio/MVAudioRing.h"
 #include "opus_multistream.h"
 
 void MVSetStreamVolume(float volume);

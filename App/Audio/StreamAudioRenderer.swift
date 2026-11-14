@@ -401,16 +401,20 @@ public final class StreamAudioRenderer: NSObject {
     }
 }
 
-/// Lock-protected interleaved float ring. The decode thread writes whole Opus
-/// frames; the render thread drains them as non-interleaved channel buffers.
+/// Lock-free single-producer/single-consumer interleaved float ring.
+///
+/// Backed by the vendored ring buffer (zlib, the same ring the official
+/// the protocol audio output used) through MVAudioRing. The network/audio decode
+/// thread writes whole Opus frames; the AVAudioSourceNode render thread reads
+/// and deinterleaves them. The render callback never takes a lock. Backlog
+/// trimming happens on the consumer side, so it cannot race the producer.
 final class AudioRingBuffer: @unchecked Sendable {
-    private let lock = NSLock()
-    private var storage: [Float] = []
+    private var ring: OpaquePointer?
+    private var scratch: UnsafeMutablePointer<Float>?
     private var sampleRate = 0
     private var channels = 0
     private var capacityFrames = 0
-    private var readFrame = 0
-    private var bufferedFrames = 0
+    private var bytesPerFrame = 0
     private var primeFrames = 0
     private var trimAboveFrames = 0
     private var trimToFrames = 0
@@ -418,6 +422,10 @@ final class AudioRingBuffer: @unchecked Sendable {
     private(set) var underruns: Int64 = 0
     private(set) var overflowFrames: Int64 = 0
     private(set) var trimmedFrames: Int64 = 0
+
+    deinit {
+        destroy()
+    }
 
     func configure(
         sampleRate: Int,
@@ -427,68 +435,45 @@ final class AudioRingBuffer: @unchecked Sendable {
         trimAboveSeconds: Double,
         trimToSeconds: Double
     ) {
-        lock.lock()
-        defer { lock.unlock() }
+        destroy()
 
         self.sampleRate = sampleRate
         self.channels = channels
-        capacityFrames = max(Int(Double(sampleRate) * capacitySeconds), 1)
-        primeFrames = min(Int(Double(sampleRate) * primeSeconds), capacityFrames)
-        trimAboveFrames = min(Int(Double(sampleRate) * trimAboveSeconds), capacityFrames)
-        trimToFrames = min(Int(Double(sampleRate) * trimToSeconds), trimAboveFrames)
-        storage = [Float](repeating: 0, count: capacityFrames * channels)
-        readFrame = 0
-        bufferedFrames = 0
-        priming = true
-        underruns = 0
-        overflowFrames = 0
-        trimmedFrames = 0
+        self.capacityFrames = max(Int(Double(sampleRate) * capacitySeconds), 1)
+        self.bytesPerFrame = channels * MemoryLayout<Float>.size
+        self.primeFrames = min(Int(Double(sampleRate) * primeSeconds), capacityFrames)
+        self.trimAboveFrames = min(Int(Double(sampleRate) * trimAboveSeconds), capacityFrames)
+        self.trimToFrames = min(Int(Double(sampleRate) * trimToSeconds), trimAboveFrames)
+        self.priming = true
+        self.underruns = 0
+        self.overflowFrames = 0
+        self.trimmedFrames = 0
+
+        guard channels > 0, bytesPerFrame > 0 else { return }
+        let capacityBytes = capacityFrames * bytesPerFrame
+        ring = MVAudioRingCreate(UInt32(capacityBytes))
+        if ring == nil {
+            NSLog("[Audio] TPCircularBuffer allocation failed (%d bytes)", capacityBytes)
+            return
+        }
+        scratch = UnsafeMutablePointer<Float>.allocate(capacity: capacityFrames * channels)
+    }
+
+    private func destroy() {
+        if let ring {
+            MVAudioRingDestroy(ring)
+            self.ring = nil
+        }
+        scratch?.deallocate()
+        scratch = nil
     }
 
     func write(_ samples: UnsafePointer<Float>, frames: Int) {
-        lock.lock()
-        defer { lock.unlock() }
-        guard channels > 0, capacityFrames > 0, frames > 0 else { return }
-
-        var incoming = frames
-        var source = samples
-        if incoming > capacityFrames {
-            let skip = incoming - capacityFrames
-            source = samples.advanced(by: skip * channels)
-            incoming = capacityFrames
-            overflowFrames += Int64(skip)
-        }
-
-        let free = capacityFrames - bufferedFrames
-        if incoming > free {
-            let drop = incoming - free
-            readFrame = (readFrame + drop) % capacityFrames
-            bufferedFrames -= drop
-            trimmedFrames += Int64(drop)
-        }
-
-        var writeFrame = (readFrame + bufferedFrames) % capacityFrames
-        storage.withUnsafeMutableBufferPointer { destination in
-            for frame in 0..<incoming {
-                let inputBase = frame * channels
-                let outputBase = writeFrame * channels
-                for channel in 0..<channels {
-                    destination[outputBase + channel] = source[inputBase + channel]
-                }
-                writeFrame += 1
-                if writeFrame == capacityFrames { writeFrame = 0 }
-            }
-        }
-        bufferedFrames += incoming
-
-        if bufferedFrames > trimAboveFrames {
-            let excess = bufferedFrames - trimToFrames
-            readFrame = (readFrame + excess) % capacityFrames
-            bufferedFrames = trimToFrames
-            trimmedFrames += Int64(excess)
-        }
-        if priming, bufferedFrames >= primeFrames {
-            priming = false
+        guard let ring, frames > 0, bytesPerFrame > 0 else { return }
+        let requested = frames * bytesPerFrame
+        let written = Int(MVAudioRingWrite(ring, UnsafeRawPointer(samples), UInt32(requested)))
+        if written < requested {
+            overflowFrames += Int64((requested - written) / bytesPerFrame)
         }
     }
 
@@ -497,46 +482,69 @@ final class AudioRingBuffer: @unchecked Sendable {
         frames: Int,
         isSilence: UnsafeMutablePointer<ObjCBool>
     ) {
-        lock.lock()
-        defer { lock.unlock() }
-        guard channels > 0, capacityFrames > 0 else {
-            isSilence.pointee = true
+        guard let ring, let scratch, channels > 0, bytesPerFrame > 0 else {
+            outputSilence(buffers, isSilence: isSilence)
             return
         }
 
-        let available = priming ? 0 : min(frames, bufferedFrames)
-        if !priming, available < frames {
-            underruns += 1
-            priming = true
+        var availableFrames = Int(MVAudioRingAvailableBytes(ring)) / bytesPerFrame
+
+        if priming {
+            if availableFrames < primeFrames {
+                outputSilence(buffers, isSilence: isSilence)
+                return
+            }
+            priming = false
         }
 
-        storage.withUnsafeBufferPointer { source in
-            for (channel, buffer) in buffers.enumerated() {
-                guard let output = buffer.mData?.assumingMemoryBound(to: Float.self) else { continue }
-                var frame = readFrame
-                for index in 0..<frames {
-                    if index < available, channel < channels {
-                        output[index] = source[frame * channels + channel]
-                        frame += 1
-                        if frame == capacityFrames { frame = 0 }
-                    } else {
-                        output[index] = 0
-                    }
+        // Trim on the consumer thread only. Advancing the producer side would
+        // break the single-producer contract of the ring.
+        if availableFrames > trimAboveFrames {
+            let dropFrames = availableFrames - trimToFrames
+            MVAudioRingSkip(ring, UInt32(dropFrames * bytesPerFrame))
+            trimmedFrames += Int64(dropFrames)
+            availableFrames = trimToFrames
+        }
+
+        let framesToRead = min(frames, availableFrames)
+        if framesToRead > 0 {
+            _ = MVAudioRingRead(ring, UnsafeMutableRawPointer(scratch), UInt32(framesToRead * bytesPerFrame))
+        }
+
+        // Deinterleave into the non-interleaved AudioBufferList.
+        for (channel, buffer) in buffers.enumerated() {
+            guard let output = buffer.mData?.assumingMemoryBound(to: Float.self) else { continue }
+            for index in 0..<frames {
+                if index < framesToRead, channel < channels {
+                    output[index] = scratch[index * channels + channel]
+                } else {
+                    output[index] = 0
                 }
             }
         }
 
-        if available > 0 {
-            readFrame = (readFrame + available) % capacityFrames
-            bufferedFrames -= available
+        if availableFrames < frames {
+            underruns += 1
+            priming = true
         }
-        isSilence.pointee = ObjCBool(available == 0)
+        isSilence.pointee = ObjCBool(framesToRead == 0)
+    }
+
+    private func outputSilence(
+        _ buffers: UnsafeMutableAudioBufferListPointer,
+        isSilence: UnsafeMutablePointer<ObjCBool>
+    ) {
+        for buffer in buffers {
+            if let data = buffer.mData {
+                memset(data, 0, Int(buffer.mDataByteSize))
+            }
+        }
+        isSilence.pointee = true
     }
 
     var bufferedMilliseconds: Double {
-        lock.lock()
-        defer { lock.unlock() }
-        guard sampleRate > 0 else { return 0 }
-        return Double(bufferedFrames) * 1000 / Double(sampleRate)
+        guard let ring, sampleRate > 0, bytesPerFrame > 0 else { return 0 }
+        let frames = Double(MVAudioRingAvailableBytes(ring)) / Double(bytesPerFrame)
+        return frames * 1000 / Double(sampleRate)
     }
 }

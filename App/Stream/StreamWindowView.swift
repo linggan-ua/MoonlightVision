@@ -14,7 +14,6 @@ struct StreamWindowView: View {
     @Bindable private var settings = StreamSettingsStore.shared
 
     @State private var model: StreamSessionModel
-    @State private var showKeyboard = false
     private let onExit: () -> Void
 
     init(model: StreamSessionModel, onExit: @escaping () -> Void) {
@@ -74,7 +73,7 @@ struct StreamWindowView: View {
         .clipShape(.rect(cornerRadius: 24))
         .persistentSystemOverlays(.hidden)
         .ornament(attachmentAnchor: .scene(.bottom), contentAlignment: .top) {
-            controls
+            StreamControlsView(model: model, onExit: onExit)
         }
         .task { await model.startWhenReady() }
         .onAppear { model.setBackgrounded(scenePhase != .active) }
@@ -84,7 +83,32 @@ struct StreamWindowView: View {
         .onDisappear { model.stop() }
     }
 
-    private var controls: some View {
+}
+
+private struct StreamControlsView: View {
+    let model: StreamSessionModel
+    let onExit: () -> Void
+
+    @Bindable private var settings = StreamSettingsStore.shared
+    @State private var showKeyboard = false
+
+    private var isEnded: Bool {
+        if case .ended = model.phase { return true }
+        return false
+    }
+
+    private var keyboardBinding: Binding<Bool> {
+        Binding(
+            get: { showKeyboard },
+            set: { newValue in
+                withAnimation(.smooth(duration: 0.22)) {
+                    showKeyboard = newValue
+                }
+            }
+        )
+    }
+
+    var body: some View {
         VStack(spacing: 12) {
             StreamControlBar(
                 isEnded: isEnded,
@@ -93,7 +117,7 @@ struct StreamWindowView: View {
                     set: { model.volume = $0 }
                 ),
                 showStats: $settings.showStats,
-                showKeyboard: $showKeyboard,
+                showKeyboard: keyboardBinding,
                 onDisconnect: {
                     model.stop()
                     onExit()
@@ -103,12 +127,19 @@ struct StreamWindowView: View {
                 }
             )
 
-            if showKeyboard {
-                VirtualKeyboardView(input: model.keyboardInput) {
+            // Keep the keyboard mounted so the first toggle does not have to
+            // build ~60 buttons and their glass backgrounds on the main thread.
+            VirtualKeyboardView(input: model.keyboardInput, isActive: showKeyboard) {
+                withAnimation(.smooth(duration: 0.22)) {
                     showKeyboard = false
-                    _ = model.renderView.becomeFirstResponder()
                 }
+                _ = model.renderView.becomeFirstResponder()
             }
+            .frame(height: showKeyboard ? nil : 0)
+            .opacity(showKeyboard ? 1 : 0)
+            .clipped()
+            .allowsHitTesting(showKeyboard)
+            .accessibilityHidden(!showKeyboard)
         }
     }
 }

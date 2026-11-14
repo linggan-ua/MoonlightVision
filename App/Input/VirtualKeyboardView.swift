@@ -11,7 +11,14 @@ import SwiftUI
 /// to hold for the next key, twice to lock, a third time to release.
 struct VirtualKeyboardView: View {
     let input: StreamKeyboardInput
+    let isActive: Bool
     let onClose: () -> Void
+
+    init(input: StreamKeyboardInput, isActive: Bool = true, onClose: @escaping () -> Void) {
+        self.input = input
+        self.isActive = isActive
+        self.onClose = onClose
+    }
 
     @State private var latched: Set<UInt16> = []
     @State private var locked: Set<UInt16> = []
@@ -116,6 +123,11 @@ struct VirtualKeyboardView: View {
         }
         .padding(12)
         .glassBackgroundEffect()
+        .onChange(of: isActive) { _, active in
+            if !active {
+                releaseAll()
+            }
+        }
         .onDisappear(perform: releaseAll)
     }
 
@@ -161,7 +173,7 @@ struct VirtualKeyboardView: View {
                 height: Self.unit * height
             )
             .background(
-                active ? AnyShapeStyle(.tint) : AnyShapeStyle(.thinMaterial),
+                active ? AnyShapeStyle(.tint) : AnyShapeStyle(Color.white.opacity(0.12)),
                 in: .rect(cornerRadius: 9)
             )
             .contentShape(.hoverEffect, .rect(cornerRadius: 9))

@@ -4,6 +4,9 @@ import UIKit
 /// The UIView that hosts the AVSampleBufferDisplayLayer created by the core
 /// renderer, hides the system pointer, and forwards physical keyboard presses.
 final class StreamRenderView: UIView {
+    private var heldKeys: [UInt16: UIKey] = [:]
+    private var heldArrowPresses: [UIPress] = []
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .black
@@ -37,6 +40,11 @@ final class StreamRenderView: UIView {
         for press in presses {
             if KeyboardSupport.sendKeyEvent(for: press, down: true) {
                 handled = true
+                if let key = press.key {
+                    heldKeys[UInt16(key.keyCode.rawValue)] = key
+                } else {
+                    heldArrowPresses.append(press)
+                }
             }
         }
         if !handled {
@@ -49,11 +57,47 @@ final class StreamRenderView: UIView {
         for press in presses {
             if KeyboardSupport.sendKeyEvent(for: press, down: false) {
                 handled = true
+                if let key = press.key {
+                    heldKeys.removeValue(forKey: UInt16(key.keyCode.rawValue))
+                } else {
+                    heldArrowPresses.removeAll { $0 === press }
+                }
             }
         }
         if !handled {
             super.pressesEnded(presses, with: event)
         }
+    }
+
+    override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        releaseHeldKeys()
+        super.pressesCancelled(presses, with: event)
+    }
+
+    override func resignFirstResponder() -> Bool {
+        releaseHeldKeys()
+        return super.resignFirstResponder()
+    }
+
+    override func willMove(toWindow newWindow: UIWindow?) {
+        if newWindow == nil {
+            releaseHeldKeys()
+        }
+        super.willMove(toWindow: newWindow)
+    }
+
+    /// Release every key still held by the host. Called on focus loss, window
+    /// removal, backgrounding and input teardown so the host cannot keep a key
+    /// stuck down.
+    func releaseHeldKeys() {
+        for key in heldKeys.values {
+            _ = KeyboardSupport.sendKeyEvent(key, down: false)
+        }
+        for press in heldArrowPresses {
+            _ = KeyboardSupport.sendKeyEvent(for: press, down: false)
+        }
+        heldKeys.removeAll()
+        heldArrowPresses.removeAll()
     }
 }
 

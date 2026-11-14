@@ -411,6 +411,7 @@ final class StreamSessionModel {
         guard inputActive else { return }
         inputActive = false
 
+        renderView.releaseHeldKeys()
         mouseInput.stop()
         controllerSupport?.cleanup()
         controllerSupport = nil

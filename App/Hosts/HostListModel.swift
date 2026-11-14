@@ -30,7 +30,7 @@ final class HostListModel {
         }
         discoveryDelegate = delegate
 
-        let manager = DiscoveryManager(hosts: hosts, andCallback: delegate)
+        let manager = DiscoveryManager(hosts: hosts, andCallback: delegate, mainThreadHostUpdates: true)
         discoveryManager = manager
         manager?.startDiscovery()
         isDiscovering = true

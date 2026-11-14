@@ -29,10 +29,16 @@
     NSString* _uniqueId;
     NSData* _cert;
     BOOL shouldDiscover;
+    BOOL _mainThreadHostUpdates;
 }
 
 - (id)initWithHosts:(NSArray *)hosts andCallback:(id<DiscoveryCallback>)callback {
+    return [self initWithHosts:hosts andCallback:callback mainThreadHostUpdates:NO];
+}
+
+- (id)initWithHosts:(NSArray *)hosts andCallback:(id<DiscoveryCallback>)callback mainThreadHostUpdates:(BOOL)mainThreadHostUpdates {
     self = [super init];
+    _mainThreadHostUpdates = mainThreadHostUpdates;
     
     // Using addHostToDiscovery ensures no duplicates
     // will make it into the list from the database
@@ -44,7 +50,7 @@
     {
         [self addHostToDiscovery:host];
     }
-    [_callback updateAllHosts:_hostQueue];
+    [self notifyHostsChanged];
     
     _opQueue = [[NSOperationQueue alloc] init];
     _mdnsMan = [[MDNSManager alloc] initWithCallback:self];
@@ -52,6 +58,21 @@
     _uniqueId = [IdManager getUniqueId];
     _cert = [CryptoManager readCertFromFile];
     return self;
+}
+
+- (void)notifyHostsChanged {
+    NSArray* snapshot;
+    @synchronized (_hostQueue) {
+        snapshot = [_hostQueue copy];
+    }
+    if (_mainThreadHostUpdates && ![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self->_callback updateAllHosts:snapshot];
+        });
+    }
+    else {
+        [_callback updateAllHosts:snapshot];
+    }
 }
 
 + (BOOL) isAddressLAN:(in_addr_t)addr {
@@ -348,9 +369,7 @@
     [worker discoverHost];
     if ([self addHostToDiscovery:host]) {
         Log(LOG_I, @"Found new host through MDNS: %@:", host.name);
-        @synchronized (_hostQueue) {
-            [_callback updateAllHosts:_hostQueue];
-        }
+        [self notifyHostsChanged];
     } else {
         Log(LOG_D, @"Found existing host through MDNS: %@", host.name);
     }

@@ -18,6 +18,7 @@
 @interface DiscoveryManager : NSObject <MDNSCallback>
 
 - (id) initWithHosts:(NSArray*)hosts andCallback:(id<DiscoveryCallback>) callback;
+- (id) initWithHosts:(NSArray*)hosts andCallback:(id<DiscoveryCallback>) callback mainThreadHostUpdates:(BOOL)mainThreadHostUpdates;
 - (void) startDiscovery;
 - (void) stopDiscovery;
 - (void) stopDiscoveryBlocking;

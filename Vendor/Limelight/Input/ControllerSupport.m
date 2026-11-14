@@ -830,95 +830,12 @@ static const double MOUSE_SPEED_DIVISOR = 1.25;
 }
 
 -(void) unregisterMouseCallbacks:(GCMouse*)mouse API_AVAILABLE(ios(14.0)) {
-    // Mouse input is owned by MouseInputController in the app layer; keep
-    // ControllerSupport gamepad-only so handlers are never installed twice.
-    return;
-    mouse.mouseInput.mouseMovedHandler = nil;
-    
-    mouse.mouseInput.leftButton.pressedChangedHandler = nil;
-    mouse.mouseInput.middleButton.pressedChangedHandler = nil;
-    mouse.mouseInput.rightButton.pressedChangedHandler = nil;
-    
-    for (GCControllerButtonInput* auxButton in mouse.mouseInput.auxiliaryButtons) {
-        auxButton.pressedChangedHandler = nil;
-    }
-    
-#if TARGET_OS_TV
-    mouse.mouseInput.scroll.xAxis.valueChangedHandler = nil;
-    mouse.mouseInput.scroll.yAxis.valueChangedHandler = nil;
-#endif
+    // Mouse input is owned by StreamMouseInput in the app layer. This vendored
+    // duplicate is intentionally inert and kept only for the existing callers.
 }
 
 -(void) registerMouseCallbacks:(GCMouse*) mouse API_AVAILABLE(ios(14.0)) {
     // See unregisterMouseCallbacks: the app layer owns mouse input.
-    return;
-    mouse.mouseInput.mouseMovedHandler = ^(GCMouseInput * _Nonnull mouse, float deltaX, float deltaY) {
-        self->accumulatedDeltaX += deltaX / MOUSE_SPEED_DIVISOR;
-        self->accumulatedDeltaY += -deltaY / MOUSE_SPEED_DIVISOR;
-        
-        short truncatedDeltaX = (short)self->accumulatedDeltaX;
-        short truncatedDeltaY = (short)self->accumulatedDeltaY;
-        
-        if (truncatedDeltaX != 0 || truncatedDeltaY != 0) {
-            LiSendMouseMoveEvent(truncatedDeltaX, truncatedDeltaY);
-            
-            self->accumulatedDeltaX -= truncatedDeltaX;
-            self->accumulatedDeltaY -= truncatedDeltaY;
-        }
-    };
-    
-    mouse.mouseInput.leftButton.pressedChangedHandler = ^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
-        LiSendMouseButtonEvent(pressed ? BUTTON_ACTION_PRESS : BUTTON_ACTION_RELEASE, BUTTON_LEFT);
-    };
-    mouse.mouseInput.middleButton.pressedChangedHandler = ^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
-        LiSendMouseButtonEvent(pressed ? BUTTON_ACTION_PRESS : BUTTON_ACTION_RELEASE, BUTTON_MIDDLE);
-    };
-    mouse.mouseInput.rightButton.pressedChangedHandler = ^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
-        LiSendMouseButtonEvent(pressed ? BUTTON_ACTION_PRESS : BUTTON_ACTION_RELEASE, BUTTON_RIGHT);
-    };
-    
-    if (mouse.mouseInput.auxiliaryButtons != nil) {
-        if (mouse.mouseInput.auxiliaryButtons.count >= 1) {
-            mouse.mouseInput.auxiliaryButtons[0].pressedChangedHandler = ^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
-                LiSendMouseButtonEvent(pressed ? BUTTON_ACTION_PRESS : BUTTON_ACTION_RELEASE, BUTTON_X1);
-            };
-        }
-        if (mouse.mouseInput.auxiliaryButtons.count >= 2) {
-            mouse.mouseInput.auxiliaryButtons[1].pressedChangedHandler = ^(GCControllerButtonInput * _Nonnull button, float value, BOOL pressed) {
-                LiSendMouseButtonEvent(pressed ? BUTTON_ACTION_PRESS : BUTTON_ACTION_RELEASE, BUTTON_X2);
-            };
-        }
-    }
-    
-    // We use UIPanGestureRecognizer on iPadOS because it allows us to distinguish
-    // between discrete and continuous scroll events and also works around a bug
-    // in iPadOS 15 where discrete scroll events are dropped. tvOS only supports
-    // GCMouse for mice, so we will have to just use it and hope for the best.
-#if TARGET_OS_TV
-    mouse.mouseInput.scroll.xAxis.valueChangedHandler = ^(GCControllerAxisInput * _Nonnull axis, float value) {
-        self->accumulatedScrollX += value;
-        
-        short truncatedScrollX = (short)self->accumulatedScrollX;
-        
-        if (truncatedScrollX != 0) {
-            // Direction is reversed from vertical scrolling
-            LiSendHighResHScrollEvent(-truncatedScrollX * 20);
-            
-            self->accumulatedScrollX -= truncatedScrollX;
-        }
-    };
-    mouse.mouseInput.scroll.yAxis.valueChangedHandler = ^(GCControllerAxisInput * _Nonnull axis, float value) {
-        self->accumulatedScrollY += value;
-        
-        short truncatedScrollY = (short)self->accumulatedScrollY;
-        
-        if (truncatedScrollY != 0) {
-            LiSendHighResScrollEvent(truncatedScrollY * 20);
-            
-            self->accumulatedScrollY -= truncatedScrollY;
-        }
-    };
-#endif
 }
 
 -(void) updateAutoOnScreenControlMode

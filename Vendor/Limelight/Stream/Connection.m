@@ -362,19 +362,30 @@ void ClSetControllerLED(uint16_t controllerNumber, uint8_t r, uint8_t g, uint8_t
 
 -(void) terminate
 {
-    // Interrupt any action blocking LiStartConnection(). This is
-    // thread-safe and done outside initLock on purpose, since we
-    // won't be able to acquire it if LiStartConnection is in
-    // progress.
+    [self terminateWithCompletion:nil];
+}
+
+-(void) terminateWithCompletion:(void (^)(void))completion
+{
+    // Interrupt any action blocking LiStartConnection(). This is thread-safe
+    // and done outside initLock on purpose, since we won't be able to acquire
+    // the lock while a start is in progress.
     LiInterruptConnection();
-    
-    // We dispatch this async to get out because this can be invoked
-    // on a thread inside common and we don't want to deadlock. It also avoids
-    // blocking on the caller's thread waiting to acquire initLock.
+
+    // Dispatch async to get off the caller's thread (which may be inside
+    // common) and to wait for any previous start/stop to release initLock.
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
         [initLock lock];
         LiStopConnection();
         [initLock unlock];
+
+        Log(LOG_I, @"[Connection] LiStopConnection() completed and initLock released.");
+
+        if (completion != nil) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                completion();
+            });
+        }
     });
 }
 
@@ -488,7 +499,20 @@ void ClSetControllerLED(uint16_t controllerNumber, uint8_t r, uint8_t g, uint8_t
 
 -(void) main
 {
-    [initLock lock];
+    // Wait for a previous teardown to release initLock. A timeout means the
+    // previous cleanup is genuinely stuck; fail this start instead of blocking
+    // a new LiStartConnection() against an unfinished stop.
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:10.0];
+    if (![initLock lockBeforeDate:deadline]) {
+        Log(LOG_E, @"[Connection] initLock timed out after 10s — previous connection cleanup may be hung.");
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (_callbacks != nil) {
+                [_callbacks stageFailed:"Connection cleanup timed out" withError:-1 portTestFlags:0];
+            }
+        });
+        return;
+    }
+
     LiStartConnection(&_serverInfo,
                       &_streamConfig,
                       &_clCallbacks,

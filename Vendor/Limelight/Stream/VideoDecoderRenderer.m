@@ -35,6 +35,8 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     
     CADisplayLink* _displayLink;
     BOOL framePacing;
+    CFTimeInterval lastFrameSubmitTime;
+    CFTimeInterval lastIdrRequestTime;
 }
 
 - (void)reinitializeDisplayLayer
@@ -121,11 +123,12 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     
     while (LiPollNextVideoFrame(&handle, &du)) {
         LiCompleteVideoFrame(handle, DrSubmitDecodeUnit(du));
-        
+        lastFrameSubmitTime = CACurrentMediaTime();
+
         if (framePacing) {
             // Calculate the actual display refresh rate
             double displayRefreshRate = 1 / (_displayLink.targetTimestamp - _displayLink.timestamp);
-            
+
             // Only pace frames if the display refresh rate is >= 90% of our stream frame rate.
             // Battery saver, accessibility settings, or device thermals can cause the actual
             // refresh rate of the display to drop below the physical maximum.
@@ -137,6 +140,17 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
                 }
             }
         }
+    }
+
+    // Mid-stream freeze recovery: if frames are queued but nothing has been
+    // submitted for 450 ms, ask the host for an IDR frame (at most once per 2 s).
+    CFTimeInterval now = CACurrentMediaTime();
+    if (lastFrameSubmitTime != 0 && now - lastFrameSubmitTime > 0.45 &&
+        LiGetPendingVideoFrames() > 0 && now - lastIdrRequestTime > 2.0) {
+        Log(LOG_W, @"[Video] no frame submitted for %.0f ms with %d pending; requesting IDR",
+            (now - lastFrameSubmitTime) * 1000.0, LiGetPendingVideoFrames());
+        LiRequestIdrFrame();
+        lastIdrRequestTime = now;
     }
 }
 

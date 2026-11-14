@@ -8,6 +8,9 @@
 import SwiftUI
 
 struct StreamWindowView: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @Bindable private var settings = StreamSettingsStore.shared
+
     @State private var model: StreamSessionModel
     private let onExit: () -> Void
 
@@ -24,6 +27,10 @@ struct StreamWindowView: View {
             overlay
         }
         .task { await model.startWhenReady() }
+        .onAppear { model.setBackgrounded(scenePhase != .active) }
+        .onChange(of: scenePhase) { _, newPhase in
+            model.setBackgrounded(newPhase != .active)
+        }
         .onDisappear { model.stop() }
     }
 
@@ -51,7 +58,7 @@ struct StreamWindowView: View {
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
             }
 
-            if model.isStreaming && !model.statsText.isEmpty {
+            if model.isStreaming && settings.showStats && !model.statsText.isEmpty {
                 Text(model.statsText)
                     .font(.caption.monospaced())
                     .multilineTextAlignment(.leading)

@@ -25,6 +25,7 @@
     UIView* _renderView;
     id<ConnectionCallbacks> _callbacks;
     Connection* _connection;
+    BOOL _stopRequested;
 }
 
 - (id) initWithConfig:(StreamConfiguration*)config renderView:(UIView*)view connectionCallbacks:(id<ConnectionCallbacks>)callbacks {
@@ -99,6 +100,9 @@
     
     // Initializing the renderer must be done on the main thread
     dispatch_async(dispatch_get_main_queue(), ^{
+        if (self->_stopRequested) {
+            return;
+        }
         VideoDecoderRenderer* renderer = [[VideoDecoderRenderer alloc] initWithView:self->_renderView callbacks:self->_callbacks streamAspectRatio:(float)self->_config.width / (float)self->_config.height useFramePacing:self->_config.useFramePacing];
         self->_connection = [[Connection alloc] initWithConfig:self->_config renderer:renderer connectionCallbacks:self->_callbacks];
         NSOperationQueue* opQueue = [[NSOperationQueue alloc] init];
@@ -108,7 +112,21 @@
 
 - (void) stopStream
 {
-    [_connection terminate];
+    [self stopStreamWithCompletion:nil];
+}
+
+- (void) stopStreamWithCompletion:(void (^)(void))completion
+{
+    _stopRequested = YES;
+    if (_connection == nil) {
+        if (completion != nil) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                completion();
+            });
+        }
+        return;
+    }
+    [_connection terminateWithCompletion:completion];
 }
 
 - (BOOL) launchApp:(HttpManager*)hMan receiveSessionUrl:(NSString**)sessionUrl {

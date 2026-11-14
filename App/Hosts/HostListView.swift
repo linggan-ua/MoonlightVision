@@ -10,6 +10,7 @@ import SwiftUI
 struct HostListView: View {
     @State private var model = HostListModel()
     @State private var showingAddHost = false
+    @State private var showingSettings = false
 
     var body: some View {
         NavigationStack {
@@ -52,11 +53,21 @@ struct HostListView: View {
                         Image(systemName: "arrow.clockwise")
                     }
                 }
+                ToolbarItem(placement: .automatic) {
+                    Button {
+                        showingSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                }
             }
         }
         .task { model.start() }
         .sheet(isPresented: $showingAddHost) {
             AddHostSheet(model: model)
+        }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView()
         }
     }
 }

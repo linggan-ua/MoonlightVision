@@ -13,7 +13,8 @@ import Observation
 import UIKit
 import VideoToolbox
 
-/// Owns one game stream: configuration, start/stop, connection callbacks and stats.
+/// Owns one game stream: configuration, start/stop, connection callbacks,
+/// input, reconnect and stats.
 @MainActor
 @Observable
 final class StreamSessionModel {
@@ -32,14 +33,20 @@ final class StreamSessionModel {
 
     private(set) var phase: Phase = .idle
     private(set) var statsText = ""
+    private(set) var isBackgrounded = false
 
     private let operationQueue = OperationQueue()
     private var streamManager: StreamManager?
     private var connectionDelegate: StreamConnectionDelegate?
     private var statsTimer: Timer?
     private var started = false
+    private var userInitiatedStop = false
+    private var reconnectAttempts = 0
+    private var pendingTerminationCode: Int32?
+    private var stopCompletionSeen = false
+    private var activeConfig: StreamConfiguration?
 
-    private let mouseInput = MouseInputController()
+    private let mouseInput = StreamMouseInput()
     private let pointerHider = StreamPointerHider()
     private var pointerInteraction: UIPointerInteraction?
     private var gameControllerInteraction: GCEventInteraction?
@@ -81,10 +88,13 @@ final class StreamSessionModel {
             try? await Task.sleep(for: .milliseconds(25))
         }
         started = true
-        start()
+        await start()
     }
 
     func stop() {
+        guard !userInitiatedStop else { return }
+        userInitiatedStop = true
+
         switch phase {
         case .ended, .stopping:
             return
@@ -94,22 +104,74 @@ final class StreamSessionModel {
 
         phase = .stopping
         teardownInput()
-        streamManager?.stopStream()
+        StreamStartGate.shared.beginStop()
+        stopCompletionSeen = false
 
+        guard let manager = streamManager else {
+            stopCompletionSeen = true
+            StreamStartGate.shared.endStop()
+            finish(message: nil)
+            return
+        }
+        streamManager = nil
+
+        manager.stopStream(completion: { [weak self] in
+            Task { @MainActor in
+                guard let self, !self.stopCompletionSeen else { return }
+                self.stopCompletionSeen = true
+                StreamStartGate.shared.endStop()
+                self.finish(message: nil)
+            }
+        })
+
+        // Ultimate watchdog: never leave the next start gated forever if the
+        // underlying LiStopConnection() is wedged.
         Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(4))
-            guard let self, case .stopping = self.phase else { return }
-            self.finish(message: nil)
+            try? await Task.sleep(for: .seconds(8))
+            guard let self, !self.stopCompletionSeen else { return }
+            self.stopCompletionSeen = true
+            StreamStartGate.shared.endStop()
+            self.finish(message: "Disconnect timed out.")
+        }
+    }
+
+    /// Called from the stream scene when visionOS backgrounds or foregrounds the window.
+    func setBackgrounded(_ backgrounded: Bool) {
+        guard isBackgrounded != backgrounded else { return }
+        isBackgrounded = backgrounded
+
+        if backgrounded {
+            teardownInput()
+            return
+        }
+
+        if let code = pendingTerminationCode {
+            pendingTerminationCode = nil
+            reconnect(message: "Connection lost (\(code))")
+            return
+        }
+
+        switch phase {
+        case .streaming, .connecting:
+            if let config = activeConfig {
+                setupInput(config: config)
+            }
+        default:
+            break
         }
     }
 
     // MARK: - Start
 
-    private func start() {
-        guard streamManager == nil else { return }
+    private func start() async {
+        guard streamManager == nil, !userInitiatedStop else { return }
+
+        await StreamStartGate.shared.waitUntilStartable()
+        guard !userInitiatedStop, streamManager == nil else { return }
 
         phase = .preparing
         let config = makeConfiguration()
+        activeConfig = config
         setupInput(config: config)
 
         let delegate = StreamConnectionDelegate()
@@ -132,13 +194,15 @@ final class StreamSessionModel {
         }
         delegate.onFirstFrame = { [weak self] in
             Task { @MainActor in
-                self?.phase = .streaming
-                self?.startStatsTimer()
+                guard let self else { return }
+                self.reconnectAttempts = 0
+                self.phase = .streaming
+                self.startStatsTimer()
             }
         }
         delegate.onTerminated = { [weak self] code in
             Task { @MainActor in
-                self?.finish(message: code == 0 ? nil : "Connection lost (\(code))")
+                self?.handleTermination(code)
             }
         }
         delegate.onLaunchFailed = { [weak self] message in
@@ -181,7 +245,45 @@ final class StreamSessionModel {
         operationQueue.addOperation(manager)
     }
 
+    private func handleTermination(_ code: Int32) {
+        if userInitiatedStop {
+            finish(message: nil)
+            return
+        }
+        if isBackgrounded {
+            pendingTerminationCode = code
+            return
+        }
+        if code == 0 {
+            finish(message: nil)
+            return
+        }
+        reconnect(message: "Connection lost (\(code))")
+    }
+
+    private func reconnect(message: String) {
+        guard reconnectAttempts < 3 else {
+            finish(message: message)
+            return
+        }
+
+        reconnectAttempts += 1
+        teardownInput()
+        streamManager = nil
+        connectionDelegate = nil
+        phase = .connecting(stage: "Reconnecting… (\(reconnectAttempts)/3)")
+
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(2.5))
+            guard let self, !self.userInitiatedStop, !self.isBackgrounded else { return }
+            await self.start()
+        }
+    }
+
+    // MARK: - Configuration
+
     private func makeConfiguration() -> StreamConfiguration {
+        let settings = StreamSettingsStore.shared
         let config = StreamConfiguration()
         config.host = host.activeAddress ?? host.address ?? ""
         config.httpsPort = host.httpsPort
@@ -190,27 +292,65 @@ final class StreamSessionModel {
         config.serverCert = host.serverCert
         config.serverCodecModeSupport = host.serverCodecModeSupport
 
-        config.width = 1920
-        config.height = 1080
-        config.frameRate = 60
-        config.bitRate = 10000
+        config.width = settings.resolution.width
+        config.height = settings.resolution.height
+        config.frameRate = Int32(settings.frameRate)
+        config.bitRate = Int32(settings.bitrateMbps * 1000)
         config.useFramePacing = true
         config.playAudioOnPC = false
         config.optimizeGameSettings = true
         config.swapABXYButtons = false
         config.multiController = false
         config.gamepadMask = Int32(ControllerSupport.getConnectedGamepadMask(config))
-        // AUDIO_CONFIGURATION_STEREO expands through a function-like macro, so the
-        // Clang importer cannot expose it. This is MAKE_AUDIO_CONFIGURATION(2, 0x3).
-        config.audioConfiguration = (0x3 << 16) | (2 << 8) | 0xCA
-
-        var videoFormats = Int32(VIDEO_FORMAT_H264)
-        if VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC) {
-            videoFormats |= Int32(VIDEO_FORMAT_H265)
-        }
-        config.supportedVideoFormats = videoFormats
+        config.audioConfiguration = audioConfiguration(for: settings)
+        config.supportedVideoFormats = preferredVideoFormats(settings: settings)
 
         return config
+    }
+
+    private func preferredVideoFormats(settings: StreamSettingsStore) -> Int32 {
+        let hevcSupported = VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC)
+        let av1Supported = VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1)
+        var formats = Int32(VIDEO_FORMAT_H264)
+
+        switch settings.codec {
+        case .auto:
+            if hevcSupported { formats |= Int32(VIDEO_FORMAT_H265) }
+            if av1Supported { formats |= Int32(VIDEO_FORMAT_AV1_MAIN8) }
+        case .h264:
+            break
+        case .hevc:
+            if hevcSupported { formats |= Int32(VIDEO_FORMAT_H265) }
+        case .av1:
+            if av1Supported { formats |= Int32(VIDEO_FORMAT_AV1_MAIN8) }
+            if hevcSupported { formats |= Int32(VIDEO_FORMAT_H265) }
+        }
+
+        if settings.hdrEnabled, AVPlayer.availableHDRModes.contains(.hdr10) {
+            if hevcSupported { formats |= Int32(VIDEO_FORMAT_H265_MAIN10) }
+            if av1Supported { formats |= Int32(VIDEO_FORMAT_AV1_MAIN10) }
+        }
+
+        return formats
+    }
+
+    private func audioConfiguration(for settings: StreamSettingsStore) -> Int32 {
+        let maxChannels = StreamSettingsStore.maximumOutputChannels
+        let requested: Int
+        switch settings.audioMode {
+        case .auto: requested = maxChannels
+        case .stereo: requested = 2
+        case .surround51: requested = 6
+        case .surround71: requested = 8
+        }
+
+        if requested >= 8, maxChannels >= 8 {
+            return (0x63F << 16) | (8 << 8) | 0xCA
+        }
+        if requested >= 6, maxChannels >= 6 {
+            return (0x3F << 16) | (6 << 8) | 0xCA
+        }
+        return (0x3 << 16) | (2 << 8) | 0xCA
     }
 
     // MARK: - Input
@@ -230,7 +370,8 @@ final class StreamSessionModel {
         renderView.addInteraction(gameController)
         gameControllerInteraction = gameController
 
-        mouseInput.start(mode: .relative, streamWidth: config.width, streamHeight: config.height)
+        let settings = StreamSettingsStore.shared
+        mouseInput.start(mode: settings.mouseMode, streamWidth: config.width, streamHeight: config.height)
 
         let delegate = StreamControllerDelegate()
         delegate.onExitRequested = { [weak self] in
@@ -268,7 +409,9 @@ final class StreamSessionModel {
         statsTimer?.invalidate()
         statsTimer = nil
         streamManager = nil
+        connectionDelegate = nil
         statsText = ""
+        if case .ended = phase { return }
         phase = .ended(message)
     }
 

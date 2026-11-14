@@ -106,65 +106,49 @@ struct HostListView: View {
 
     @ViewBuilder
     private var sidebar: some View {
-        VStack(spacing: 0) {
-            if model.hosts.isEmpty {
-                ContentUnavailableView {
-                    Label("No Hosts", systemImage: "desktopcomputer")
-                } description: {
-                    Text("Start Sunshine on a PC on the same network, or add one by address.")
-                } actions: {
-                    Button("Add Server") {
-                        showingAddHost = true
-                    }
+        if model.hosts.isEmpty {
+            ContentUnavailableView {
+                Label("No Hosts", systemImage: "desktopcomputer")
+            } description: {
+                Text("Start Sunshine on a PC on the same network, or add one by address.")
+            } actions: {
+                Button("Add Server") {
+                    showingAddHost = true
                 }
-            } else {
-                List(selection: $selection) {
-                    ForEach(model.hosts, id: \.uuid) { host in
-                        HostRow(host: host)
-                            .tag(host.uuid)
-                            .contextMenu {
-                                if host.state != .online {
-                                    Button {
-                                        model.wakeHost(host)
-                                    } label: {
-                                        Label("Wake PC", systemImage: "sun.horizon")
-                                    }
-                                    .disabled(host.mac == nil || host.mac == "00:00:00:00:00:00")
-                                }
-
+            }
+        } else {
+            List(selection: $selection) {
+                ForEach(model.hosts, id: \.uuid) { host in
+                    HostRow(host: host)
+                        .tag(host.uuid)
+                        .contextMenu {
+                            if host.state != .online {
                                 Button {
-                                    renamingHost = host
-                                    renameText = host.name
-                                    showingRename = true
+                                    model.wakeHost(host)
                                 } label: {
-                                    Label("Rename Host", systemImage: "pencil")
+                                    Label("Wake PC", systemImage: "sun.horizon")
                                 }
-
-                                Button(role: .destructive) {
-                                    pendingDeleteHost = host
-                                    showingDeleteConfirm = true
-                                } label: {
-                                    Label("Delete Host", systemImage: "trash")
-                                }
+                                .disabled(host.mac == nil || host.mac == "00:00:00:00:00:00")
                             }
-                    }
-                }
-                .listStyle(.sidebar)
-            }
 
-            Button {
-                if model.isDiscovering {
-                    model.stop()
-                } else {
-                    model.start()
+                            Button {
+                                renamingHost = host
+                                renameText = host.name
+                                showingRename = true
+                            } label: {
+                                Label("Rename Host", systemImage: "pencil")
+                            }
+
+                            Button(role: .destructive) {
+                                pendingDeleteHost = host
+                                showingDeleteConfirm = true
+                            } label: {
+                                Label("Delete Host", systemImage: "trash")
+                            }
+                        }
                 }
-            } label: {
-                Text(model.isDiscovering ? "Click to stop discovery" : "Click to scan hosts")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.plain)
-            .padding(.vertical, 8)
+            .listStyle(.sidebar)
         }
     }
 

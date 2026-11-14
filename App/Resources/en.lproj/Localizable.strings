@@ -37,13 +37,8 @@
 "Add apps in Sunshine on your PC, then refresh." = "Add apps in Sunshine on your PC, then refresh.";
 "No apps match your search." = "No apps match your search.";
 "Refresh" = "Refresh";
-"Show Hidden Apps" = "Show Hidden Apps";
-"Hide Hidden Apps" = "Hide Hidden Apps";
 "Running" = "Running";
 "Unknown App" = "Unknown App";
-"Hide App" = "Hide App";
-"Show App" = "Show App";
-"Search apps" = "Search apps";
 
 /* Settings */
 "Video" = "Video";
@@ -136,14 +131,11 @@
 "All Apps" = "All Apps";
 "Running now" = "Running now";
 "Select a host on the left to see its games." = "Select a host on the left to see its games.";
-"Toggle Hidden Apps" = "Toggle Hidden Apps";
 "Offline" = "Offline";
 "Unpaired" = "Unpaired";
 "Computers" = "Computers";
 "No Host Selected" = "No Host Selected";
 "Select a computer on the left to see its apps." = "Select a computer on the left to see its apps.";
-"Click to stop discovery" = "Click to stop discovery";
-"Click to scan hosts" = "Click to scan hosts";
 "Add Server" = "Add Server";
 "Enter server" = "Enter server";
 "IP or hostname" = "IP or hostname";

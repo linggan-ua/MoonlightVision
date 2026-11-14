@@ -12,7 +12,6 @@ struct HostSessionView: View {
     @Environment(\.openWindow) private var openWindow
 
     @State private var model: HostSessionModel
-    @State private var searchText = ""
     @State private var pendingApp: TemporaryApp?
     @State private var showQuitConfirm = false
     @State private var actionError: String?
@@ -30,25 +29,12 @@ struct HostSessionView: View {
             content
         }
         .navigationTitle(model.hostName)
-        .searchable(text: $searchText, prompt: "Search apps")
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 Button {
                     Task { await model.refreshApps() }
                 } label: {
                     Label("Refresh Status", systemImage: "arrow.clockwise")
-                }
-            }
-            ToolbarItem(placement: .automatic) {
-                Button {
-                    model.showHiddenApps.toggle()
-                } label: {
-                    Label(
-                        model.showHiddenApps
-                            ? String(localized: "Hide Hidden Apps")
-                            : String(localized: "Show Hidden Apps"),
-                        systemImage: model.showHiddenApps ? "eye.slash" : "eye"
-                    )
                 }
             }
         }
@@ -93,10 +79,8 @@ struct HostSessionView: View {
             AppsListView(
                 apps: model.displayedApps,
                 runningAppID: model.runningAppID,
-                searchText: searchText,
                 boxArtToken: model.boxArtToken,
                 onLaunch: requestLaunch,
-                onToggleAppHidden: { model.toggleHidden($0) },
                 onQuitRunningApp: { Task { _ = await model.quitCurrentApp() } },
                 onRefresh: { await model.refreshApps() }
             )
@@ -189,10 +173,8 @@ private struct PairingView: View {
 private struct AppsListView: View {
     let apps: [TemporaryApp]
     let runningAppID: String?
-    let searchText: String
     let boxArtToken: Int
     let onLaunch: (TemporaryApp) -> Void
-    let onToggleAppHidden: (TemporaryApp) -> Void
     let onQuitRunningApp: () -> Void
     let onRefresh: () async -> Void
 
@@ -208,11 +190,9 @@ private struct AppsListView: View {
                         Task { await onRefresh() }
                     }
                 }
-            } else if filteredApps.isEmpty {
-                ContentUnavailableView.search(text: searchText)
             } else {
                 List {
-                    ForEach(filteredApps, id: \.id) { app in
+                    ForEach(apps, id: \.id) { app in
                         Button {
                             onLaunch(app)
                         } label: {
@@ -229,10 +209,6 @@ private struct AppsListView: View {
                                     Label("Stop", systemImage: "stop.circle")
                                 }
                             }
-                            Button(
-                                app.hidden ? String(localized: "Show App") : String(localized: "Hide App"),
-                                action: { onToggleAppHidden(app) }
-                            )
                         }
                     }
                 }
@@ -242,12 +218,6 @@ private struct AppsListView: View {
                 }
             }
         }
-    }
-
-    private var filteredApps: [TemporaryApp] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return apps }
-        return apps.filter { ($0.name ?? "").localizedCaseInsensitiveContains(query) }
     }
 }
 

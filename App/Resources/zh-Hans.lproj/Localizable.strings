@@ -37,13 +37,8 @@
 "Add apps in Sunshine on your PC, then refresh." = "在 PC 的 Sunshine 中添加应用，然后刷新。";
 "No apps match your search." = "没有匹配的应用。";
 "Refresh" = "刷新";
-"Show Hidden Apps" = "显示已隐藏应用";
-"Hide Hidden Apps" = "隐藏已隐藏应用";
 "Running" = "运行中";
 "Unknown App" = "未知应用";
-"Hide App" = "隐藏应用";
-"Show App" = "显示应用";
-"Search apps" = "搜索应用";
 
 /* Settings */
 "Video" = "视频";
@@ -136,14 +131,11 @@
 "All Apps" = "全部应用";
 "Running now" = "正在运行";
 "Select a host on the left to see its games." = "在左侧选择一台主机以查看游戏。";
-"Toggle Hidden Apps" = "显示/隐藏已隐藏应用";
 "Offline" = "离线";
 "Unpaired" = "未配对";
 "Computers" = "电脑";
 "No Host Selected" = "未选择主机";
 "Select a computer on the left to see its apps." = "在左侧选择一台电脑以查看应用。";
-"Click to stop discovery" = "点击停止搜索";
-"Click to scan hosts" = "点击搜索主机";
 "Add Server" = "添加服务器";
 "Enter server" = "输入服务器";
 "IP or hostname" = "IP 或主机名";

@@ -105,17 +105,14 @@ final class HostSessionModel {
 
         guard response.statusCode == 200 else { return false }
 
-        for _ in 0..<12 {
-            try? await Task.sleep(for: .milliseconds(750))
-            let info = await fetchServerInfo(overHTTP: true)
-            guard info.isStatusOk() else { continue }
-            info.populateHost(host)
-            if host.currentGame == "0" || (host.currentGame?.isEmpty ?? true) {
-                dataManager.update(host)
-                return true
-            }
-        }
-        return false
+        // One post-quit status check, like the original client and the vetted
+        // clients. Polling for nine seconds only delays the next launch and
+        // hammers the host while it is tearing the app down.
+        let info = await fetchServerInfo(overHTTP: true)
+        guard info.isStatusOk() else { return false }
+        info.populateHost(host)
+        dataManager.update(host)
+        return host.currentGame == "0" || (host.currentGame?.isEmpty ?? true)
     }
 
     // MARK: - Server info
@@ -174,10 +171,11 @@ final class HostSessionModel {
         if overHTTP {
             request = HttpRequest(for: response, with: http.newHttpServerInfoRequest())
         } else {
-            request = HttpRequest(for: response,
-                                  with: http.newServerInfoRequest(false),
-                                  fallbackError: 401,
-                                  fallbackRequest: http.newHttpServerInfoRequest())
+            // No core fallback here: checkHost needs to know whether HTTPS
+            // actually succeeded. HttpManager falls back internally on 401 and
+            // on an untrusted certificate, which would make an HTTP response
+            // indistinguishable from a verified HTTPS one.
+            request = HttpRequest(for: response, with: http.newServerInfoRequest(false))
         }
 
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in

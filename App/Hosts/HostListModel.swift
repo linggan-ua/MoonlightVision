@@ -51,7 +51,7 @@ final class HostListModel {
     }
 
     func addHost(address: String, completion: @escaping (String?) -> Void) {
-        guard let discoveryManager else {
+        guard let manager = discoveryManager else {
             completion(String(localized: "Discovery is not running."))
             return
         }
@@ -62,19 +62,23 @@ final class HostListModel {
             return
         }
 
-        discoveryManager.discoverHost(trimmed, withCallback: { [weak self] host, error in
-            Task { @MainActor in
-                guard let self else { return }
-                if let host {
-                    self.upsert([host])
-                    self.dataManager.update(host)
-                    self.savedHostIDs.insert(host.uuid)
-                    completion(nil)
-                } else {
-                    completion(error ?? String(localized: "Host not found."))
+        // The underlying discovery call performs blocking HTTP requests. Keep
+        // it off the main actor so adding a host cannot freeze the library.
+        DispatchQueue.global(qos: .userInitiated).async {
+            manager.discoverHost(trimmed, withCallback: { [weak self] host, error in
+                Task { @MainActor in
+                    guard let self else { return }
+                    if let host {
+                        self.upsert([host])
+                        self.dataManager.update(host)
+                        self.savedHostIDs.insert(host.uuid)
+                        completion(nil)
+                    } else {
+                        completion(error ?? String(localized: "Host not found."))
+                    }
                 }
-            }
-        })
+            })
+        }
     }
 
     func wakeHost(_ host: TemporaryHost) {

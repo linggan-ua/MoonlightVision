@@ -97,13 +97,9 @@ final class StreamSessionModel {
     /// The renderer sizes its layer from the view bounds, so wait until SwiftUI has laid it out.
     func startWhenReady() async {
         guard !started else { return }
-        for _ in 0..<200 {
-            if renderView.bounds.width > 1, renderView.bounds.height > 1 {
-                break
-            }
-            try? await Task.sleep(for: .milliseconds(25))
-        }
         started = true
+        // The original client starts immediately; VideoDecoderRenderer owns
+        // late layout through its bounds KVO and stays hidden until the first IDR.
         await start()
     }
 
@@ -207,12 +203,12 @@ final class StreamSessionModel {
         }
         delegate.onLaunchFailed = { [weak self] message in
             Task { @MainActor in
-                self?.finish(message: message)
+                self?.finishAfterTeardown(message: message)
             }
         }
         delegate.onStageFailed = { [weak self] stage, code, _ in
             Task { @MainActor in
-                self?.finish(message: String(format: String(localized: "%@ failed (%d)"), stage, code))
+                self?.finishAfterTeardown(message: String(format: String(localized: "%@ failed (%d)"), stage, code))
             }
         }
         delegate.onRumble = { [weak self] controller, low, high in
@@ -252,11 +248,18 @@ final class StreamSessionModel {
             return
         }
         // Terminated-connection behavior: a terminated connection ends the stream
-        // and reports the error. Reconnecting is a user action, not a hidden
-        // automatic retry.
-        finish(message: code == 0
+        // and reports the error. The StreamManager must still be stopped so
+        // LiStopConnection releases common-c's static state for the next stream.
+        finishAfterTeardown(message: code == 0
             ? nil
             : String(format: String(localized: "Connection lost (%d)"), code))
+    }
+
+    private func finishAfterTeardown(message: String?) {
+        let manager = streamManager
+        streamManager = nil
+        finish(message: message)
+        manager?.stopStream(completion: nil)
     }
 
     // MARK: - Configuration

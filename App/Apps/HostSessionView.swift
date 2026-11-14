@@ -237,7 +237,7 @@ private struct AppsView: View {
     let onToggleAppHidden: (TemporaryApp) -> Void
     let onRefresh: () -> Void
 
-    private let columns = [GridItem(.adaptive(minimum: 170, maximum: 220), spacing: 28)]
+    private let columns = [GridItem(.adaptive(minimum: 260, maximum: 340), spacing: 24)]
 
     @State private var searchText = ""
 
@@ -256,7 +256,7 @@ private struct AppsView: View {
                 ContentUnavailableView.search(text: searchText)
             } else {
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 28) {
+                    LazyVGrid(columns: columns, spacing: 24) {
                         ForEach(filteredApps, id: \.id) { app in
                             Button {
                                 onLaunch(app)
@@ -315,53 +315,63 @@ private struct AppCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ZStack(alignment: .topTrailing) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(.quaternary)
-                    if let boxArt {
-                        Image(uiImage: boxArt)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        Image(systemName: "app.fill")
-                            .font(.system(size: 52))
-                            .foregroundStyle(.secondary)
-                    }
-                }
+            Color.clear
+                .aspectRatio(16.0 / 9.0, contentMode: .fit)
+                .overlay {
+                    ZStack(alignment: .topTrailing) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(.quaternary)
+                            if let boxArt {
+                                Image(uiImage: boxArt)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .blur(radius: 18)
+                                    .opacity(0.55)
+                                Image(uiImage: boxArt)
+                                    .resizable()
+                                    .scaledToFit()
+                            } else {
+                                Image(systemName: "app.fill")
+                                    .font(.system(size: 44))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
 
-                VStack(alignment: .trailing, spacing: 6) {
-                    if isRunning {
-                        Text("Running")
-                            .font(.caption2.bold())
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(.green.opacity(0.9), in: Capsule())
-                    }
-                    if app.hdrSupported {
-                        Text("HDR")
-                            .font(.caption2.bold())
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(.ultraThinMaterial, in: Capsule())
+                        VStack(alignment: .trailing, spacing: 6) {
+                            if isRunning {
+                                Text("Running")
+                                    .font(.caption2.bold())
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(.green.opacity(0.9), in: Capsule())
+                            }
+                            if app.hdrSupported {
+                                Text("HDR")
+                                    .font(.caption2.bold())
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(.ultraThinMaterial, in: Capsule())
+                            }
+                        }
+                        .padding(10)
                     }
                 }
-                .padding(10)
-            }
-            .aspectRatio(2.0 / 3.0, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
-            .id(boxArtToken)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
+                .id(boxArtToken)
 
             Text(app.name ?? String(localized: "Unknown App"))
                 .font(.headline)
                 .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 4)
         }
         .contentShape(.rect)

@@ -19,8 +19,10 @@
 #import "HttpResponse.h"
 #import "ServerInfoResponse.h"
 #import "AppListResponse.h"
+#import "AppAssetManager.h"
 #import "ConnectionHelper.h"
 #import "PairManager.h"
+#import "WakeOnLanManager.h"
 #import "StreamConfiguration.h"
 #import "StreamManager.h"
 #import "ConnectionCallbacks.h"
@@ -29,3 +31,5 @@
 
 #include <Limelight.h>
 #include "opus_multistream.h"
+
+void MVSetStreamVolume(float volume);

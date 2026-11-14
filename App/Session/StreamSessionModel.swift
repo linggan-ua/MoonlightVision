@@ -35,6 +35,14 @@ final class StreamSessionModel {
     private(set) var phase: Phase = .idle
     private(set) var statsText = ""
     private(set) var isBackgrounded = false
+    private(set) var isMuted = false
+    var volume: Double = 1.0 {
+        didSet {
+            isMuted = volume <= 0
+            MVSetStreamVolume(Float(volume))
+        }
+    }
+    private var volumeBeforeMute: Double = 1.0
 
     private let operationQueue = OperationQueue()
     private var streamManager: StreamManager?
@@ -77,6 +85,15 @@ final class StreamSessionModel {
 
     var isStreaming: Bool {
         phase == .streaming
+    }
+
+    func toggleMute() {
+        if volume > 0 {
+            volumeBeforeMute = volume
+            volume = 0
+        } else {
+            volume = volumeBeforeMute > 0 ? volumeBeforeMute : 1
+        }
     }
 
     /// The renderer sizes its layer from the view bounds, so wait until SwiftUI has laid it out.
@@ -174,6 +191,7 @@ final class StreamSessionModel {
         let config = makeConfiguration()
         activeConfig = config
         setupInput(config: config)
+        MVSetStreamVolume(Float(volume))
 
         let delegate = StreamConnectionDelegate()
         delegate.onStage = { [weak self] stage in
@@ -297,11 +315,11 @@ final class StreamSessionModel {
         config.height = settings.resolution.height
         config.frameRate = Int32(settings.frameRate)
         config.bitRate = Int32(settings.bitrateMbps * 1000)
-        config.useFramePacing = true
-        config.playAudioOnPC = false
-        config.optimizeGameSettings = true
-        config.swapABXYButtons = false
-        config.multiController = false
+        config.useFramePacing = settings.framePacing
+        config.playAudioOnPC = settings.playAudioOnPC
+        config.optimizeGameSettings = settings.optimizeGameSettings
+        config.swapABXYButtons = settings.swapABXY
+        config.multiController = settings.multiController
         config.gamepadMask = Int32(ControllerSupport.getConnectedGamepadMask(config))
         config.audioConfiguration = audioConfiguration(for: settings)
         config.supportedVideoFormats = preferredVideoFormats(settings: settings)

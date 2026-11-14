@@ -50,8 +50,7 @@ final class HostListModel {
         isDiscovering = false
     }
 
-    func addHost(address: String, completion: @escaping (String?) -> Void) {
-        guard let discoveryManager else {
+    func addHost(address: String, completion: @escaping (String?) -> Void) {        guard let discoveryManager else {
             completion("Discovery is not running.")
             return
         }
@@ -77,10 +76,19 @@ final class HostListModel {
         })
     }
 
+    func wakeHost(_ host: TemporaryHost) {
+        WakeOnLanManager.wake(host)
+    }
+
+    func deleteHost(_ host: TemporaryHost) {
+        discoveryManager?.removeHost(fromDiscovery: host)
+        dataManager.remove(host)
+        hosts.removeAll { $0 === host }
+    }
+
     /// Discovery hands us fresh TemporaryHost objects. Merge them into the existing
     /// objects by UUID so the certificate, app list, and other persisted fields survive.
-    private func upsert(_ discovered: [TemporaryHost]) {
-        var merged = hosts
+    private func upsert(_ discovered: [TemporaryHost]) {        var merged = hosts
 
         for newHost in discovered {
             if let existing = merged.first(where: { $0.uuid == newHost.uuid }) {

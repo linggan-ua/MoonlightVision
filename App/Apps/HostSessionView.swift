@@ -6,10 +6,14 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct HostSessionView: View {
     @State private var model: HostSessionModel
     @State private var streamModel: StreamSessionModel?
+    @State private var pendingApp: TemporaryApp?
+    @State private var showQuitConfirm = false
+    @State private var actionError: String?
 
     init(host: TemporaryHost, discovery: DiscoveryManager?) {
         _model = State(initialValue: HostSessionModel(host: host, discovery: discovery))
@@ -27,6 +31,27 @@ struct HostSessionView: View {
         }
         .task { await model.start() }
         .navigationTitle(model.hostName)
+        .confirmationDialog(
+            "Another app is running",
+            isPresented: $showQuitConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Quit Running App and Start", role: .destructive) {
+                startAfterQuitting()
+            }
+            Button("Cancel", role: .cancel) {
+                pendingApp = nil
+            }
+        } message: {
+            Text("Close the app that is currently running on the host, then start this one.")
+        }
+        .alert("Could Not Start", isPresented: errorBinding) {
+            Button("OK", role: .cancel) {
+                actionError = nil
+            }
+        } message: {
+            Text(actionError ?? "")
+        }
     }
 
     @ViewBuilder
@@ -42,16 +67,55 @@ struct HostSessionView: View {
         case .loadingApps:
             StatusView(title: "Loading apps…", systemImage: "square.grid.2x2")
         case .ready:
-            AppsView(apps: model.apps, hostName: model.hostName) { app in
-                streamModel = StreamSessionModel(host: model.host, app: app)
-            } onRefresh: {
-                Task { await model.refreshApps() }
-            }
+            AppsView(
+                apps: model.displayedApps,
+                hostName: model.hostName,
+                runningAppID: model.runningAppID,
+                boxArtToken: model.boxArtToken,
+                showHiddenApps: model.showHiddenApps,
+                onLaunch: requestLaunch,
+                onToggleShowHidden: { model.showHiddenApps.toggle() },
+                onToggleAppHidden: { model.toggleHidden($0) },
+                onRefresh: { Task { await model.refreshApps() } }
+            )
         case .failed(let message):
             FailureView(message: message) {
                 model.retry()
             }
         }
+    }
+
+    private var errorBinding: Binding<Bool> {
+        Binding(
+            get: { actionError != nil },
+            set: { if !$0 { actionError = nil } }
+        )
+    }
+
+    private func requestLaunch(_ app: TemporaryApp) {
+        if let running = model.runningAppID, running != app.id {
+            pendingApp = app
+            showQuitConfirm = true
+        } else {
+            startStream(app)
+        }
+    }
+
+    private func startAfterQuitting() {
+        guard let app = pendingApp else { return }
+        pendingApp = nil
+        Task {
+            let quit = await model.quitCurrentApp()
+            if quit {
+                startStream(app)
+            } else {
+                actionError = "The host is still running another app. Quit it on the PC or try again."
+            }
+        }
+    }
+
+    private func startStream(_ app: TemporaryApp) {
+        streamModel = StreamSessionModel(host: model.host, app: app)
     }
 }
 
@@ -127,7 +191,12 @@ private struct FailureView: View {
 private struct AppsView: View {
     let apps: [TemporaryApp]
     let hostName: String
+    let runningAppID: String?
+    let boxArtToken: Int
+    let showHiddenApps: Bool
     let onLaunch: (TemporaryApp) -> Void
+    let onToggleShowHidden: () -> Void
+    let onToggleAppHidden: (TemporaryApp) -> Void
     let onRefresh: () -> Void
 
     private let columns = [GridItem(.adaptive(minimum: 180, maximum: 240), spacing: 24)]
@@ -153,7 +222,12 @@ private struct AppsView: View {
                             Button {
                                 onLaunch(app)
                             } label: {
-                                AppCard(app: app)
+                                AppCard(
+                                    app: app,
+                                    isRunning: app.id == runningAppID,
+                                    boxArtToken: boxArtToken,
+                                    onToggleHidden: { onToggleAppHidden(app) }
+                                )
                             }
                             .buttonStyle(.plain)
                             .hoverEffect(.lift)
@@ -169,38 +243,74 @@ private struct AppsView: View {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
             }
+            ToolbarItem(placement: .automatic) {
+                Button(action: onToggleShowHidden) {
+                    Label(
+                        showHiddenApps ? "Hide Hidden Apps" : "Show Hidden Apps",
+                        systemImage: showHiddenApps ? "eye.slash" : "eye"
+                    )
+                }
+            }
         }
     }
 }
 
 private struct AppCard: View {
     let app: TemporaryApp
+    let isRunning: Bool
+    let boxArtToken: Int
+    let onToggleHidden: () -> Void
+
+    private var boxArt: UIImage? {
+        let path: String = AppAssetManager.boxArtPath(for: app)
+        return UIImage(contentsOfFile: path)
+    }
 
     var body: some View {
-        VStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(.quaternary)
-                .frame(height: 120)
-                .overlay {
+        VStack(spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(.quaternary)
+                if let boxArt {
+                    Image(uiImage: boxArt)
+                        .resizable()
+                        .scaledToFill()
+                } else {
                     Image(systemName: "app.fill")
                         .font(.system(size: 42))
                         .foregroundStyle(.secondary)
                 }
+            }
+            .frame(height: 120)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .id(boxArtToken)
 
             Text(app.name ?? "Unknown App")
                 .font(.headline)
                 .lineLimit(1)
 
-            if app.hdrSupported {
-                Text("HDR")
-                    .font(.caption2.bold())
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(.thinMaterial, in: Capsule())
+            HStack(spacing: 6) {
+                if isRunning {
+                    Text("Running")
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(.green.opacity(0.25), in: Capsule())
+                }
+                if app.hdrSupported {
+                    Text("HDR")
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(.thinMaterial, in: Capsule())
+                }
             }
         }
         .padding(14)
         .frame(maxWidth: .infinity)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .contextMenu {
+            Button(app.hidden ? "Show App" : "Hide App", action: onToggleHidden)
+        }
     }
 }

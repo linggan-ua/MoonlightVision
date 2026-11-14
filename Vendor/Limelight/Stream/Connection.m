@@ -37,6 +37,13 @@ static video_stats_t lastVideoStats;
 static NSLock* videoStatsLock;
 
 static MVStreamAudioRenderer* audioRenderer;
+static float streamVolume = 1.0f;
+
+void MVSetStreamVolume(float volume)
+{
+    streamVolume = MAX(0.0f, MIN(1.0f, volume));
+    [audioRenderer setVolume:streamVolume];
+}
 
 static VideoDecoderRenderer* renderer;
 
@@ -209,6 +216,7 @@ int ArInit(int audioConfiguration, POPUS_MULTISTREAM_CONFIGURATION opusConfig, v
         Log(LOG_E, @"Failed to initialize the audio renderer");
         return -1;
     }
+    [audioRenderer setVolume:streamVolume];
     return 0;
 }
 

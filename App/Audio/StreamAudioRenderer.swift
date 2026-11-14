@@ -36,6 +36,7 @@ public final class StreamAudioRenderer: NSObject {
     private var engine: AVAudioEngine?
     private var sourceNode: AVAudioSourceNode?
     private var observers: [NSObjectProtocol] = []
+    private var volume: Float = 1.0
     private var running = false
     private var stopped = false
     private var lastRecoveryTime: CFAbsoluteTime = 0
@@ -143,6 +144,15 @@ public final class StreamAudioRenderer: NSObject {
             self.setRunning(false)
             self.engine?.stop()
             self.setEngineRunning(false)
+        }
+    }
+
+    @objc public func setVolume(_ value: Float) {
+        let clamped = max(0, min(1, value))
+        engineQueue.async { [weak self] in
+            guard let self else { return }
+            self.volume = clamped
+            self.engine?.mainMixerNode.outputVolume = clamped
         }
     }
 
@@ -279,6 +289,7 @@ public final class StreamAudioRenderer: NSObject {
         engine.prepare()
         do {
             try engine.start()
+            engine.mainMixerNode.outputVolume = volume
             self.engine = engine
             self.sourceNode = node
             self.setEngineRunning(true)

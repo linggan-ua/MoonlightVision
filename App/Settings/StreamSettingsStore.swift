@@ -112,6 +112,21 @@ final class StreamSettingsStore {
     var showStats: Bool {
         didSet { save() }
     }
+    var framePacing: Bool {
+        didSet { save() }
+    }
+    var optimizeGameSettings: Bool {
+        didSet { save() }
+    }
+    var playAudioOnPC: Bool {
+        didSet { save() }
+    }
+    var swapABXY: Bool {
+        didSet { save() }
+    }
+    var multiController: Bool {
+        didSet { save() }
+    }
 
     private struct Stored: Codable {
         var resolution: String
@@ -122,6 +137,11 @@ final class StreamSettingsStore {
         var audioMode: String
         var mouseMode: String
         var showStats: Bool
+        var framePacing: Bool?
+        var optimizeGameSettings: Bool?
+        var playAudioOnPC: Bool?
+        var swapABXY: Bool?
+        var multiController: Bool?
     }
 
     private init() {
@@ -139,6 +159,11 @@ final class StreamSettingsStore {
         audioMode = AudioMode(rawValue: stored?.audioMode ?? "") ?? .auto
         mouseMode = MouseTrackingMode(rawValue: stored?.mouseMode ?? "") ?? .relative
         showStats = stored?.showStats ?? true
+        framePacing = stored?.framePacing ?? true
+        optimizeGameSettings = stored?.optimizeGameSettings ?? true
+        playAudioOnPC = stored?.playAudioOnPC ?? false
+        swapABXY = stored?.swapABXY ?? false
+        multiController = stored?.multiController ?? false
     }
 
     private func save() {
@@ -150,7 +175,12 @@ final class StreamSettingsStore {
             hdrEnabled: hdrEnabled,
             audioMode: audioMode.rawValue,
             mouseMode: mouseMode.rawValue,
-            showStats: showStats
+            showStats: showStats,
+            framePacing: framePacing,
+            optimizeGameSettings: optimizeGameSettings,
+            playAudioOnPC: playAudioOnPC,
+            swapABXY: swapABXY,
+            multiController: multiController
         )
         guard let data = try? JSONEncoder().encode(stored) else { return }
         UserDefaults.standard.set(data, forKey: Self.storageKey)

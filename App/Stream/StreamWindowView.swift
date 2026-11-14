@@ -71,6 +71,28 @@ struct StreamWindowView: View {
             }
             .buttonStyle(.plain)
 
+            HStack(spacing: 10) {
+                Button {
+                    model.toggleMute()
+                } label: {
+                    Image(systemName: model.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        .font(.callout)
+                }
+                .buttonStyle(.plain)
+
+                Slider(
+                    value: Binding(
+                        get: { model.volume },
+                        set: { model.volume = $0 }
+                    ),
+                    in: 0...1
+                )
+                .frame(width: 140)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial, in: Capsule())
+
             if !model.isStreaming {
                 HStack(spacing: 10) {
                     ProgressView()

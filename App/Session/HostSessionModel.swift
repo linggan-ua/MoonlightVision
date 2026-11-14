@@ -24,12 +24,16 @@ final class HostSessionModel {
 
     private(set) var phase: Phase = .checking
     private(set) var apps: [TemporaryApp] = []
+    private(set) var boxArtToken = 0
+    var showHiddenApps = false
 
     private let discovery: DiscoveryManager?
     private let dataManager = DataManager()
     private let operationQueue = OperationQueue()
     private var pairingDelegate: PairingDelegate?
     private var pairManager: PairManager?
+    private var assetManager: AppAssetManager?
+    private var assetDelegate: AppAssetDelegate?
     private var started = false
 
     init(host: TemporaryHost, discovery: DiscoveryManager?) {
@@ -39,6 +43,23 @@ final class HostSessionModel {
 
     var hostName: String {
         host.name
+    }
+
+    var runningAppID: String? {
+        guard let current = host.currentGame, !current.isEmpty, current != "0" else {
+            return nil
+        }
+        return current
+    }
+
+    var displayedApps: [TemporaryApp] {
+        showHiddenApps ? apps : apps.filter { !$0.hidden }
+    }
+
+    func toggleHidden(_ app: TemporaryApp) {
+        app.hidden.toggle()
+        apps = Array(apps)
+        dataManager.updateApps(forExisting: host)
     }
 
     func start() async {
@@ -54,7 +75,41 @@ final class HostSessionModel {
 
     func refreshApps() async {
         guard phase == .ready else { return }
+        let info = await fetchServerInfo()
+        if info.isStatusOk() {
+            info.populateHost(host)
+            dataManager.update(host)
+        }
         await loadApps()
+    }
+
+    /// Asks the host to quit whatever app is currently running and waits for its
+    /// state to leave SERVER_BUSY before a new launch is attempted.
+    func quitCurrentApp() async -> Bool {
+        guard let http = HttpManager(host: host) else { return false }
+        let response = HttpResponse()
+        let request = HttpRequest(for: response, with: http.newQuitAppRequest())
+
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            DispatchQueue.global(qos: .userInitiated).async {
+                http.executeRequestSynchronously(request)
+                continuation.resume()
+            }
+        }
+
+        guard response.statusCode == 200 else { return false }
+
+        for _ in 0..<12 {
+            try? await Task.sleep(for: .milliseconds(750))
+            let info = await fetchServerInfo()
+            guard info.isStatusOk() else { continue }
+            info.populateHost(host)
+            if host.currentGame == "0" || (host.currentGame?.isEmpty ?? true) {
+                dataManager.update(host)
+                return true
+            }
+        }
+        return false
     }
 
     // MARK: - Server info
@@ -179,7 +234,23 @@ final class HostSessionModel {
         }
 
         mergeApps(serverApps)
+        startAssetRetrieval()
         phase = .ready
+    }
+
+    private func startAssetRetrieval() {
+        assetManager?.stopRetrieving()
+
+        let delegate = AppAssetDelegate { [weak self] in
+            Task { @MainActor in
+                self?.boxArtToken &+= 1
+            }
+        }
+        assetDelegate = delegate
+
+        guard let manager = AppAssetManager(callback: delegate) else { return }
+        assetManager = manager
+        manager.retrieveAssets(from: host)
     }
 
     private func mergeApps(_ serverApps: Set<TemporaryApp>) {
@@ -242,5 +313,18 @@ final class PairingDelegate: NSObject, PairCallback {
 
     func alreadyPaired() {
         onAlreadyPaired?()
+    }
+}
+
+/// Forwards AppAssetManager's box-art downloads as a single change callback.
+final class AppAssetDelegate: NSObject, AppAssetCallback {
+    private let onChange: () -> Void
+
+    init(onChange: @escaping () -> Void) {
+        self.onChange = onChange
+    }
+
+    func receivedAsset(for app: TemporaryApp!) {
+        onChange()
     }
 }

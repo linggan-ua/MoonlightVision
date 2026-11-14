@@ -32,6 +32,12 @@ struct SettingsView: View {
                         }
                     }
                     Toggle("HDR (HDR10)", isOn: $settings.hdrEnabled)
+                    Toggle("Frame Pacing", isOn: $settings.framePacing)
+                }
+
+                Section("Host") {
+                    Toggle("Optimize Game Settings", isOn: $settings.optimizeGameSettings)
+                    Toggle("Play Audio on PC", isOn: $settings.playAudioOnPC)
                 }
 
                 Section("Audio") {
@@ -50,6 +56,8 @@ struct SettingsView: View {
                         Text("Relative (FPS)").tag(MouseTrackingMode.relative)
                         Text("Absolute").tag(MouseTrackingMode.absolute)
                     }
+                    Toggle("Swap A/B and X/Y", isOn: $settings.swapABXY)
+                    Toggle("Multiple Controllers", isOn: $settings.multiController)
                 }
 
                 Section("Diagnostics") {

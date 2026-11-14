@@ -34,6 +34,20 @@ struct HostListView: View {
                         } label: {
                             HostRow(host: host)
                         }
+                        .contextMenu {
+                            Button {
+                                model.wakeHost(host)
+                            } label: {
+                                Label("Wake PC", systemImage: "power")
+                            }
+                            .disabled(host.state == .online)
+
+                            Button(role: .destructive) {
+                                model.deleteHost(host)
+                            } label: {
+                                Label("Delete Host", systemImage: "trash")
+                            }
+                        }
                     }
                 }
             }
@@ -89,6 +103,9 @@ private struct HostRow: View {
                 }
             }
             Spacer()
+            Circle()
+                .fill(host.state == .online ? Color.green : Color.secondary.opacity(0.35))
+                .frame(width: 8, height: 8)
             Text(host.pairState == .paired ? "Paired" : "Not Paired")
                 .font(.caption)
                 .foregroundStyle(.secondary)

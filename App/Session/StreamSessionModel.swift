@@ -56,7 +56,6 @@ final class StreamSessionModel {
     private var userInitiatedStop = false
     private var reconnectAttempts = 0
     private var pendingTerminationCode: Int32?
-    private var stopCompletionSeen = false
     private var activeConfig: StreamConfiguration?
 
     private let mouseInput = StreamMouseInput()
@@ -126,35 +125,21 @@ final class StreamSessionModel {
 
         phase = .stopping
         teardownInput()
-        StreamStartGate.shared.beginStop()
-        stopCompletionSeen = false
 
         guard let manager = streamManager else {
-            stopCompletionSeen = true
-            StreamStartGate.shared.endStop()
             finish(message: nil)
             return
         }
         streamManager = nil
 
+        // StreamManager/Connection serialize LiStopConnection against a later
+        // LiStartConnection with Connection's static initLock, exactly like the
+        // core client. No extra gate or watchdog is needed.
         manager.stopStream(completion: { [weak self] in
             Task { @MainActor in
-                guard let self, !self.stopCompletionSeen else { return }
-                self.stopCompletionSeen = true
-                StreamStartGate.shared.endStop()
-                self.finish(message: nil)
+                self?.finish(message: nil)
             }
         })
-
-        // Ultimate watchdog: never leave the next start gated forever if the
-        // underlying LiStopConnection() is wedged.
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(8))
-            guard let self, !self.stopCompletionSeen else { return }
-            self.stopCompletionSeen = true
-            StreamStartGate.shared.endStop()
-            self.finish(message: "Disconnect timed out.")
-        }
     }
 
     /// Called from the stream scene when visionOS backgrounds or foregrounds the window.
@@ -187,9 +172,6 @@ final class StreamSessionModel {
 
     private func start() async {
         guard streamManager == nil, !userInitiatedStop else { return }
-
-        await StreamStartGate.shared.waitUntilStartable()
-        guard !userInitiatedStop, streamManager == nil else { return }
 
         phase = .preparing
         connectionPoor = false
@@ -275,6 +257,7 @@ final class StreamSessionModel {
         }
         streamManager = manager
         operationQueue.addOperation(manager)
+
     }
 
     private func handleTermination(_ code: Int32) {
@@ -517,24 +500,15 @@ final class StreamSessionModel {
         teardownInput()
         streamManager = nil
 
-        StreamStartGate.shared.beginStop()
         manager.stopStream(completion: { [weak self] in
             Task { @MainActor in
-                StreamStartGate.shared.endStop()
                 guard let self, !self.userInitiatedStop, case .connecting = self.phase else { return }
                 self.fpsRestartInProgress = false
                 await self.start()
             }
         })
-
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(8))
-            guard let self, self.fpsRestartInProgress, case .connecting = self.phase else { return }
-            self.fpsRestartInProgress = false
-            StreamStartGate.shared.endStop()
-            self.finish(message: String(localized: "Frame-rate restart timed out."))
-        }
     }
+
 }
 
 /// Forwards ConnectionCallbacks (delivered on core threads) as closures.

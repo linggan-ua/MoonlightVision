@@ -95,7 +95,6 @@
 "%@ failed (%d)" = "%@ 失败（%d）";
 "Failed to launch the app." = "启动应用失败。";
 "Could not start the stream." = "无法启动串流。";
-"Frame-rate restart timed out." = "帧率重启超时。";
 
 /* Errors */
 "Could not create the client certificate." = "无法创建客户端证书。";

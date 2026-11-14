@@ -95,7 +95,6 @@
 "%@ failed (%d)" = "%@ failed (%d)";
 "Failed to launch the app." = "Failed to launch the app.";
 "Could not start the stream." = "Could not start the stream.";
-"Frame-rate restart timed out." = "Frame-rate restart timed out.";
 
 /* Errors */
 "Could not create the client certificate." = "Could not create the client certificate.";

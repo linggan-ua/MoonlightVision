@@ -134,9 +134,14 @@ struct HostSessionView: View {
     }
 
     private func startStream(_ app: TemporaryApp) {
-        guard StreamPresentation.shared.session == nil else {
-            openWindow(id: "stream")
-            return
+        if let existing = StreamPresentation.shared.session {
+            if case .ended = existing.phase {
+                existing.stop()
+                StreamPresentation.shared.session = nil
+            } else {
+                openWindow(id: "stream")
+                return
+            }
         }
         StreamPresentation.shared.session = StreamSessionModel(host: model.host, app: app)
         openWindow(id: "stream")

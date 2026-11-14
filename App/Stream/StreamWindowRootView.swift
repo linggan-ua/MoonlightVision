@@ -20,6 +20,7 @@ struct StreamWindowRootView: View {
                     presentation.session = nil
                     dismissWindow(id: "stream")
                 }
+                .id(ObjectIdentifier(model))
             } else {
                 Color.black
                     .ignoresSafeArea()

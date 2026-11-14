@@ -13,11 +13,11 @@ struct StreamWindowView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Bindable private var settings = StreamSettingsStore.shared
 
-    @State private var model: StreamSessionModel
+    let model: StreamSessionModel
     private let onExit: () -> Void
 
     init(model: StreamSessionModel, onExit: @escaping () -> Void) {
-        _model = State(initialValue: model)
+        self.model = model
         self.onExit = onExit
     }
 

@@ -43,17 +43,10 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     int decodeWarningCount;
     CFTimeInterval lastDecodeWarningTime;
 
-    int pacingDepth;
-    NSMutableArray<NSValue*>* pacedBuffers;
-    NSLock* pacedBuffersLock;
-    BOOL pacerPrimed;
-    CFTimeInterval pacerNextRelease;
 }
 
 - (void)reinitializeDisplayLayer
 {
-    [self flushPacedBuffers];
-
     CALayer *oldLayer = displayLayer;
     
     displayLayer = [[AVSampleBufferDisplayLayer alloc] init];
@@ -120,7 +113,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 
 - (void)dealloc
 {
-    [self flushPacedBuffers];
     @try {
         [_view removeObserver:self forKeyPath:@"bounds"];
     } @catch (__unused NSException *exception) {
@@ -183,90 +175,14 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     return parts.count > 0 ? [parts componentsJoinedByString:@" · "] : nil;
 }
 
-- (void)enqueuePacedSampleBuffer:(CMSampleBufferRef)sampleBuffer
+- (id)initWithView:(StreamView*)view callbacks:(id<ConnectionCallbacks>)callbacks streamAspectRatio:(float)aspectRatio useFramePacing:(BOOL)useFramePacing
 {
-    if (sampleBuffer == NULL) {
-        return;
-    }
-    CFRetain(sampleBuffer);
-    [pacedBuffersLock lock];
-    [pacedBuffers addObject:[NSValue valueWithPointer:sampleBuffer]];
-    if (!pacerPrimed && (int)pacedBuffers.count >= pacingDepth) {
-        pacerPrimed = YES;
-        pacerNextRelease = CACurrentMediaTime();
-    }
-    [pacedBuffersLock unlock];
-}
-
-- (void)drainPacedBuffers
-{
-    if (pacingDepth <= 0) {
-        return;
-    }
-
-    CFTimeInterval now = CACurrentMediaTime();
-    NSMutableArray<NSValue*>* due = [NSMutableArray array];
-
-    [pacedBuffersLock lock];
-    if (!pacerPrimed) {
-        if ((int)pacedBuffers.count >= pacingDepth) {
-            pacerPrimed = YES;
-            pacerNextRelease = now;
-        }
-    }
-
-    if (pacerPrimed && now + 0.002 >= pacerNextRelease) {
-        if (pacedBuffers.count == 0) {
-            pacerPrimed = NO;
-        } else {
-            int releaseCount = ((int)pacedBuffers.count > pacingDepth + 1) ? 2 : 1;
-            for (int i = 0; i < releaseCount && pacedBuffers.count > 0; i++) {
-                [due addObject:pacedBuffers.firstObject];
-                [pacedBuffers removeObjectAtIndex:0];
-            }
-
-            CFTimeInterval interval = 1.0 / MAX(frameRate, 1);
-            pacerNextRelease += interval;
-            if (pacerNextRelease < now - interval) {
-                pacerNextRelease = now + interval;
-            }
-            if (pacedBuffers.count == 0) {
-                pacerPrimed = NO;
-            }
-        }
-    }
-    [pacedBuffersLock unlock];
-
-    for (NSValue* value in due) {
-        CMSampleBufferRef sampleBuffer = (CMSampleBufferRef)value.pointerValue;
-        [displayLayer enqueueSampleBuffer:sampleBuffer];
-        CFRelease(sampleBuffer);
-    }
-}
-
-- (void)flushPacedBuffers
-{
-    [pacedBuffersLock lock];
-    for (NSValue* value in pacedBuffers) {
-        CFRelease((CMSampleBufferRef)value.pointerValue);
-    }
-    [pacedBuffers removeAllObjects];
-    pacerPrimed = NO;
-    pacerNextRelease = 0;
-    [pacedBuffersLock unlock];
-}
-
-- (id)initWithView:(StreamView*)view callbacks:(id<ConnectionCallbacks>)callbacks streamAspectRatio:(float)aspectRatio useFramePacing:(BOOL)useFramePacing pacingDepth:(int)pacingDepth
-{    self = [super init];
+    self = [super init];
 
     _view = view;
     _callbacks = callbacks;
     _streamAspectRatio = aspectRatio;
     framePacing = useFramePacing;
-
-    self->pacingDepth = MAX(0, pacingDepth);
-    pacedBuffers = [[NSMutableArray alloc] init];
-    pacedBuffersLock = [[NSLock alloc] init];
 
     parameterSetBuffers = [[NSMutableArray alloc] init];
 
@@ -330,7 +246,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         }
     }
 
-    [self drainPacedBuffers];
 
     // Mid-stream freeze recovery: if frames are queued but nothing has been
     // submitted for 450 ms, ask the host for an IDR frame (at most once per 2 s).
@@ -347,7 +262,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 - (void)stop
 {
     [_displayLink invalidate];
-    [self flushPacedBuffers];
 }
 
 #define NALU_START_PREFIX_SIZE 3
@@ -800,11 +714,7 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     }
 
     // Enqueue the next frame
-    if (pacingDepth > 0) {
-        [self enqueuePacedSampleBuffer:sampleBuffer];
-    } else {
-        [self->displayLayer enqueueSampleBuffer:sampleBuffer];
-    }
+    [self->displayLayer enqueueSampleBuffer:sampleBuffer];
     
     if (du->frameType == FRAME_TYPE_IDR) {
         // Ensure the layer is visible now

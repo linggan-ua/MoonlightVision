@@ -51,11 +51,6 @@
 "HEVC" = "HEVC";
 "HDR (HDR10)" = "HDR (HDR10)";
 "Frame Pacing" = "帧节奏";
-"Frame Buffer" = "帧缓冲";
-"Off" = "关闭";
-"1 frame" = "1 帧";
-"2 frames" = "2 帧";
-"3 frames" = "3 帧";
 "Host" = "主机";
 "Optimize Game Settings" = "优化游戏设置";
 "Play Audio on PC" = "在 PC 上播放音频";

@@ -30,7 +30,6 @@
 @property int supportedVideoFormats;
 @property BOOL multiController;
 @property BOOL useFramePacing;
-@property int framePacingDepth;
 @property NSData* serverCert;
 
 @end

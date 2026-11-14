@@ -42,12 +42,6 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     Toggle("Frame Pacing", isOn: $settings.framePacing)
-                    Picker("Frame Buffer", selection: $settings.framePacingDepth) {
-                        Text("Off").tag(0)
-                        Text("1 frame").tag(1)
-                        Text("2 frames").tag(2)
-                        Text("3 frames").tag(3)
-                    }
                 }
 
                 Section("Host") {

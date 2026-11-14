@@ -279,7 +279,6 @@ final class StreamSessionModel {
         config.frameRate = Int32(settings.frameRate)
         config.bitRate = Int32(settings.bitrateMbps * 1000)
         config.useFramePacing = settings.framePacing
-        config.framePacingDepth = Int32(settings.framePacingDepth)
         config.playAudioOnPC = settings.playAudioOnPC
         config.optimizeGameSettings = settings.optimizeGameSettings
         config.swapABXYButtons = settings.swapABXY

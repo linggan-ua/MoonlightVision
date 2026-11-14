@@ -36,5 +36,6 @@
 @property (nonatomic) BOOL statsOverlay;
 
 - (id) initFromSettings:(Settings*)settings;
+- (NSInteger) preferredCodecValue;
 
 @end

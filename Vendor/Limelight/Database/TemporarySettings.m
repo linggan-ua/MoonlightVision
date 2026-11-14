@@ -11,6 +11,10 @@
 
 @implementation TemporarySettings
 
+- (NSInteger) preferredCodecValue {
+    return (NSInteger)self.preferredCodec;
+}
+
 - (id) initFromSettings:(Settings*)settings {
     self = [self init];
     

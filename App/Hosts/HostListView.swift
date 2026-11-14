@@ -11,22 +11,17 @@ struct HostListView: View {
     @State private var model = HostListModel()
     @State private var showingAddHost = false
     @State private var showingSettings = false
+    @State private var showingRename = false
+    @State private var renamingHost: TemporaryHost?
+    @State private var renameText = ""
+    @State private var pendingDeleteHost: TemporaryHost?
+    @State private var showingDeleteConfirm = false
 
     var body: some View {
         NavigationStack {
             Group {
                 if model.hosts.isEmpty {
-                    VStack(spacing: 12) {
-                        Image(systemName: "desktopcomputer")
-                            .font(.system(size: 48))
-                            .foregroundStyle(.secondary)
-                        Text("Searching for hosts…")
-                            .font(.headline)
-                        Text("Start Sunshine on a PC on the same network.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(40)
+                    emptyState
                 } else {
                     List(model.hosts, id: \.uuid) { host in
                         NavigationLink {
@@ -42,8 +37,17 @@ struct HostListView: View {
                             }
                             .disabled(host.state == .online)
 
+                            Button {
+                                renamingHost = host
+                                renameText = host.name
+                                showingRename = true
+                            } label: {
+                                Label("Rename Host", systemImage: "pencil")
+                            }
+
                             Button(role: .destructive) {
-                                model.deleteHost(host)
+                                pendingDeleteHost = host
+                                showingDeleteConfirm = true
                             } label: {
                                 Label("Delete Host", systemImage: "trash")
                             }
@@ -59,6 +63,7 @@ struct HostListView: View {
                     } label: {
                         Image(systemName: "plus")
                     }
+                    .accessibilityLabel("Add Host")
                 }
                 ToolbarItem(placement: .automatic) {
                     Button {
@@ -66,6 +71,7 @@ struct HostListView: View {
                     } label: {
                         Image(systemName: "arrow.clockwise")
                     }
+                    .accessibilityLabel("Refresh")
                 }
                 ToolbarItem(placement: .automatic) {
                     Button {
@@ -73,6 +79,7 @@ struct HostListView: View {
                     } label: {
                         Image(systemName: "gearshape")
                     }
+                    .accessibilityLabel("Settings")
                 }
             }
         }
@@ -83,6 +90,51 @@ struct HostListView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView()
         }
+        .sheet(isPresented: $showingRename) {
+            RenameHostSheet(initialName: renameText) { name in
+                if let host = renamingHost {
+                    model.renameHost(host, to: name)
+                }
+                renamingHost = nil
+            }
+        }
+        .confirmationDialog(
+            "Delete Host?",
+            isPresented: $showingDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let host = pendingDeleteHost {
+                    model.deleteHost(host)
+                }
+                pendingDeleteHost = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDeleteHost = nil
+            }
+        } message: {
+            Text("This removes the saved certificate and cached apps for this host.")
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+            Image(systemName: "desktopcomputer")
+                .font(.system(size: 48))
+                .foregroundStyle(.secondary)
+            Text("Searching for hosts…")
+                .font(.headline)
+            Text("Start Sunshine on a PC on the same network.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button("Add Host") {
+                showingAddHost = true
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(48)
     }
 }
 
@@ -93,6 +145,8 @@ private struct HostRow: View {
         HStack(spacing: 16) {
             Image(systemName: "desktopcomputer")
                 .font(.title2)
+                .foregroundStyle(.secondary)
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(host.name)
                     .font(.headline)
@@ -102,15 +156,23 @@ private struct HostRow: View {
                         .foregroundStyle(.secondary)
                 }
             }
+
             Spacer()
-            Circle()
-                .fill(host.state == .online ? Color.green : Color.secondary.opacity(0.35))
-                .frame(width: 8, height: 8)
-            Text(host.pairState == .paired ? "Paired" : "Not Paired")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(host.state == .online ? Color.green : Color.secondary.opacity(0.35))
+                    .frame(width: 8, height: 8)
+
+                Text(host.pairState == .paired ? String(localized: "Paired") : String(localized: "Not Paired"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(.thinMaterial, in: Capsule())
+            }
         }
-        .padding(8)
+        .padding(.vertical, 6)
     }
 }
 
@@ -146,7 +208,7 @@ private struct AddHostSheet: View {
                     dismiss()
                 }
                 Spacer()
-                Button(isWorking ? "Adding…" : "Add") {
+                Button(isWorking ? String(localized: "Adding…") : String(localized: "Add")) {
                     isWorking = true
                     errorMessage = nil
                     model.addHost(address: address) { message in
@@ -160,6 +222,46 @@ private struct AddHostSheet: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isWorking || address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(36)
+        .frame(minWidth: 480)
+    }
+}
+
+private struct RenameHostSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let initialName: String
+    let onSave: (String) -> Void
+
+    @State private var name: String
+
+    init(initialName: String, onSave: @escaping (String) -> Void) {
+        self.initialName = initialName
+        self.onSave = onSave
+        _name = State(initialValue: initialName)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Rename Host")
+                .font(.title2.bold())
+            TextField("Name", text: $name)
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 420)
+
+            HStack {
+                Button("Cancel") {
+                    dismiss()
+                }
+                Spacer()
+                Button("Save") {
+                    onSave(name)
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(36)

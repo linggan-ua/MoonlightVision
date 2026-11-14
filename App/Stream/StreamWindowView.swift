@@ -63,7 +63,7 @@ struct StreamWindowView: View {
             Button {
                 showKeyboard.toggle()
             } label: {
-                Label(showKeyboard ? "Hide Keyboard" : "Keyboard", systemImage: "keyboard")
+                Label(showKeyboard ? String(localized: "Hide Keyboard") : String(localized: "Keyboard"), systemImage: "keyboard")
                     .font(.callout)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)

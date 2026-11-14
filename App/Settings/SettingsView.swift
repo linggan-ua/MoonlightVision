@@ -10,6 +10,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable private var settings = StreamSettingsStore.shared
+    @State private var showResetConfirm = false
 
     var body: some View {
         NavigationStack {
@@ -73,8 +74,26 @@ struct SettingsView: View {
                 Section("Diagnostics") {
                     Toggle("Show Stats Overlay", isOn: $settings.showStats)
                 }
+
+                Section {
+                    Button("Reset to Defaults", role: .destructive) {
+                        showResetConfirm = true
+                    }
+                }
             }
             .navigationTitle("Settings")
+            .confirmationDialog(
+                "Reset Settings?",
+                isPresented: $showResetConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Reset", role: .destructive) {
+                    settings.reset()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This restores the default video, audio, and input settings.")
+            }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {

@@ -109,7 +109,7 @@ struct HostSessionView: View {
             if quit {
                 startStream(app)
             } else {
-                actionError = "The host is still running another app. Quit it on the PC or try again."
+                actionError = String(localized: "The host is still running another app. Quit it on the PC or try again.")
             }
         }
     }
@@ -120,7 +120,7 @@ struct HostSessionView: View {
 }
 
 private struct StatusView: View {
-    let title: String
+    let title: LocalizedStringKey
     let systemImage: String
 
     var body: some View {
@@ -201,6 +201,8 @@ private struct AppsView: View {
 
     private let columns = [GridItem(.adaptive(minimum: 180, maximum: 240), spacing: 24)]
 
+    @State private var searchText = ""
+
     var body: some View {
         Group {
             if apps.isEmpty {
@@ -215,10 +217,20 @@ private struct AppsView: View {
                         .foregroundStyle(.secondary)
                 }
                 .padding(48)
+            } else if filteredApps.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 40))
+                        .foregroundStyle(.secondary)
+                    Text("No apps match your search.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(48)
             } else {
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 24) {
-                        ForEach(apps, id: \.id) { app in
+                        ForEach(filteredApps, id: \.id) { app in
                             Button {
                                 onLaunch(app)
                             } label: {
@@ -237,6 +249,7 @@ private struct AppsView: View {
                 }
             }
         }
+        .searchable(text: $searchText, prompt: "Search apps")
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 Button(action: onRefresh) {
@@ -246,12 +259,18 @@ private struct AppsView: View {
             ToolbarItem(placement: .automatic) {
                 Button(action: onToggleShowHidden) {
                     Label(
-                        showHiddenApps ? "Hide Hidden Apps" : "Show Hidden Apps",
+                        showHiddenApps ? String(localized: "Hide Hidden Apps") : String(localized: "Show Hidden Apps"),
                         systemImage: showHiddenApps ? "eye.slash" : "eye"
                     )
                 }
             }
         }
+    }
+
+    private var filteredApps: [TemporaryApp] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return apps }
+        return apps.filter { ($0.name ?? "").localizedCaseInsensitiveContains(query) }
     }
 }
 
@@ -281,11 +300,15 @@ private struct AppCard: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .frame(height: 120)
+            .frame(height: 150)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+            )
             .id(boxArtToken)
 
-            Text(app.name ?? "Unknown App")
+            Text(app.name ?? String(localized: "Unknown App"))
                 .font(.headline)
                 .lineLimit(1)
 
@@ -309,8 +332,9 @@ private struct AppCard: View {
         .padding(14)
         .frame(maxWidth: .infinity)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
         .contextMenu {
-            Button(app.hidden ? "Show App" : "Hide App", action: onToggleHidden)
+            Button(app.hidden ? String(localized: "Show App") : String(localized: "Hide App"), action: onToggleHidden)
         }
     }
 }

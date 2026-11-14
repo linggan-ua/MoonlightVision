@@ -50,14 +50,15 @@ final class HostListModel {
         isDiscovering = false
     }
 
-    func addHost(address: String, completion: @escaping (String?) -> Void) {        guard let discoveryManager else {
-            completion("Discovery is not running.")
+    func addHost(address: String, completion: @escaping (String?) -> Void) {
+        guard let discoveryManager else {
+            completion(String(localized: "Discovery is not running."))
             return
         }
 
         let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            completion("Enter an IP address or hostname.")
+            completion(String(localized: "Enter an IP address or hostname."))
             return
         }
 
@@ -70,7 +71,7 @@ final class HostListModel {
                     self.savedHostIDs.insert(host.uuid)
                     completion(nil)
                 } else {
-                    completion(error ?? "Host not found.")
+                    completion(error ?? String(localized: "Host not found."))
                 }
             }
         })
@@ -84,6 +85,14 @@ final class HostListModel {
         discoveryManager?.removeHost(fromDiscovery: host)
         dataManager.remove(host)
         hosts.removeAll { $0 === host }
+    }
+
+    func renameHost(_ host: TemporaryHost, to name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        host.name = trimmed
+        dataManager.update(host)
+        hosts = Array(hosts)
     }
 
     /// Discovery hands us fresh TemporaryHost objects. Merge them into the existing

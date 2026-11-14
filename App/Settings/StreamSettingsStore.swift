@@ -55,7 +55,7 @@ enum CodecPreference: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .auto: return "Auto"
+        case .auto: return String(localized: "Auto")
         case .h264: return "H.264"
         case .hevc: return "HEVC"
         case .av1: return "AV1"
@@ -73,10 +73,10 @@ enum AudioMode: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .auto: return "Auto"
-        case .stereo: return "Stereo"
-        case .surround51: return "5.1 Surround"
-        case .surround71: return "7.1 Surround"
+        case .auto: return String(localized: "Auto")
+        case .stereo: return String(localized: "Stereo")
+        case .surround51: return String(localized: "5.1 Surround")
+        case .surround71: return String(localized: "7.1 Surround")
         }
     }
 }
@@ -174,6 +174,24 @@ final class StreamSettingsStore {
         swapABXY = stored?.swapABXY ?? false
         multiController = stored?.multiController ?? false
         spatialAudio = stored?.spatialAudio ?? false
+    }
+
+    func reset() {
+        resolution = .p1080
+        frameRate = 60
+        bitrateMbps = 10
+        codec = .auto
+        hdrEnabled = false
+        audioMode = .auto
+        mouseMode = .relative
+        showStats = true
+        framePacing = true
+        framePacingDepth = 0
+        optimizeGameSettings = true
+        playAudioOnPC = false
+        swapABXY = false
+        multiController = false
+        spatialAudio = false
     }
 
     private func save() {

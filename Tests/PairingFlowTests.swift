@@ -65,6 +65,10 @@ final class PairingFlowTests: XCTestCase {
         flow.start(host: TemporaryHost(), clientCert: Data())
         factory.callback?.pairSuccessful(nil)
 
-        XCTAssertEqual(events, [.failed("The host returned an invalid certificate.")])
+        XCTAssertEqual(events.count, 1)
+        guard let event = events.first, case .failed = event else {
+            XCTFail("Expected a failure event, got \(events)")
+            return
+        }
     }
 }

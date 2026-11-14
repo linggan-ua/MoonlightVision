@@ -121,7 +121,7 @@ final class HostSessionModel {
 
         let response = await fetchServerInfo()
         guard response.isStatusOk() else {
-            phase = .failed(response.statusMessage ?? "Could not reach the host.")
+            phase = .failed(response.statusMessage ?? String(localized: "Could not reach the host."))
             return
         }
 
@@ -159,7 +159,7 @@ final class HostSessionModel {
 
     private func pair() async {
         guard let clientCert = await ClientCertificateStore.shared.certificate() else {
-            phase = .failed("Could not create the client certificate.")
+            phase = .failed(String(localized: "Could not create the client certificate."))
             return
         }
 
@@ -217,7 +217,7 @@ final class HostSessionModel {
 
         guard let response, response.isStatusOk(),
               let serverApps = response.getAppList() as? Set<TemporaryApp> else {
-            phase = .failed(response?.statusMessage ?? "Failed to load the app list.")
+            phase = .failed(response?.statusMessage ?? String(localized: "Failed to load the app list."))
             return
         }
 

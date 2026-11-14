@@ -68,8 +68,12 @@ final class PairingFlow {
             self?.onEvent?(event)
         }
         callback = proxy
-        session = factory.makeSession(host: host, clientCert: clientCert, callback: proxy)
-        session?.start()
+        guard let session = factory.makeSession(host: host, clientCert: clientCert, callback: proxy) else {
+            onEvent?(.failed(String(localized: "Could not start pairing.")))
+            return
+        }
+        self.session = session
+        session.start()
     }
 }
 
@@ -86,14 +90,14 @@ private final class PairingCallbackProxy: NSObject, PairCallback {
 
     func pairSuccessful(_ serverCert: Data!) {
         guard let serverCert else {
-            handler(.failed("The host returned an invalid certificate."))
+            handler(.failed(String(localized: "The host returned an invalid certificate.")))
             return
         }
         handler(.paired(serverCert))
     }
 
     func pairFailed(_ message: String!) {
-        handler(.failed(message ?? "Pairing failed."))
+        handler(.failed(message ?? String(localized: "Pairing failed.")))
     }
 
     func alreadyPaired() {

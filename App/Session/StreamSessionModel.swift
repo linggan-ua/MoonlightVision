@@ -74,15 +74,15 @@ final class StreamSessionModel {
     var statusText: String {
         switch phase {
         case .idle, .preparing:
-            return "Preparing stream…"
+            return String(localized: "Preparing stream…")
         case .connecting(let stage):
             return stage
         case .streaming:
             return ""
         case .stopping:
-            return "Disconnecting…"
+            return String(localized: "Disconnecting…")
         case .ended(let message):
-            return message ?? "Disconnected"
+            return message ?? String(localized: "Disconnected")
         }
     }
 
@@ -168,7 +168,7 @@ final class StreamSessionModel {
 
         if let code = pendingTerminationCode {
             pendingTerminationCode = nil
-            reconnect(message: "Connection lost (\(code))")
+            reconnect(message: String(format: String(localized: "Connection lost (%d)"), code))
             return
         }
 
@@ -211,7 +211,7 @@ final class StreamSessionModel {
                 guard let self else { return }
                 self.controllerSupport?.connectionEstablished()
                 if case .connecting = self.phase {
-                    self.phase = .connecting(stage: "Connected")
+                    self.phase = .connecting(stage: String(localized: "Connected"))
                 }
             }
         }
@@ -237,7 +237,7 @@ final class StreamSessionModel {
         }
         delegate.onStageFailed = { [weak self] stage, code, _ in
             Task { @MainActor in
-                self?.finish(message: "\(stage) failed (\(code))")
+                self?.finish(message: String(format: String(localized: "%@ failed (%d)"), stage, code))
             }
         }
         delegate.onRumble = { [weak self] controller, low, high in
@@ -263,7 +263,7 @@ final class StreamSessionModel {
 
         connectionDelegate = delegate
         guard let manager = StreamManager(config: config, renderView: renderView, connectionCallbacks: delegate) else {
-            finish(message: "Could not start the stream.")
+            finish(message: String(localized: "Could not start the stream."))
             return
         }
         streamManager = manager
@@ -283,7 +283,7 @@ final class StreamSessionModel {
             finish(message: nil)
             return
         }
-        reconnect(message: "Connection lost (\(code))")
+        reconnect(message: String(format: String(localized: "Connection lost (%d)"), code))
     }
 
     private func reconnect(message: String) {
@@ -296,7 +296,7 @@ final class StreamSessionModel {
         teardownInput()
         streamManager = nil
         connectionDelegate = nil
-        phase = .connecting(stage: "Reconnecting… (\(reconnectAttempts)/3)")
+        phase = .connecting(stage: String(format: String(localized: "Reconnecting… (%d/3)"), Int32(reconnectAttempts)))
 
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(2.5))
@@ -505,7 +505,7 @@ final class StreamSessionModel {
         guard !userInitiatedStop, !fpsRestartInProgress, let manager = streamManager else { return }
         fpsRestartInProgress = true
         NSLog("[Stream] FPS mismatch: requested %.0f, received %.0f; restarting once", requested, actual)
-        phase = .connecting(stage: "Restarting for frame rate…")
+        phase = .connecting(stage: String(localized: "Restarting for frame rate…"))
         teardownInput()
         streamManager = nil
 
@@ -524,7 +524,7 @@ final class StreamSessionModel {
             guard let self, self.fpsRestartInProgress, case .connecting = self.phase else { return }
             self.fpsRestartInProgress = false
             StreamStartGate.shared.endStop()
-            self.finish(message: "Frame-rate restart timed out.")
+            self.finish(message: String(localized: "Frame-rate restart timed out."))
         }
     }
 }
@@ -562,7 +562,7 @@ final class StreamConnectionDelegate: NSObject, ConnectionCallbacks {
     }
 
     func launchFailed(_ message: String!) {
-        onLaunchFailed?(message ?? "Failed to launch the app.")
+        onLaunchFailed?(message ?? String(localized: "Failed to launch the app."))
     }
 
     func videoContentShown() {

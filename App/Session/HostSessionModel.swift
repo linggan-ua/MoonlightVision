@@ -127,6 +127,14 @@ final class HostSessionModel {
 
         response.populateHost(host)
         host.state = .online
+
+        if host.pairState != .paired {
+            // The host no longer recognizes our pinned certificate (it was reset,
+            // updated, unpaired, or its unique ID changed). Drop the stale cert so
+            // no later HTTPS request can reuse it; pairing starts from HTTP.
+            host.serverCert = nil
+            host.httpsPort = 0
+        }
         dataManager.update(host)
 
         if host.pairState == .paired {
@@ -141,10 +149,12 @@ final class HostSessionModel {
             return ServerInfoResponse()
         }
         let response = ServerInfoResponse()
-        let request = HttpRequest(for: response,
-                                  with: http.newServerInfoRequest(false),
-                                  fallbackError: 401,
-                                  fallbackRequest: http.newHttpServerInfoRequest())
+        // Always probe over HTTP first. This endpoint is public and lets us see
+        // the host's real PairStatus even when our pinned certificate is stale
+        // (for example after Sunshine is updated or its pairing state is reset).
+        // Preferring HTTPS here makes a stale cert look like an unreachable host,
+        // preventing the app from re-pairing.
+        let request = HttpRequest(for: response, with: http.newHttpServerInfoRequest())
 
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             DispatchQueue.global(qos: .userInitiated).async {

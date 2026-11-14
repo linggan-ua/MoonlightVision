@@ -21,14 +21,8 @@ struct HostSessionView: View {
     }
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text(model.host.name)
-                .font(.largeTitle)
-                .padding(.top)
-
-            content
-        }
-        .navigationTitle(model.hostName)
+        content
+            .navigationTitle(model.hostName)
         .toolbar {
             ToolbarItem(placement: .automatic) {
                 Button {

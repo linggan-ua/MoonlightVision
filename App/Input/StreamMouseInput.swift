@@ -27,7 +27,7 @@ final class StreamMouseInput {
     }
 
     private static let deltaDivisor: Float = 1.25
-    private static let scrollStep: Int32 = 120
+    private static let scrollStep: Int32 = 20
 
     private var mode: MouseTrackingMode = .relative
     private var streamWidth: Int32 = 1920

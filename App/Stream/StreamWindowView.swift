@@ -80,7 +80,6 @@ struct StreamWindowView: View {
         .onChange(of: scenePhase) { _, newPhase in
             model.setBackgrounded(newPhase != .active)
         }
-        .onDisappear { model.stop() }
     }
 
 }

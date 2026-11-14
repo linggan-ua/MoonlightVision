@@ -40,8 +40,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     CFTimeInterval lastFrameSubmitTime;
     CFTimeInterval lastIdrRequestTime;
     BOOL hdrEnabled;
-    int decodeWarningCount;
-    CFTimeInterval lastDecodeWarningTime;
 
 }
 
@@ -119,26 +117,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     }
 }
 
-- (void)noteDecodeWarning
-{
-    CFTimeInterval now = CACurrentMediaTime();
-    if (now - lastDecodeWarningTime > 1.0) {
-        decodeWarningCount = 0;
-    }
-    lastDecodeWarningTime = now;
-    decodeWarningCount++;
-
-    if (decodeWarningCount >= 30) {
-        Log(LOG_W, @"[Video] %d decode warnings; rebuilding the display layer and requesting an IDR", decodeWarningCount);
-        decodeWarningCount = 0;
-        [self reinitializeDisplayLayer];
-        LiRequestIdrFrame();
-    } else if (decodeWarningCount >= 12) {
-        Log(LOG_W, @"[Video] %d decode warnings; requesting an IDR", decodeWarningCount);
-        LiRequestIdrFrame();
-    }
-}
-
 - (NSString*)getColorDescription
 {
     if (formatDesc == NULL) {
@@ -196,8 +174,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 {
     self->videoFormat = videoFormat;
     self->frameRate = frameRate;
-    decodeWarningCount = 0;
-    lastDecodeWarningTime = 0;
 }
 
 - (void)start
@@ -224,10 +200,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         int decodeResult = DrSubmitDecodeUnit(du);
         LiCompleteVideoFrame(handle, decodeResult);
         lastFrameSubmitTime = CACurrentMediaTime();
-
-        if (decodeResult != DR_OK) {
-            [self noteDecodeWarning];
-        }
 
         if (framePacing) {
             // Calculate the actual display refresh rate

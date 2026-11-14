@@ -50,6 +50,7 @@ final class StreamSessionModel {
     private var connectionDelegate: StreamConnectionDelegate?
     private var statsTimer: Timer?
     private var started = false
+    private var appListInFlight = false
     private var userInitiatedStop = false
     private var activeConfig: StreamConfiguration?
 
@@ -354,22 +355,26 @@ final class StreamSessionModel {
     }
 
     private func audioConfiguration(for settings: StreamSettingsStore) -> Int32 {
-        let maxChannels = StreamSettingsStore.maximumOutputChannels
-        let requested: Int
+        // Request the user's selected layout and let AVAudioEngine downmix if
+        // the current route has fewer channels, like the mature clients. Only
+        // "Auto" follows the current hardware channel count.
         switch settings.audioMode {
-        case .auto: requested = maxChannels
-        case .stereo: requested = 2
-        case .surround51: requested = 6
-        case .surround71: requested = 8
+        case .auto:
+            let maxChannels = StreamSettingsStore.maximumOutputChannels
+            if maxChannels >= 8 {
+                return Int32(MVAudioConfiguration71())
+            }
+            if maxChannels >= 6 {
+                return Int32(MVAudioConfiguration51())
+            }
+            return Int32(MVAudioConfigurationStereo())
+        case .stereo:
+            return Int32(MVAudioConfigurationStereo())
+        case .surround51:
+            return Int32(MVAudioConfiguration51())
+        case .surround71:
+            return Int32(MVAudioConfiguration71())
         }
-
-        if requested >= 8, maxChannels >= 8 {
-            return (0x63F << 16) | (8 << 8) | 0xCA
-        }
-        if requested >= 6, maxChannels >= 6 {
-            return (0x3F << 16) | (6 << 8) | 0xCA
-        }
-        return (0x3 << 16) | (2 << 8) | 0xCA
     }
 
     // MARK: - Input

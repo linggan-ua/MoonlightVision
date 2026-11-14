@@ -138,16 +138,9 @@ struct HostSessionView: View {
     }
 
     private func startStream(_ app: TemporaryApp) {
-        if let existing = StreamPresentation.shared.session {
-            if case .ended = existing.phase {
-                existing.stop()
-                StreamPresentation.shared.session = nil
-            } else {
-                openWindow(id: "stream")
-                return
-            }
-        }
-        StreamPresentation.shared.session = StreamSessionModel(host: model.host, app: app)
+        // StreamPresentation owns the single session. Opening the window is
+        // only the presentation step; a live session is just brought forward.
+        StreamPresentation.shared.start(host: model.host, app: app)
         openWindow(id: "stream")
     }
 }
@@ -253,8 +246,7 @@ private struct AppRow: View {
     let boxArtToken: Int
 
     private var boxArt: UIImage? {
-        let path: String = AppAssetManager.boxArtPath(for: app)
-        return UIImage(contentsOfFile: path)
+        BoxArtCache.shared.image(for: app, token: boxArtToken)
     }
 
     var body: some View {

@@ -145,6 +145,7 @@ public final class StreamAudioRenderer: NSObject {
             self.setRunning(false)
             self.engine?.stop()
             self.setEngineRunning(false)
+            self.deactivateSession()
         }
     }
 
@@ -183,6 +184,7 @@ public final class StreamAudioRenderer: NSObject {
             sourceNode = nil
             observers.forEach(NotificationCenter.default.removeObserver)
             observers.removeAll()
+            self.deactivateSession()
         }
 
         if let decoderToDestroy {
@@ -194,6 +196,12 @@ public final class StreamAudioRenderer: NSObject {
 
     @objc(decodeAndPlaySample:length:)
     public func decodeAndPlaySample(_ data: UnsafeMutablePointer<CChar>?, length: Int32) {
+        // The official/Starlight audio paths drop packets when the core's audio
+        // queue is already backing up, instead of decoding stale packets forever.
+        if LiGetPendingAudioDuration() > 30 {
+            return
+        }
+
         lifecycleLock.lock()
         guard !stopped, let decoder else {
             lifecycleLock.unlock()
@@ -259,6 +267,10 @@ public final class StreamAudioRenderer: NSObject {
         } catch {
             NSLog("[Audio] session activation failed: %@", error.localizedDescription)
         }
+    }
+
+    private func deactivateSession() {
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     #if os(visionOS)

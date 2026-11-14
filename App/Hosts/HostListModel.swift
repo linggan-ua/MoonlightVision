@@ -17,17 +17,15 @@ final class HostListModel {
 
     private let dataManager = DataManager()
     private var discoveryDelegate: DiscoveryDelegate?
-    private var savedHostIDs = Set<String>()
 
     func start() {
         guard discoveryManager == nil else { return }
 
         hosts = (dataManager.getHosts() as? [TemporaryHost]) ?? []
-        savedHostIDs = Set(hosts.map { $0.uuid })
 
         let delegate = DiscoveryDelegate { [weak self] discovered in
             Task { @MainActor in
-                self?.upsert(discovered)
+                self?.applyDiscoveredHosts(discovered)
             }
         }
         discoveryDelegate = delegate
@@ -69,9 +67,10 @@ final class HostListModel {
                 Task { @MainActor in
                     guard let self else { return }
                     if let host {
-                        self.upsert([host])
+                        if !self.hosts.contains(where: { $0.uuid == host.uuid }) {
+                            self.hosts.append(host)
+                        }
                         self.dataManager.update(host)
-                        self.savedHostIDs.insert(host.uuid)
                         completion(nil)
                     } else {
                         completion(error ?? String(localized: "Host not found."))
@@ -99,29 +98,18 @@ final class HostListModel {
         hosts = Array(hosts)
     }
 
-    /// Discovery hands us fresh TemporaryHost objects. Merge them into the existing
-    /// objects by UUID so the certificate, app list, and other persisted fields survive.
-    private func upsert(_ discovered: [TemporaryHost]) {        var merged = hosts
-
-        for newHost in discovered {
-            if let existing = merged.first(where: { $0.uuid == newHost.uuid }) {
-                existing.state = newHost.state
-                existing.name = newHost.name
-                existing.address = newHost.address ?? existing.address
-                existing.localAddress = newHost.localAddress ?? existing.localAddress
-                existing.externalAddress = newHost.externalAddress ?? existing.externalAddress
-                existing.ipv6Address = newHost.ipv6Address ?? existing.ipv6Address
-                existing.activeAddress = newHost.activeAddress ?? existing.activeAddress
-                existing.mac = newHost.mac ?? existing.mac
-                existing.httpsPort = newHost.httpsPort
-            } else {
-                merged.append(newHost)
-                dataManager.update(newHost)
-                savedHostIDs.insert(newHost.uuid)
+    /// DiscoveryManager already merges address/state fields in place and hands
+    /// back its canonical TemporaryHost objects, so use that snapshot directly
+    /// instead of copying fields (which could clobber persisted values).
+    private func applyDiscoveredHosts(_ discovered: [TemporaryHost]) {
+        let known = Set(hosts.map { $0.uuid })
+        hosts = discovered
+        for host in discovered {
+            if known.contains(host.uuid) {
+                continue
             }
+            dataManager.update(host)
         }
-
-        hosts = merged
     }
 }
 

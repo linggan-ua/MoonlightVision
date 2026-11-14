@@ -95,9 +95,9 @@ struct VirtualKeyboardView: View {
         Key(usage: 0xE3, label: "Win", width: 1.2, symbol: "square.grid.2x2"),
         Key(usage: 0xE2, label: "Alt", width: 1.2),
         Key(usage: 0x2C, label: "Space", width: 6.0),
-        Key(usage: 0x4F, label: "Left", symbol: "arrowtriangle.left.fill"),
-        Key(usage: 0x50, label: "Down", symbol: "arrowtriangle.down.fill"),
-        Key(usage: 0x51, label: "Right", symbol: "arrowtriangle.right.fill"),
+        Key(usage: 0x50, label: "Left", symbol: "arrowtriangle.left.fill"),
+        Key(usage: 0x51, label: "Down", symbol: "arrowtriangle.down.fill"),
+        Key(usage: 0x4F, label: "Right", symbol: "arrowtriangle.right.fill"),
     ]
 
     var body: some View {

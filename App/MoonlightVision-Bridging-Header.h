@@ -31,6 +31,7 @@
 
 #include <Limelight.h>
 #import "Audio/MVAudioRing.h"
+#import "Audio/MVAudioConfig.h"
 #include "opus_multistream.h"
 
 void MVSetStreamVolume(float volume);

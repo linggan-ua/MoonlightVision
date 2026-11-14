@@ -17,7 +17,7 @@ struct StreamWindowRootView: View {
         Group {
             if let model = presentation.session {
                 StreamWindowView(model: model) {
-                    presentation.session = nil
+                    presentation.close()
                     dismissWindow(id: "stream")
                 }
                 .id(ObjectIdentifier(model))
@@ -30,8 +30,7 @@ struct StreamWindowRootView: View {
             }
         }
         .onDisappear {
-            presentation.session?.stop()
-            presentation.session = nil
+            presentation.close()
         }
     }
 }

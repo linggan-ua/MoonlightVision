@@ -132,24 +132,20 @@ private struct HostHeader: View {
     let runningAppID: String?
 
     var body: some View {
-        HStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(.quaternary)
-                Image(systemName: "desktopcomputer")
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
-            .frame(width: 52, height: 52)
+        HStack(spacing: 12) {
+            Image(systemName: "desktopcomputer")
+                .font(.system(size: 24, weight: .regular))
+                .foregroundStyle(.secondary)
+                .frame(width: 32)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(host.name)
-                    .font(.title3.bold())
+                    .font(.title2.bold())
                     .lineLimit(1)
-                HStack(spacing: 8) {
+                HStack(spacing: 7) {
                     Circle()
                         .fill(host.state == .online ? Color.green : Color.secondary.opacity(0.4))
-                        .frame(width: 8, height: 8)
+                        .frame(width: 7, height: 7)
                     Text(host.activeAddress ?? host.address ?? "—")
                     Text(host.pairState == .paired ? String(localized: "Paired") : String(localized: "Not Paired"))
                     if runningAppID != nil {
@@ -166,11 +162,9 @@ private struct HostHeader: View {
 
             Spacer()
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .padding(.horizontal, 24)
+        .padding(.horizontal, 28)
         .padding(.top, 20)
+        .padding(.bottom, 8)
     }
 }
 
@@ -188,8 +182,6 @@ private struct StatusPanel: View {
                 .font(.headline)
                 .multilineTextAlignment(.center)
         }
-        .padding(32)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -219,8 +211,6 @@ private struct PairingView: View {
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
             ProgressView()
         }
-        .padding(32)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -237,44 +227,56 @@ private struct AppsView: View {
     let onToggleAppHidden: (TemporaryApp) -> Void
     let onRefresh: () -> Void
 
-    private let columns = [GridItem(.adaptive(minimum: 260, maximum: 340), spacing: 24)]
+    private let columns = [GridItem(.adaptive(minimum: 240, maximum: 320), spacing: 20)]
 
     @State private var searchText = ""
 
     var body: some View {
-        Group {
-            if apps.isEmpty {
-                ContentUnavailableView {
-                    Label("No apps available", systemImage: "square.grid.2x2")
-                } description: {
-                    Text("Add apps in Sunshine on your PC, then refresh.")
-                } actions: {
-                    Button("Refresh", action: onRefresh)
-                        .buttonStyle(.borderedProminent)
-                }
-            } else if filteredApps.isEmpty {
-                ContentUnavailableView.search(text: searchText)
-            } else {
-                ScrollView {
-                    LazyVGrid(columns: columns, spacing: 24) {
-                        ForEach(filteredApps, id: \.id) { app in
-                            Button {
-                                onLaunch(app)
-                            } label: {
-                                AppCard(
-                                    app: app,
-                                    isRunning: app.id == runningAppID,
-                                    boxArtToken: boxArtToken,
-                                    onToggleHidden: { onToggleAppHidden(app) }
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .hoverEffect(.lift)
-                        }
+        VStack(spacing: 0) {
+            HStack {
+                Text("Apps")
+                    .font(.headline)
+                Spacer()
+            }
+            .padding(.horizontal, 28)
+            .padding(.top, 2)
+            .padding(.bottom, 4)
+
+            Group {
+                if apps.isEmpty {
+                    ContentUnavailableView {
+                        Label("No apps available", systemImage: "square.grid.2x2")
+                    } description: {
+                        Text("Add apps in Sunshine on your PC, then refresh.")
+                    } actions: {
+                        Button("Refresh", action: onRefresh)
+                            .buttonStyle(.borderedProminent)
                     }
-                    .padding(24)
+                } else if filteredApps.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
+                } else {
+                    ScrollView {
+                        LazyVGrid(columns: columns, spacing: 20) {
+                            ForEach(filteredApps, id: \.id) { app in
+                                Button {
+                                    onLaunch(app)
+                                } label: {
+                                    AppCard(
+                                        app: app,
+                                        isRunning: app.id == runningAppID,
+                                        boxArtToken: boxArtToken,
+                                        onToggleHidden: { onToggleAppHidden(app) }
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                .hoverEffect(.lift)
+                            }
+                        }
+                        .padding(.horizontal, 28)
+                        .padding(.top, 4)
+                        .padding(.bottom, 24)
+                    }
                 }
-                .contentMargins(20, for: .scrollContent)
             }
         }
         .searchable(text: $searchText, prompt: "Search apps")
@@ -320,14 +322,12 @@ private struct AppCard: View {
                 .overlay {
                     ZStack(alignment: .topTrailing) {
                         ZStack {
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .fill(.quaternary)
+                            LinearGradient(
+                                colors: [Color(white: 0.16), Color(white: 0.06)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                             if let boxArt {
-                                Image(uiImage: boxArt)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .blur(radius: 18)
-                                    .opacity(0.55)
                                 Image(uiImage: boxArt)
                                     .resizable()
                                     .scaledToFit()
@@ -370,7 +370,7 @@ private struct AppCard: View {
 
             Text(app.name ?? String(localized: "Unknown App"))
                 .font(.headline)
-                .lineLimit(1)
+                .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 4)
         }

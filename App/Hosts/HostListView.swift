@@ -21,7 +21,7 @@ struct HostListView: View {
     var body: some View {
         NavigationSplitView {
             sidebar
-                .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 340)
+                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 300)
         } detail: {
             detail
         }
@@ -94,33 +94,20 @@ struct HostListView: View {
 
     @ViewBuilder
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
-                Image(systemName: "sparkles.tv")
-                    .font(.title3)
-                    .foregroundStyle(.tint)
-                Text("MoonlightVision")
-                    .font(.title3.bold())
-                Spacer()
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 18)
-            .padding(.bottom, 10)
-
-            if model.hosts.isEmpty {
-                ContentUnavailableView {
-                    Label("No Hosts", systemImage: "desktopcomputer")
-                } description: {
-                    Text("Start Sunshine on a PC on the same network, or add one by address.")
-                } actions: {
-                    Button("Add Host") {
-                        showingAddHost = true
-                    }
-                    .buttonStyle(.borderedProminent)
+        if model.hosts.isEmpty {
+            ContentUnavailableView {
+                Label("No Hosts", systemImage: "desktopcomputer")
+            } description: {
+                Text("Start Sunshine on a PC on the same network, or add one by address.")
+            } actions: {
+                Button("Add Host") {
+                    showingAddHost = true
                 }
-                .frame(maxHeight: .infinity)
-            } else {
-                List(selection: $selection) {
+                .buttonStyle(.borderedProminent)
+            }
+        } else {
+            List(selection: $selection) {
+                Section("Hosts") {
                     ForEach(model.hosts, id: \.uuid) { host in
                         HostRow(host: host)
                             .tag(host.uuid)
@@ -149,8 +136,8 @@ struct HostListView: View {
                             }
                     }
                 }
-                .listStyle(.sidebar)
             }
+            .listStyle(.sidebar)
         }
     }
 
@@ -179,24 +166,20 @@ private struct HostRow: View {
     let host: TemporaryHost
 
     var body: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(.quaternary)
-                Image(systemName: "desktopcomputer")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
-            .frame(width: 38, height: 38)
+        HStack(spacing: 10) {
+            Image(systemName: "desktopcomputer")
+                .font(.title3)
+                .foregroundStyle(.secondary)
+                .frame(width: 28)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(host.name)
                     .font(.headline)
                     .lineLimit(1)
                 HStack(spacing: 6) {
                     Circle()
                         .fill(host.state == .online ? Color.green : Color.secondary.opacity(0.4))
-                        .frame(width: 7, height: 7)
+                        .frame(width: 6, height: 6)
                     Text(host.activeAddress ?? host.address ?? "—")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -212,7 +195,7 @@ private struct HostRow: View {
                     .foregroundStyle(.orange)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 2)
     }
 }
 

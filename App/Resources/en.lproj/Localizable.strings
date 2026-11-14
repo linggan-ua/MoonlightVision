@@ -140,3 +140,6 @@
 "Ready to pair" = "Ready to pair";
 "Refresh Status" = "Refresh Status";
 "Stop" = "Stop";
+"Start Pairing" = "Start Pairing";
+"Waiting for PIN…" = "Waiting for PIN…";
+"Pairing is required to stream from this host." = "Pairing is required to stream from this host.";

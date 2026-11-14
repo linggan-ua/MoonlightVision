@@ -63,6 +63,10 @@ struct HostSessionView: View {
             ProgressView("Connecting to \(model.hostName)…")
                 .scaleEffect(1.5)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .unpaired:
+            UnpairedView {
+                model.startPairing()
+            }
         case .pairing(let pin):
             PairingView(pin: pin)
         case .loadingApps:
@@ -148,6 +152,25 @@ struct HostSessionView: View {
     }
 }
 
+private struct UnpairedView: View {
+    let onPair: () -> Void
+
+    var body: some View {
+        VStack(spacing: 15) {
+            Label("Ready to pair", systemImage: "lock.desktopcomputer")
+                .font(.title2)
+                .foregroundStyle(.orange)
+            Text("Pairing is required to stream from this host.")
+                .font(.body)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            Button("Start Pairing", action: onPair)
+                .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
 private struct PairingView: View {
     let pin: String
 
@@ -160,10 +183,14 @@ private struct PairingView: View {
                 .font(.body)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
-            Text(pin)
-                .font(.system(size: 48, weight: .semibold, design: .monospaced))
-                .tracking(8)
-            ProgressView()
+            if pin.isEmpty {
+                ProgressView("Waiting for PIN…")
+            } else {
+                Text(pin)
+                    .font(.system(size: 48, weight: .semibold, design: .monospaced))
+                    .tracking(8)
+                ProgressView()
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

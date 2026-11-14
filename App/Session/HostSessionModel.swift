@@ -14,6 +14,7 @@ import Observation
 final class HostSessionModel {
     enum Phase: Equatable {
         case checking
+        case unpaired
         case pairing(String)
         case loadingApps
         case ready
@@ -122,7 +123,13 @@ final class HostSessionModel {
     private func checkHost() async {
         phase = .checking
 
+        // One retry, matching the core clients' serverInfo retry behavior.
         var response = await fetchServerInfo(overHTTP: false)
+        if !response.isStatusOk() {
+            try? await Task.sleep(for: .milliseconds(250))
+            response = await fetchServerInfo(overHTTP: false)
+        }
+
         let usedHTTPFallback = !response.isStatusOk()
         if usedHTTPFallback {
             response = await fetchServerInfo(overHTTP: true)
@@ -136,21 +143,26 @@ final class HostSessionModel {
         host.state = .online
         dataManager.update(host)
 
-        // HTTPS with our pinned server certificate failed, so the host's
-        // certificate or TLS endpoint changed. HTTP has no client certificate
-        // and cannot tell us whether this client is still paired, so go straight
-        // to pairing: Sunshine returns the current server certificate when our
-        // client certificate is still trusted, or asks for a PIN if it is not.
+        // HTTP has no client certificate, so it cannot prove whether this client
+        // is paired. Do not start pairing automatically: show the pairing page
+        // and let the user choose, like the original client. A paired host that
+        // is reachable over HTTPS goes straight to the app list.
         guard !usedHTTPFallback else {
-            await pair()
+            phase = .unpaired
             return
         }
 
         if host.pairState == .paired {
             await loadApps()
         } else {
-            await pair()
+            phase = .unpaired
         }
+    }
+
+    func startPairing() {
+        guard case .unpaired = phase else { return }
+        phase = .pairing("")
+        Task { await pair() }
     }
 
     private func fetchServerInfo(overHTTP: Bool) async -> ServerInfoResponse {

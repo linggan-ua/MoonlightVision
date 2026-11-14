@@ -140,3 +140,6 @@
 "Ready to pair" = "可以配对";
 "Refresh Status" = "刷新状态";
 "Stop" = "停止";
+"Start Pairing" = "开始配对";
+"Waiting for PIN…" = "正在等待 PIN…";
+"Pairing is required to stream from this host." = "需要与此主机配对后才能串流。";

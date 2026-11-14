@@ -10,13 +10,11 @@
 #import "Utils.h"
 
 #import <VideoToolbox/VideoToolbox.h>
-#import <AVFoundation/AVFoundation.h>
 #import <QuartzCore/QuartzCore.h>
 
 #include "Limelight.h"
-#include "opus_multistream.h"
 
-#import "CoreAudioRenderer.h"
+#import "MoonlightVision-Swift.h"
 
 @implementation Connection {
     SERVER_INFORMATION _serverInfo;
@@ -31,7 +29,6 @@
 }
 
 static NSLock* initLock;
-static OpusMSDecoder* opusDecoder;
 static id<ConnectionCallbacks> _callbacks;
 static int lastFrameNumber;
 static int activeVideoFormat;
@@ -39,10 +36,7 @@ static video_stats_t currentVideoStats;
 static video_stats_t lastVideoStats;
 static NSLock* videoStatsLock;
 
-static CoreAudioRenderer* audioRenderer;
-static OPUS_MULTISTREAM_CONFIGURATION audioConfig;
-static bool audioIsStopping;
-volatile int volume = 127;
+static MVStreamAudioRenderer* audioRenderer;
 
 static VideoDecoderRenderer* renderer;
 
@@ -208,92 +202,35 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
                              decodeUnit:decodeUnit];
 }
 
-void ArCleanup(void);
-
 int ArInit(int audioConfiguration, POPUS_MULTISTREAM_CONFIGURATION opusConfig, void* context, int flags)
 {
-    int err;
-
-    audioRenderer = [[CoreAudioRenderer alloc] initWithConfig:opusConfig];
-    if (!audioRenderer) {
-        Log(LOG_E, @"Failed to initialize the CoreAudio renderer");
+    audioRenderer = [[MVStreamAudioRenderer alloc] initWithOpusConfig:opusConfig];
+    if (audioRenderer == nil) {
+        Log(LOG_E, @"Failed to initialize the audio renderer");
         return -1;
     }
-
-    audioConfig = *opusConfig;
-    opusDecoder = opus_multistream_decoder_create(opusConfig->sampleRate,
-                                                  opusConfig->channelCount,
-                                                  opusConfig->streams,
-                                                  opusConfig->coupledStreams,
-                                                  opusConfig->mapping,
-                                                  &err);
-    if (opusDecoder == NULL) {
-        Log(LOG_E, @"Failed to create Opus decoder");
-        ArCleanup();
-        return -1;
-    }
-
     return 0;
 }
 
 void ArStart(void)
 {
-    audioIsStopping = false;
     [audioRenderer start];
 }
 
 void ArStop(void)
 {
     [audioRenderer stop];
-    audioIsStopping = true;
 }
 
 void ArCleanup(void)
 {
-    [audioRenderer stop];
+    [audioRenderer cleanup];
     audioRenderer = nil;
-
-    if (opusDecoder != NULL) {
-        opus_multistream_decoder_destroy(opusDecoder);
-        opusDecoder = NULL;
-    }
 }
 
 void ArDecodeAndPlaySample(char* sampleData, int sampleLength)
 {
-    if (audioIsStopping || audioRenderer == nil) {
-        return;
-    }
-
-    CFTimeInterval decodeStartTime = CACurrentMediaTime();
-
-    int desiredBufferSize;
-    void* buffer = [audioRenderer getAudioBuffer:&desiredBufferSize];
-    if (!buffer) {
-        return;
-    }
-
-    int decodeRet = opus_multistream_decode_float(opusDecoder,
-                                                  (unsigned char *)sampleData,
-                                                  sampleLength,
-                                                  (float*)buffer,
-                                                  desiredBufferSize / sizeof(float) / audioConfig.channelCount,
-                                                  0);
-    if (decodeRet <= 0) {
-        return;
-    }
-
-    if (volume != 127) {
-        float volMultiplier = (float)volume / 127.0f;
-        int numFloats = decodeRet * audioConfig.channelCount;
-        float *floatBuf = (float *)buffer;
-        for (int i = 0; i < numFloats; i++) {
-            floatBuf[i] *= volMultiplier;
-        }
-    }
-
-    int bytesWritten = decodeRet * sizeof(float) * audioConfig.channelCount;
-    [audioRenderer submitAudio:bytesWritten opusBytes:sampleLength decodeStartTime:decodeStartTime];
+    [audioRenderer decodeAndPlaySample:sampleData length:sampleLength];
 }
 
 void ClStageStarting(int stage)

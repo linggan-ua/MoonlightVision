@@ -203,6 +203,22 @@ final class StreamWindowInputViewController: UIViewController {
     }
 
     override func loadView() {
-        view = streamView
+        // Never make the shared stream view this controller's root view: a
+        // view can belong to only one controller, and SwiftUI can build a new
+        // controller while the old one is still alive. Hosting it as a child
+        // lets addSubview move it between controllers without an ownership
+        // exception.
+        let container = UIView()
+        container.backgroundColor = .clear
+        view = container
+
+        streamView.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(streamView)
+        NSLayoutConstraint.activate([
+            streamView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            streamView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            streamView.topAnchor.constraint(equalTo: container.topAnchor),
+            streamView.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+        ])
     }
 }

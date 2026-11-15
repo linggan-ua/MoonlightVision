@@ -9,7 +9,7 @@ import SwiftUI
 import UIKit
 
 struct HostSessionView: View {
-    @Environment(\.openWindow) private var openWindow
+    @Environment(\.pushWindow) private var pushWindow
 
     @State private var model: HostSessionModel
     @State private var pendingApp: TemporaryApp?
@@ -141,7 +141,7 @@ struct HostSessionView: View {
         // StreamPresentation owns the single session. Opening the window is
         // only the presentation step; a live session is just brought forward.
         StreamPresentation.shared.start(host: model.host, app: app)
-        openWindow(id: "stream")
+        pushWindow(id: "stream")
     }
 }
 

@@ -167,10 +167,6 @@ final class StreamSessionModel {
         let config = makeConfiguration()
         activeConfig = config
         setupInput(config: config)
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            StreamKeyboardPrewarm.warm(input: self.keyboardInput)
-        }
         MVSetStreamVolume(Float(volume))
         MVSetStreamSpatialAudio(StreamSettingsStore.shared.spatialAudio)
 

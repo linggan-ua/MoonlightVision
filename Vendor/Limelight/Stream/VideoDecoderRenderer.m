@@ -119,9 +119,11 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     if (scale <= 0) {
         scale = _view.traitCollection.displayScale;
     }
-    if (scale > 0) {
-        displayLayer.contentsScale = scale;
-    }
+    // Keep the video render surface at physical pixel density. With a scale
+    // of 1 the layer downsamples to points and the compositor upsamples it
+    // again, which is the blur seen after shrinking the window.
+    scale = MAX(scale, 2.0);
+    displayLayer.contentsScale = scale;
     [CATransaction commit];
 }
 

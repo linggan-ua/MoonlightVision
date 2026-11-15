@@ -126,12 +126,13 @@ final class StreamWindowInputView: UIView {
         // new size in the same layout pass.
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        let scale = window?.traitCollection.displayScale ?? traitCollection.displayScale
+        let scale = max(
+            window?.traitCollection.displayScale ?? traitCollection.displayScale,
+            2.0
+        )
         for case let display as AVSampleBufferDisplayLayer in layer.sublayers ?? [] {
             display.frame = bounds
-            if scale > 0 {
-                display.contentsScale = scale
-            }
+            display.contentsScale = scale
         }
         CATransaction.commit()
         mouseSurfaceDelegate?.mouseSurfaceDidLayout()

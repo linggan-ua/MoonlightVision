@@ -23,6 +23,7 @@ struct MoonlightVisionApp: SwiftUI.App {
             StreamWindowRootView()
         }
         .windowStyle(.plain)
+        .windowResizability(.contentSize)
         .defaultLaunchBehavior(.suppressed)
         .defaultSize(width: 1280, height: 720)
 

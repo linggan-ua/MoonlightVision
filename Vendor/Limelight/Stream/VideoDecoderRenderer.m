@@ -65,7 +65,11 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     
     // Let AVFoundation do the aspect-fit. The layer fills the hosting view and
     // ResizeAspect creates the letterbox using the sample's real dimensions/PAR.
-    displayLayer.videoGravity = AVLayerVideoGravityResizeAspect;
+    // The window locks its aspect to the stream, so fill the layer exactly.
+    // ResizeAspect keeps an aspect-fit render target that can be resampled
+    // softly after the window is made smaller; the official window client
+    // uses Resize for the same reason.
+    displayLayer.videoGravity = AVLayerVideoGravityResize;
     [self layoutDisplayLayer];
 
     // Hide the layer until we get an IDR frame. This ensures we

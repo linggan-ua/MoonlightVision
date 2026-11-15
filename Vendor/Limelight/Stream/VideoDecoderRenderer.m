@@ -52,7 +52,9 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     CALayer *oldLayer = displayLayer;
     
     displayLayer = [[AVSampleBufferDisplayLayer alloc] init];
-    displayLayer.backgroundColor = [UIColor blackColor].CGColor;
+    // Leave the letterbox transparent so the window's glass shows through
+    // instead of black bars.
+    displayLayer.backgroundColor = [UIColor clearColor].CGColor;
 
     // Start in standard range. The layer is switched to high only when the
     // actual format description (or the first HDR frame) proves HDR content is

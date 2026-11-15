@@ -49,6 +49,12 @@
 /* Settings */
 "Video" = "Video";
 "Resolution" = "Resolution";
+"Width" = "Width";
+"Height" = "Height";
+"Aspect Ratio" = "Aspect Ratio";
+"Apply" = "Apply";
+"Bitrate" = "Bitrate";
+"Video settings apply when the next stream starts." = "Video settings apply when the next stream starts.";
 "Frame Rate" = "Frame Rate";
 "%lld fps" = "%lld fps";
 "Bitrate: %lld Mbps" = "Bitrate: %lld Mbps";

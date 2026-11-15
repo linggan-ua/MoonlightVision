@@ -49,6 +49,12 @@
 /* Settings */
 "Video" = "视频";
 "Resolution" = "分辨率";
+"Width" = "宽度";
+"Height" = "高度";
+"Aspect Ratio" = "宽高比";
+"Apply" = "应用";
+"Bitrate" = "码率";
+"Video settings apply when the next stream starts." = "视频设置会在下次启动串流时生效。";
 "Frame Rate" = "帧率";
 "%lld fps" = "%lld 帧/秒";
 "Bitrate: %lld Mbps" = "码率：%lld Mbps";

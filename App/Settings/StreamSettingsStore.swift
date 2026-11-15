@@ -9,39 +9,58 @@ import AVFoundation
 import Foundation
 import Observation
 
-enum StreamResolution: String, CaseIterable, Identifiable {
-    case p720
-    case p1080
-    case p1440
-    case p4k
+struct StreamResolution: Hashable, Identifiable {
+    var width: Int32
+    var height: Int32
 
-    var id: String { rawValue }
+    var id: String { "\(width)x\(height)" }
 
-    var width: Int32 {
-        switch self {
-        case .p720: return 1280
-        case .p1080: return 1920
-        case .p1440: return 2560
-        case .p4k: return 3840
+    var title: String { "\(width) × \(height)" }
+
+    var aspectRatio: Double {
+        Double(width) / Double(max(height, 1))
+    }
+
+    var aspectDescription: String {
+        let divisor = Self.gcd(Int(width), Int(height))
+        guard divisor > 0 else { return "\(width):\(height)" }
+        return "\(Int(width) / divisor):\(Int(height) / divisor)"
+    }
+
+    static let p720 = StreamResolution(width: 1280, height: 720)
+    static let p1080 = StreamResolution(width: 1920, height: 1080)
+    static let p1440 = StreamResolution(width: 2560, height: 1440)
+    static let p4k = StreamResolution(width: 3840, height: 2160)
+
+    static let presets: [StreamResolution] = [
+        .p720, .p1080, .p1440, .p4k,
+        StreamResolution(width: 5120, height: 2880),
+        StreamResolution(width: 1920, height: 1200),
+        StreamResolution(width: 2560, height: 1600),
+        StreamResolution(width: 3440, height: 1440),
+        StreamResolution(width: 3840, height: 1600),
+        StreamResolution(width: 5120, height: 1440)
+    ]
+
+    static func legacy(_ rawValue: String) -> StreamResolution? {
+        switch rawValue {
+        case "p720": return .p720
+        case "p1080": return .p1080
+        case "p1440": return .p1440
+        case "p4k": return .p4k
+        default: return nil
         }
     }
 
-    var height: Int32 {
-        switch self {
-        case .p720: return 720
-        case .p1080: return 1080
-        case .p1440: return 1440
-        case .p4k: return 2160
+    private static func gcd(_ a: Int, _ b: Int) -> Int {
+        var a = abs(a)
+        var b = abs(b)
+        while b != 0 {
+            let remainder = a % b
+            a = b
+            b = remainder
         }
-    }
-
-    var title: String {
-        switch self {
-        case .p720: return "1280 × 720"
-        case .p1080: return "1920 × 1080"
-        case .p1440: return "2560 × 1440"
-        case .p4k: return "3840 × 2160 (4K)"
-        }
+        return a
     }
 }
 
@@ -241,9 +260,9 @@ final class StreamSettingsStore {
     }
 
     private func apply(_ legacy: LegacyStored) {
-        resolution = StreamResolution(rawValue: legacy.resolution) ?? .p1080
-        frameRate = [30, 60, 90, 120].contains(legacy.frameRate) ? legacy.frameRate : 60
-        bitrateMbps = min(max(legacy.bitrateMbps, 5), 150)
+        resolution = StreamResolution.legacy(legacy.resolution) ?? .p1080
+        frameRate = min(max(legacy.frameRate, 1), 240)
+        bitrateMbps = min(max(legacy.bitrateMbps, 1), 1000)
         codec = CodecPreference(rawValue: legacy.codec) ?? .auto
         hdrEnabled = legacy.hdrEnabled
         audioMode = AudioMode(rawValue: legacy.audioMode) ?? .auto
@@ -265,11 +284,14 @@ final class StreamSettingsStore {
 
         let width = Int(official.width?.intValue ?? 1920)
         let height = Int(official.height?.intValue ?? 1080)
-        resolution = StreamResolution.from(width: width, height: height) ?? .p1080
+        resolution = StreamResolution(
+            width: Int32(min(max(width, 160), 7680)),
+            height: Int32(min(max(height, 120), 4320))
+        )
 
         let storedFrameRate = Int(official.framerate?.intValue ?? 60)
-        frameRate = [30, 60, 90, 120].contains(storedFrameRate) ? storedFrameRate : 60
-        bitrateMbps = min(max(Int(official.bitrate?.intValue ?? 10000) / 1000, 5), 150)
+        frameRate = min(max(storedFrameRate, 1), 240)
+        bitrateMbps = min(max(Int(official.bitrate?.intValue ?? 10000) / 1000, 1), 1000)
         codec = CodecPreference(officialValue: Int(official.preferredCodecValue()))
         hdrEnabled = official.enableHdr
         mouseMode = official.absoluteTouchMode ? .absolute : .relative
@@ -321,18 +343,6 @@ final class StreamSettingsStore {
 
     static var maximumOutputChannels: Int {
         Int(AVAudioSession.sharedInstance().maximumOutputNumberOfChannels)
-    }
-}
-
-private extension StreamResolution {
-    static func from(width: Int, height: Int) -> StreamResolution? {
-        switch (width, height) {
-        case (1280, 720): return .p720
-        case (1920, 1080): return .p1080
-        case (2560, 1440): return .p1440
-        case (3840, 2160): return .p4k
-        default: return nil
-        }
     }
 }
 

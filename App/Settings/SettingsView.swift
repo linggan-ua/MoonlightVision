@@ -11,24 +11,155 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable private var settings = StreamSettingsStore.shared
     @State private var showResetConfirm = false
+    @State private var aspectText = ""
 
     var showsDoneButton = true
+
+    private var widthBinding: Binding<Int> {
+        Binding(
+            get: { Int(settings.resolution.width) },
+            set: { newValue in
+                let width = min(max(newValue, 160), 7680)
+                settings.resolution = StreamResolution(
+                    width: Int32(width),
+                    height: settings.resolution.height
+                )
+            }
+        )
+    }
+
+    private var heightBinding: Binding<Int> {
+        Binding(
+            get: { Int(settings.resolution.height) },
+            set: { newValue in
+                let height = min(max(newValue, 120), 4320)
+                settings.resolution = StreamResolution(
+                    width: settings.resolution.width,
+                    height: Int32(height)
+                )
+            }
+        )
+    }
+
+    private var frameRateBinding: Binding<Int> {
+        Binding(
+            get: { settings.frameRate },
+            set: { settings.frameRate = min(max($0, 1), 240) }
+        )
+    }
+
+    private var frameRateSlider: Binding<Double> {
+        Binding(
+            get: { Double(settings.frameRate) },
+            set: { settings.frameRate = min(max(Int($0.rounded()), 1), 240) }
+        )
+    }
+
+    private var bitrateBinding: Binding<Int> {
+        Binding(
+            get: { settings.bitrateMbps },
+            set: { settings.bitrateMbps = min(max($0, 1), 1000) }
+        )
+    }
+
+    private var bitrateSlider: Binding<Double> {
+        Binding(
+            get: { Double(settings.bitrateMbps) },
+            set: { settings.bitrateMbps = min(max(Int($0.rounded()), 1), 1000) }
+        )
+    }
+
+    private func applyAspectRatio() {
+        let parts = aspectText
+            .replacingOccurrences(of: "x", with: ":")
+            .replacingOccurrences(of: "X", with: ":")
+            .split(separator: ":")
+        guard parts.count == 2,
+              let numerator = Double(parts[0].trimmingCharacters(in: .whitespaces)),
+              let denominator = Double(parts[1].trimmingCharacters(in: .whitespaces)),
+              numerator > 0, denominator > 0 else {
+            aspectText = settings.resolution.aspectDescription
+            return
+        }
+        let height = Int((Double(settings.resolution.width) * denominator / numerator).rounded())
+        settings.resolution = StreamResolution(
+            width: settings.resolution.width,
+            height: Int32(min(max(height, 120), 4320))
+        )
+        aspectText = settings.resolution.aspectDescription
+    }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Video") {
-                    Picker("Resolution", selection: $settings.resolution) {
-                        ForEach(StreamResolution.allCases) { resolution in
-                            Text(resolution.title).tag(resolution)
+                Section {
+                    LabeledContent("Resolution") {
+                        HStack(spacing: 6) {
+                            TextField("Width", value: widthBinding, format: .number)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 72)
+                                .multilineTextAlignment(.trailing)
+                            Text("×")
+                                .foregroundStyle(.secondary)
+                            TextField("Height", value: heightBinding, format: .number)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 72)
+                                .multilineTextAlignment(.trailing)
+                            Menu {
+                                ForEach(StreamResolution.presets) { preset in
+                                    Button(preset.title) {
+                                        settings.resolution = preset
+                                    }
+                                }
+                            } label: {
+                                Image(systemName: "list.bullet")
+                            }
+                            .buttonStyle(.borderless)
                         }
                     }
-                    Picker("Frame Rate", selection: $settings.frameRate) {
-                        ForEach([30, 60, 90, 120], id: \.self) { rate in
-                            Text("\(rate) fps").tag(rate)
+
+                    LabeledContent("Aspect Ratio") {
+                        HStack(spacing: 6) {
+                            TextField("16:9", text: $aspectText)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 76)
+                                .multilineTextAlignment(.trailing)
+                                .onSubmit(applyAspectRatio)
+                            Button("Apply", action: applyAspectRatio)
+                                .buttonStyle(.borderless)
                         }
                     }
-                    Stepper("Bitrate: \(settings.bitrateMbps) Mbps", value: $settings.bitrateMbps, in: 5...150, step: 5)
+
+                    LabeledContent("Frame Rate") {
+                        HStack(spacing: 8) {
+                            TextField("60", value: frameRateBinding, format: .number)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 62)
+                                .multilineTextAlignment(.trailing)
+                            Text("fps")
+                                .foregroundStyle(.secondary)
+                            Slider(value: frameRateSlider, in: 1...240, step: 1)
+                                .frame(maxWidth: 200)
+                        }
+                    }
+
+                    LabeledContent("Bitrate") {
+                        HStack(spacing: 8) {
+                            TextField("10", value: bitrateBinding, format: .number)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 62)
+                                .multilineTextAlignment(.trailing)
+                            Text("Mbps")
+                                .foregroundStyle(.secondary)
+                            Slider(value: bitrateSlider, in: 1...500, step: 1)
+                                .frame(maxWidth: 200)
+                        }
+                    }
+
+                    Text("Video settings apply when the next stream starts.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
                     Picker("Codec", selection: $settings.codec) {
                         ForEach(CodecPreference.allCases) { codec in
                             Text(codec.title).tag(codec)
@@ -46,6 +177,8 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     Toggle("Frame Pacing", isOn: $settings.framePacing)
+                } header: {
+                    Label("Video", systemImage: "tv")
                 }
 
                 Section("Host") {
@@ -109,7 +242,16 @@ struct SettingsView: View {
                     }
                 }
             }
+            .formStyle(.grouped)
+            .frame(maxWidth: 640)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .navigationTitle("Settings")
+            .onAppear {
+                aspectText = settings.resolution.aspectDescription
+            }
+            .onChange(of: settings.resolution) { _, resolution in
+                aspectText = resolution.aspectDescription
+            }
             .onChange(of: settings.codec) { _, codec in
                 if !codec.supportsHDR {
                     settings.hdrEnabled = false

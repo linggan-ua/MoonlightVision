@@ -31,7 +31,15 @@ struct StreamWindowView: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            Color.black.ignoresSafeArea()
+            if model.isStreaming {
+                Color.black.ignoresSafeArea()
+            } else {
+                // Before the first frame, show a native glass window instead
+                // of a black rectangle; the loading panel floats in it.
+                Color.clear
+                    .glassBackgroundEffect()
+                    .ignoresSafeArea()
+            }
 
             // One UIView for the window: it hosts the stream's display layer
             // and receives keyboard, mouse, trackpad, and direct touches.
@@ -50,41 +58,31 @@ struct StreamWindowView: View {
             }
 
             if !model.isStreaming {
-                VStack(spacing: 14) {
-                    if !isEnded {
-                        ProgressView()
+                StreamGlassOverlay {
+                    VStack(spacing: 14) {
+                        if !isEnded {
+                            ProgressView()
+                        }
+                        Text(model.statusText)
+                            .font(.headline)
+                            .multilineTextAlignment(.center)
                     }
-                    Text(model.statusText)
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .multilineTextAlignment(.center)
                 }
-                .padding(24)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                .allowsHitTesting(false)
             }
 
             if keyboardHintVisible {
-                VStack(spacing: 6) {
-                    Label("Keyboard Active", systemImage: "keyboard")
-                        .font(.headline)
-                    Text("Use the on-screen keyboard to type.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                StreamGlassOverlay(padding: 18) {
+                    VStack(spacing: 6) {
+                        Label("Keyboard Active", systemImage: "keyboard")
+                            .font(.headline)
+                        Text("Use the on-screen keyboard to type.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
-                .foregroundStyle(.white)
-                .padding(18)
-                .background(
-                    Color.black.opacity(0.55),
-                    in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .transition(.opacity)
-                .allowsHitTesting(false)
             }
         }
-        .background(.black)
         // Do not wrap the video layer in a SwiftUI clip/mask. A masked
         // subtree is rendered offscreen; with an EDR video layer that
         // offscreen pass is what turns the HDR picture soft. The window
@@ -227,6 +225,28 @@ private struct StreamStatsPanel: View {
         .fixedSize(horizontal: false, vertical: true)
         .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .allowsHitTesting(false)
+    }
+}
+
+/// The shared centered glass panel used by the startup status and keyboard
+/// hint overlays.
+private struct StreamGlassOverlay<Content: View>: View {
+    let padding: CGFloat
+    @ViewBuilder let content: Content
+
+    init(padding: CGFloat = 24, @ViewBuilder content: () -> Content) {
+        self.padding = padding
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(padding)
+            .glassBackgroundEffect(
+                in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .allowsHitTesting(false)
     }
 }
 

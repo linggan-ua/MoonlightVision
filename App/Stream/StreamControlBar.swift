@@ -103,13 +103,16 @@ struct StreamControlBar: View {
             .toggleStyle(.button)
 
             Toggle(isOn: touchpadBinding) {
-                Label(
-                    "Touchpad Mode",
-                    systemImage: settings.mouseInputMode == .touchpad ? "trackpad" : "hand.tap.fill"
+                Image(
+                    systemName: settings.mouseInputMode == .touchpad
+                        ? "trackpad"
+                        : "hand.tap.fill"
+                )
+                .foregroundStyle(
+                    settings.mouseInputMode == .touchpad ? Color.black : Color.primary
                 )
             }
             .toggleStyle(.button)
-            .tint(Color.black.opacity(0.35))
             .help("Switch between screen touch and whole-screen touchpad.")
 
             Menu {

@@ -36,8 +36,8 @@ struct StreamControlBar: View {
 
         var symbol: String {
             switch self {
-            case .stereo: return "speaker.wave.2.fill"
-            case .spatial: return "headphones"
+            case .stereo: return "headphones"
+            case .spatial: return "person.spatialaudio.fill"
             case .surround: return "speaker.wave.3.fill"
             }
         }
@@ -48,6 +48,13 @@ struct StreamControlBar: View {
             return .surround
         }
         return settings.spatialAudio ? .spatial : .stereo
+    }
+
+    private var touchpadBinding: Binding<Bool> {
+        Binding(
+            get: { settings.mouseInputMode == .touchpad },
+            set: { settings.mouseInputMode = $0 ? .touchpad : .touchscreenGCMouse }
+        )
     }
 
     private func applyQuickAudio(_ mode: QuickAudioMode) {
@@ -94,6 +101,15 @@ struct StreamControlBar: View {
                 Label("Stats", systemImage: "chart.bar.xaxis")
             }
             .toggleStyle(.button)
+
+            Toggle(isOn: touchpadBinding) {
+                Label(
+                    "Touchpad Mode",
+                    systemImage: settings.mouseInputMode == .touchpad ? "trackpad" : "hand.tap.fill"
+                )
+            }
+            .toggleStyle(.button)
+            .help("Switch between screen touch and whole-screen touchpad.")
 
             Menu {
                 ForEach(QuickAudioMode.allCases) { mode in

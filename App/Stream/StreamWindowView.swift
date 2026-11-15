@@ -75,7 +75,10 @@ struct StreamWindowView: View {
                 }
                 .foregroundStyle(.white)
                 .padding(18)
-                .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .background(
+                    Color.black.opacity(0.55),
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .transition(.opacity)
                 .allowsHitTesting(false)
@@ -119,6 +122,12 @@ struct StreamWindowView: View {
         .onReceive(NotificationCenter.default.publisher(for: .streamKeyboardDidActivate)) { _ in
             showKeyboardHint()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .streamKeyboardDidDeactivate)) { _ in
+            keyboardHintTask?.cancel()
+            withAnimation(.easeOut(duration: 0.15)) {
+                keyboardHintVisible = false
+            }
+        }
     }
 
     private func showKeyboardHint() {
@@ -145,7 +154,7 @@ private struct StreamControlsView: View {
     let onExit: () -> Void
 
     @Bindable private var settings = StreamSettingsStore.shared
-    @State private var keyboardWindow = StreamKeyboardWindowState.shared
+    @Bindable private var keyboardWindow = StreamKeyboardWindowState.shared
 
     private var isEnded: Bool {
         if case .ended = model.phase { return true }
@@ -158,12 +167,20 @@ private struct StreamControlsView: View {
             set: { newValue in
                 keyboardWindow.wantsKeyboard = newValue
                 if newValue {
+                    openWindow(id: "stream-keyboard")
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(350))
+                        guard !Task.isCancelled, keyboardWindow.wantsKeyboard else { return }
+                        NotificationCenter.default.post(
+                            name: .streamKeyboardDidActivate,
+                            object: nil
+                        )
+                    }
+                } else {
                     NotificationCenter.default.post(
-                        name: .streamKeyboardDidActivate,
+                        name: .streamKeyboardDidDeactivate,
                         object: nil
                     )
-                    openWindow(id: "stream-keyboard")
-                } else {
                     dismissWindow(id: "stream-keyboard")
                 }
             }
@@ -215,4 +232,5 @@ private struct StreamStatsPanel: View {
 
 extension Notification.Name {
     static let streamKeyboardDidActivate = Notification.Name("mv.streamKeyboardDidActivate")
+    static let streamKeyboardDidDeactivate = Notification.Name("mv.streamKeyboardDidDeactivate")
 }

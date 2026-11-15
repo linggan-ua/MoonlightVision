@@ -135,10 +135,6 @@ struct VirtualKeyboardView: View {
         Key(usage: 0xE3, label: "Win", width: 1.2, symbol: "square.grid.2x2"),
         Key(usage: 0xE2, label: "Alt", width: 1.2),
         Key(usage: 0x2C, label: "Space", width: 4.0),
-        Key(usage: 0xE6, label: "Right Alt", width: 1.2),
-        Key(usage: 0xE7, label: "Right Win", width: 1.2),
-        Key(usage: 0x65, label: "Menu", width: 1.2, symbol: "contextualmenu.and.cursorarrow"),
-        Key(usage: 0xE4, label: "Right Ctrl", width: 1.5),
         Key(usage: Self.fnUsage, label: "Fn", width: 1.2, symbol: "globe"),
     ]
 

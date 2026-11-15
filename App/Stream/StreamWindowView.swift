@@ -11,6 +11,7 @@ import SwiftUI
 /// visionOS ornament below it, and stats float in an ornament above it.
 struct StreamWindowView: View {
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.physicalMetrics) private var physicalMetrics
     @Bindable private var settings = StreamSettingsStore.shared
 
     let model: StreamSessionModel
@@ -27,6 +28,11 @@ struct StreamWindowView: View {
     private var isEnded: Bool {
         if case .ended = model.phase { return true }
         return false
+    }
+
+    /// Extra physical gap between the window and both ornaments.
+    private var ornamentGap: CGFloat {
+        physicalMetrics.convert(0.5, from: .centimeters)
     }
 
     var body: some View {
@@ -88,11 +94,13 @@ struct StreamWindowView: View {
         .ornament(attachmentAnchor: .scene(.bottom), contentAlignment: .top) {
             if !model.hidesStreamChrome {
                 StreamControlsView(model: model, onExit: onExit)
+                    .padding(.top, ornamentGap)
             }
         }
         .ornament(attachmentAnchor: .scene(.top), contentAlignment: .bottom) {
             if settings.showStats, model.isStreaming, !model.statsText.isEmpty {
                 StreamStatsPanel(text: model.statsText)
+                    .padding(.bottom, ornamentGap)
             }
         }
         .task { await model.startWhenReady() }

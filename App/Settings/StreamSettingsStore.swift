@@ -95,6 +95,9 @@ final class StreamSettingsStore {
     private static let migratedKey = "mv.settingsMigratedToCoreData"
     private static let audioModeKey = "mv.audioMode"
     private static let spatialAudioKey = "mv.spatialAudio"
+    private static let mouseInputSchemeKey = "mv.mouseInputScheme"
+    private static let hideChromeDuringMouseKey = "mv.hideChromeDuringMouseInput"
+    private static let suppressRestoreTapKey = "mv.suppressRestoreTap"
 
     private let dataManager = DataManager()
 
@@ -118,6 +121,26 @@ final class StreamSettingsStore {
     }
     var mouseMode: MouseTrackingMode = .relative {
         didSet { save() }
+    }
+    var mouseInputScheme: MouseInputScheme = .officialHybrid {
+        didSet {
+            UserDefaults.standard.set(mouseInputScheme.rawValue, forKey: Self.mouseInputSchemeKey)
+        }
+    }
+    /// While a physical mouse is connected during a stream, hide the control
+    /// ornament, the system cursor, and window resizing so the pointer cannot
+    /// wander onto visionOS window chrome.
+    var hideChromeDuringMouseInput: Bool = true {
+        didSet {
+            UserDefaults.standard.set(hideChromeDuringMouseInput, forKey: Self.hideChromeDuringMouseKey)
+        }
+    }
+    /// When the mouse has hidden the controls, make the first gaze tap only
+    /// restore them instead of also sending a touch to the host.
+    var suppressRestoreTap: Bool = false {
+        didSet {
+            UserDefaults.standard.set(suppressRestoreTap, forKey: Self.suppressRestoreTapKey)
+        }
     }
     var showStats: Bool = true {
         didSet { save() }
@@ -177,6 +200,12 @@ final class StreamSettingsStore {
         } else {
             apply(official: dataManager.getSettings())
         }
+
+        mouseInputScheme = MouseInputScheme(
+            rawValue: UserDefaults.standard.string(forKey: Self.mouseInputSchemeKey) ?? ""
+        ) ?? .officialHybrid
+        hideChromeDuringMouseInput = UserDefaults.standard.object(forKey: Self.hideChromeDuringMouseKey) as? Bool ?? true
+        suppressRestoreTap = UserDefaults.standard.bool(forKey: Self.suppressRestoreTapKey)
     }
 
     func reset() {
@@ -199,6 +228,9 @@ final class StreamSettingsStore {
         hdrEnabled = false
         audioMode = .auto
         mouseMode = .relative
+        mouseInputScheme = .officialHybrid
+        hideChromeDuringMouseInput = true
+        suppressRestoreTap = false
         showStats = true
         framePacing = true
         optimizeGameSettings = true

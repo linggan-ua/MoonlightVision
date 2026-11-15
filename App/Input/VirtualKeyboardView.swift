@@ -22,9 +22,13 @@ struct VirtualKeyboardView: View {
 
     @State private var latched: Set<UInt16> = []
     @State private var locked: Set<UInt16> = []
+    @State private var textEntry = ""
+    @State private var fnActive = false
+    @FocusState private var textFocused: Bool
 
     private static let shiftLeft: UInt16 = 0xE1
     private static let shiftRight: UInt16 = 0xE5
+    private static let fnUsage: UInt16 = 0xFFFE
     private static let unit: CGFloat = 46
     private static let spacing: CGFloat = 5
 
@@ -34,12 +38,49 @@ struct VirtualKeyboardView: View {
         var shiftedLabel: String? = nil
         var width: CGFloat = 1
         var symbol: String? = nil
+        /// Windows virtual-key code for media keys that don't have a HID usage.
+        var virtualKey: Int16? = nil
         var id: UInt16 { usage }
     }
 
-    private let functionRow: [Key] = [Key(usage: 0x29, label: "Esc", width: 1.2)]
+    private struct Shortcut: Identifiable {
+        let label: String
+        let modifiers: [UInt16]
+        let key: UInt16?
+        var id: String { label }
+    }
+
+    private let shortcuts: [Shortcut] = [
+        Shortcut(label: "Alt+Tab", modifiers: [0xE2], key: 0x2B),
+        Shortcut(label: "Alt+F4", modifiers: [0xE2], key: 0x3D),
+        Shortcut(label: "Win", modifiers: [0xE3], key: nil),
+        Shortcut(label: "Win+D", modifiers: [0xE3], key: 0x07),
+        Shortcut(label: "Win+E", modifiers: [0xE3], key: 0x08),
+        Shortcut(label: "Win+L", modifiers: [0xE3], key: 0x0F),
+        Shortcut(label: "Ctrl+Shift+Esc", modifiers: [0xE0, 0xE1], key: 0x29),
+        Shortcut(label: "Ctrl+C", modifiers: [0xE0], key: 0x06),
+        Shortcut(label: "Ctrl+V", modifiers: [0xE0], key: 0x19)
+    ]
+
+    private let physicalFunctionRow: [Key] = [Key(usage: 0x29, label: "Esc", width: 1.2)]
         + (1...12).map { Key(usage: 0x3A + UInt16($0 - 1), label: "F\($0)") }
         + [Key(usage: 0x4C, label: "Del", width: 1.2)]
+
+    /// Fn switches the function row to the Windows media keys. Fn itself is a
+    /// hardware key with no HID usage, so it only changes this on-screen row.
+    private let mediaRow: [Key] = [
+        Key(usage: 0x2001, label: "Mute", symbol: "speaker.slash.fill", virtualKey: 0xAD),
+        Key(usage: 0x2002, label: "Volume Down", symbol: "speaker.wave.1.fill", virtualKey: 0xAE),
+        Key(usage: 0x2003, label: "Volume Up", symbol: "speaker.wave.3.fill", virtualKey: 0xAF),
+        Key(usage: 0x2004, label: "Previous Track", symbol: "backward.fill", virtualKey: 0xB1),
+        Key(usage: 0x2005, label: "Play/Pause", symbol: "playpause.fill", virtualKey: 0xB3),
+        Key(usage: 0x2006, label: "Next Track", symbol: "forward.fill", virtualKey: 0xB0),
+        Key(usage: 0x2007, label: "Stop", symbol: "stop.fill", virtualKey: 0xB2)
+    ]
+
+    private var functionRow: [Key] {
+        fnActive ? mediaRow : physicalFunctionRow
+    }
 
     private let numberRow: [Key] = [
         Key(usage: 0x35, label: "`", shiftedLabel: "~"),
@@ -86,7 +127,6 @@ struct VirtualKeyboardView: View {
                 Key(usage: 0x37, label: ".", shiftedLabel: ">"),
                 Key(usage: 0x38, label: "/", shiftedLabel: "?"),
                 Key(usage: Self.shiftRight, label: "Shift", width: 1.5, symbol: "shift"),
-                Key(usage: 0x52, label: "Up", symbol: "arrowtriangle.up.fill"),
             ]
     }
 
@@ -94,10 +134,12 @@ struct VirtualKeyboardView: View {
         Key(usage: 0xE0, label: "Ctrl", width: 1.5),
         Key(usage: 0xE3, label: "Win", width: 1.2, symbol: "square.grid.2x2"),
         Key(usage: 0xE2, label: "Alt", width: 1.2),
-        Key(usage: 0x2C, label: "Space", width: 6.0),
-        Key(usage: 0x50, label: "Left", symbol: "arrowtriangle.left.fill"),
-        Key(usage: 0x51, label: "Down", symbol: "arrowtriangle.down.fill"),
-        Key(usage: 0x4F, label: "Right", symbol: "arrowtriangle.right.fill"),
+        Key(usage: 0x2C, label: "Space", width: 4.0),
+        Key(usage: 0xE6, label: "Right Alt", width: 1.2),
+        Key(usage: 0xE7, label: "Right Win", width: 1.2),
+        Key(usage: 0x65, label: "Menu", width: 1.2, symbol: "contextualmenu.and.cursorarrow"),
+        Key(usage: 0xE4, label: "Right Ctrl", width: 1.5),
+        Key(usage: Self.fnUsage, label: "Fn", width: 1.2, symbol: "globe"),
     ]
 
     var body: some View {
@@ -114,17 +156,47 @@ struct VirtualKeyboardView: View {
                 .buttonStyle(.plain)
             }
 
+            HStack(spacing: 8) {
+                TextField("Type text…", text: $textEntry)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($textFocused)
+                    .frame(maxWidth: 460)
+                    .onSubmit(sendText)
+                Button("Send", action: sendText)
+                    .disabled(textEntry.isEmpty)
+                Menu {
+                    ForEach(shortcuts) { shortcut in
+                        Button(shortcut.label) {
+                            input.sendShortcut(
+                                modifiers: shortcut.modifiers,
+                                key: shortcut.key
+                            )
+                        }
+                    }
+                } label: {
+                    Label("Shortcuts", systemImage: "command")
+                }
+                Spacer()
+            }
+
             row(functionRow, height: 0.8)
             row(numberRow)
             row(topRow)
             row(homeRow)
-            row(bottomRow)
-            row(spaceRow)
+            HStack(alignment: .top, spacing: Self.spacing) {
+                VStack(spacing: Self.spacing) {
+                    row(bottomRow)
+                    row(spaceRow)
+                }
+                arrowCluster
+            }
         }
         .padding(12)
         .glassBackgroundEffect()
         .onChange(of: isActive) { _, active in
             if !active {
+                textFocused = false
+                fnActive = false
                 releaseAll()
             }
         }
@@ -146,6 +218,21 @@ struct VirtualKeyboardView: View {
         }
     }
 
+    private var arrowCluster: some View {
+        VStack(spacing: Self.spacing) {
+            HStack(spacing: Self.spacing) {
+                Color.clear.frame(width: Self.unit, height: Self.unit)
+                keyButton(Key(usage: 0x52, label: "Up", symbol: "arrowtriangle.up.fill"), height: 1)
+                Color.clear.frame(width: Self.unit, height: Self.unit)
+            }
+            HStack(spacing: Self.spacing) {
+                keyButton(Key(usage: 0x50, label: "Left", symbol: "arrowtriangle.left.fill"), height: 1)
+                keyButton(Key(usage: 0x51, label: "Down", symbol: "arrowtriangle.down.fill"), height: 1)
+                keyButton(Key(usage: 0x4F, label: "Right", symbol: "arrowtriangle.right.fill"), height: 1)
+            }
+        }
+    }
+
     private func row(_ keys: [Key], height: CGFloat = 1) -> some View {
         HStack(spacing: Self.spacing) {
             ForEach(keys) { key in
@@ -156,9 +243,11 @@ struct VirtualKeyboardView: View {
 
     private func keyButton(_ key: Key, height: CGFloat) -> some View {
         let modifier = modifierFlag(for: key.usage) != 0
-        let active = latched.contains(key.usage) || locked.contains(key.usage)
+        let active = latched.contains(key.usage)
+            || locked.contains(key.usage)
+            || (key.usage == Self.fnUsage && fnActive)
         return Button {
-            tap(key.usage)
+            tap(key)
         } label: {
             Group {
                 if let symbol = key.symbol {
@@ -184,15 +273,24 @@ struct VirtualKeyboardView: View {
         .accessibilityAddTraits(modifier && active ? .isSelected : [])
     }
 
-    private func tap(_ usage: UInt16) {
-        if modifierFlag(for: usage) != 0 {
-            toggleModifier(usage)
+    private func tap(_ key: Key) {
+        if key.usage == Self.fnUsage {
+            fnActive.toggle()
+            return
+        }
+        if modifierFlag(for: key.usage) != 0 {
+            toggleModifier(key.usage)
             return
         }
 
         let flags = activeModifiers
-        input.send(hidUsage: usage, pressed: true, modifiers: flags)
-        input.send(hidUsage: usage, pressed: false, modifiers: flags)
+        if let virtualKey = key.virtualKey {
+            input.send(virtualKey: virtualKey, pressed: true, modifiers: flags)
+            input.send(virtualKey: virtualKey, pressed: false, modifiers: flags)
+        } else {
+            input.send(hidUsage: key.usage, pressed: true, modifiers: flags)
+            input.send(hidUsage: key.usage, pressed: false, modifiers: flags)
+        }
 
         // One-shot modifiers apply to a single key.
         for modifier in latched {
@@ -231,12 +329,13 @@ struct VirtualKeyboardView: View {
     }
 
     private func modifierFlag(for usage: UInt16) -> Int8 {
-        switch usage {
-        case 0xE1, 0xE5: return Int8(MODIFIER_SHIFT)
-        case 0xE0, 0xE4: return Int8(MODIFIER_CTRL)
-        case 0xE2, 0xE6: return Int8(MODIFIER_ALT)
-        case 0xE3, 0xE7: return Int8(MODIFIER_META)
-        default: return 0
-        }
+        StreamKeyboardInput.modifierFlag(for: usage)
+    }
+
+    private func sendText() {
+        guard !textEntry.isEmpty else { return }
+        input.send(text: textEntry)
+        textEntry = ""
+        textFocused = false
     }
 }

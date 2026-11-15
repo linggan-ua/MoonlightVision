@@ -40,6 +40,12 @@
 "Running" = "运行中";
 "Unknown App" = "未知应用";
 
+"Type text…" = "输入文本…";
+
+"Send" = "发送";
+
+"Shortcuts" = "快捷键";
+
 /* Settings */
 "Video" = "视频";
 "Resolution" = "分辨率";
@@ -62,6 +68,16 @@
 "Spatial Audio (Head-Tracked)" = "空间音频（头部追踪）";
 "This device supports up to %lld output channels." = "此设备最多支持 %lld 个输出声道。";
 "Input" = "输入";
+"Mouse Input" = "鼠标输入";
+"Core + GCMouse" = "官方 + GCMouse";
+"GCMouse relative motion with hover absolute mode and pointer-over-content click gating. The system pointer stays visible." = "GCMouse 相对位移 + hover 绝对模式 + 指针在画面上时才转发点击。系统指针保持可见。";
+"Absolute pointer using hover and indirect-pointer clicks. No relative capture in a visionOS window; Mouse Mode is ignored." = "使用 hover 与 indirect pointer 的绝对指针。visionOS 窗口内没有相对捕获；鼠标模式会被忽略。";
+"Core view dual path plus GCMouse click and focus gating. Hides the pointer over the video when the absolute path owns it." = "核心视图双路径 + GCMouse 的点击/焦点门控。绝对路径接管时只在视频区域隐藏指针。";
+"Mouse Input changes apply when you restart the stream." = "鼠标输入方案的修改会在重新启动串流后生效。";
+"First Tap Only Restores Controls" = "首次点击仅恢复控制条";
+"While mouse capture hides the controls, the first gaze tap restores them without sending a touch to the host. Later taps are sent normally." = "鼠标接管隐藏控制条时，第一次注视捏合只恢复控制条和窗口控件，不会把这次触摸发送到主机；之后的点击才正常发送。";
+"Hide Controls With Mouse" = "鼠标连接时隐藏控制条";
+"Hides the control bar, system cursor, and window resizing while a physical mouse is connected." = "连接物理鼠标时隐藏控制条、系统光标，并禁用窗口缩放。";
 "Mouse Mode" = "鼠标模式";
 "Relative (FPS)" = "相对（FPS）";
 "Absolute" = "绝对";
@@ -138,4 +154,5 @@
 "Start Pairing" = "开始配对";
 "Waiting for PIN…" = "正在等待 PIN…";
 "Pairing is required to stream from this host." = "需要与此主机配对后才能串流。";
+"HDR uses HEVC on visionOS; AV1 HDR is not offered." = "visionOS 上 HDR 使用 HEVC；不提供 AV1 HDR。";
 "HDR requires HEVC or AV1." = "HDR 需要 HEVC 或 AV1 编码。";

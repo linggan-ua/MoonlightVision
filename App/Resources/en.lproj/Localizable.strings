@@ -40,6 +40,12 @@
 "Running" = "Running";
 "Unknown App" = "Unknown App";
 
+"Type text…" = "Type text…";
+
+"Send" = "Send";
+
+"Shortcuts" = "Shortcuts";
+
 /* Settings */
 "Video" = "Video";
 "Resolution" = "Resolution";
@@ -62,6 +68,16 @@
 "Spatial Audio (Head-Tracked)" = "Spatial Audio (Head-Tracked)";
 "This device supports up to %lld output channels." = "This device supports up to %lld output channels.";
 "Input" = "Input";
+"Mouse Input" = "Mouse Input";
+"Core + GCMouse" = "Core + GCMouse";
+"GCMouse relative motion with hover absolute mode and pointer-over-content click gating. The system pointer stays visible." = "GCMouse relative motion with hover absolute mode and pointer-over-content click gating. The system pointer stays visible.";
+"Absolute pointer using hover and indirect-pointer clicks. No relative capture in a visionOS window; Mouse Mode is ignored." = "Absolute pointer using hover and indirect-pointer clicks. No relative capture in a visionOS window; Mouse Mode is ignored.";
+"Core view dual path plus GCMouse click and focus gating. Hides the pointer over the video when the absolute path owns it." = "Core view dual path plus GCMouse click and focus gating. Hides the pointer over the video when the absolute path owns it.";
+"Mouse Input changes apply when you restart the stream." = "Mouse Input changes apply when you restart the stream.";
+"First Tap Only Restores Controls" = "First Tap Only Restores Controls";
+"While mouse capture hides the controls, the first gaze tap restores them without sending a touch to the host. Later taps are sent normally." = "While mouse capture hides the controls, the first gaze tap restores them without sending a touch to the host. Later taps are sent normally.";
+"Hide Controls With Mouse" = "Hide Controls With Mouse";
+"Hides the control bar, system cursor, and window resizing while a physical mouse is connected." = "Hides the control bar, system cursor, and window resizing while a physical mouse is connected.";
 "Mouse Mode" = "Mouse Mode";
 "Relative (FPS)" = "Relative (FPS)";
 "Absolute" = "Absolute";
@@ -138,4 +154,5 @@
 "Start Pairing" = "Start Pairing";
 "Waiting for PIN…" = "Waiting for PIN…";
 "Pairing is required to stream from this host." = "Pairing is required to stream from this host.";
+"HDR uses HEVC on visionOS; AV1 HDR is not offered." = "HDR uses HEVC on visionOS; AV1 HDR is not offered.";
 "HDR requires HEVC or AV1." = "HDR requires HEVC or AV1.";

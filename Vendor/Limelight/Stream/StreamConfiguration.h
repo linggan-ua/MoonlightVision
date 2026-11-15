@@ -6,6 +6,8 @@
 //  Copyright (c) 2014 Moonlight Stream. All rights reserved.
 //
 
+#import <AVFoundation/AVFoundation.h>
+
 @interface StreamConfiguration : NSObject
 
 @property NSString* host;
@@ -31,5 +33,8 @@
 @property BOOL multiController;
 @property BOOL useFramePacing;
 @property NSData* serverCert;
+/// Renderer for the window video surface. Decoded frames are enqueued here;
+/// the window presents it through VideoPlayerComponent.
+@property (nonatomic, strong, nullable) AVSampleBufferVideoRenderer* externalVideoRenderer;
 
 @end

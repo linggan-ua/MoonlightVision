@@ -31,6 +31,7 @@ final class StreamKeyboardInput {
             0x39: 0x14, // Caps Lock
             0x28: 0x0D, // Enter
             0x4C: 0x2E, // Forward Delete
+            0x65: 0x5D, // Application / Menu
             0x4F: 0x27, // Right
             0x50: 0x25, // Left
             0x51: 0x28, // Down
@@ -64,7 +65,49 @@ final class StreamKeyboardInput {
 
     func send(hidUsage: UInt16, pressed: Bool, modifiers: Int8 = 0) {
         guard let keyCode = Self.keyCodes[hidUsage] else { return }
+        send(virtualKey: keyCode, pressed: pressed, modifiers: modifiers)
+    }
+
+    /// Sends a Windows virtual-key code directly. Used by the Fn media row.
+    func send(virtualKey: Int16, pressed: Bool, modifiers: Int8 = 0) {
         let action = pressed ? Int8(KEY_ACTION_DOWN) : Int8(KEY_ACTION_UP)
-        LiSendKeyboardEvent(keyCode, action, modifiers)
+        LiSendKeyboardEvent(virtualKey, action, modifiers)
+    }
+
+    /// Sends a complete chord: modifiers down, key down/up (if any), modifiers
+    /// up. Used by the on-screen shortcut menu.
+    func sendShortcut(modifiers: [UInt16], key: UInt16?) {
+        var flags: Int8 = 0
+        for usage in modifiers {
+            flags |= Self.modifierFlag(for: usage)
+            send(hidUsage: usage, pressed: true, modifiers: flags)
+        }
+        if let key {
+            send(hidUsage: key, pressed: true, modifiers: flags)
+            send(hidUsage: key, pressed: false, modifiers: flags)
+        }
+        for usage in modifiers.reversed() {
+            send(hidUsage: usage, pressed: false, modifiers: flags)
+            flags &= ~Self.modifierFlag(for: usage)
+        }
+    }
+
+    /// Sends arbitrary UTF-8 text through Sunshine's text-input extension. The
+    /// host receives the text as committed input, not as key events.
+    func send(text: String) {
+        guard !text.isEmpty else { return }
+        text.withCString { pointer in
+            _ = LiSendUtf8TextEvent(pointer, UInt32(text.utf8.count))
+        }
+    }
+
+    static func modifierFlag(for usage: UInt16) -> Int8 {
+        switch usage {
+        case 0xE1, 0xE5: return Int8(MODIFIER_SHIFT)
+        case 0xE0, 0xE4: return Int8(MODIFIER_CTRL)
+        case 0xE2, 0xE6: return Int8(MODIFIER_ALT)
+        case 0xE3, 0xE7: return Int8(MODIFIER_META)
+        default: return 0
+        }
     }
 }

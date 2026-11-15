@@ -40,6 +40,10 @@ struct SettingsView: View {
                         Text("HDR requires HEVC or AV1.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    } else if settings.hdrEnabled && settings.codec == .av1 {
+                        Text("HDR uses HEVC on visionOS; AV1 HDR is not offered.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     Toggle("Frame Pacing", isOn: $settings.framePacing)
                 }
@@ -65,10 +69,32 @@ struct SettingsView: View {
                 }
 
                 Section("Input") {
-                    Picker("Mouse Mode", selection: $settings.mouseMode) {
-                        Text("Relative (FPS)").tag(MouseTrackingMode.relative)
-                        Text("Absolute").tag(MouseTrackingMode.absolute)
+                    Picker("Mouse Input", selection: $settings.mouseInputScheme) {
+                        ForEach(MouseInputScheme.allCases) { scheme in
+                            Text(scheme.title).tag(scheme)
+                        }
                     }
+                    Text(settings.mouseInputScheme.detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("Mouse Input changes apply when you restart the stream.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle("Hide Controls With Mouse", isOn: $settings.hideChromeDuringMouseInput)
+                    Text("Hides the control bar, system cursor, and window resizing while a physical mouse is connected.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle("First Tap Only Restores Controls", isOn: $settings.suppressRestoreTap)
+                        .disabled(!settings.hideChromeDuringMouseInput)
+                    Text("While mouse capture hides the controls, the first gaze tap restores them without sending a touch to the host. Later taps are sent normally.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Picker("Mouse Mode", selection: $settings.mouseMode) {
+                        ForEach(MouseTrackingMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .disabled(settings.mouseInputScheme.ignoresTrackingMode)
                     Toggle("Swap A/B and X/Y", isOn: $settings.swapABXY)
                     Toggle("Multiple Controllers", isOn: $settings.multiController)
                 }

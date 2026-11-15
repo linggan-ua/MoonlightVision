@@ -28,6 +28,8 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     
     AVSampleBufferDisplayLayer* displayLayer;
     int videoFormat;
+    int videoWidth;
+    int videoHeight;
     int frameRate;
     
     NSMutableArray *parameterSetBuffers;
@@ -40,6 +42,8 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     CFTimeInterval lastFrameSubmitTime;
     CFTimeInterval lastIdrRequestTime;
     BOOL hdrEnabled;
+    BOOL dynamicRangeHigh;
+    BOOL externalFrameLogged;
 
 }
 
@@ -50,10 +54,14 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     displayLayer = [[AVSampleBufferDisplayLayer alloc] init];
     displayLayer.backgroundColor = [UIColor blackColor].CGColor;
 
-    // visionOS 26+ tone-maps layers to SDR unless high dynamic range is requested.
+    // Start in standard range. The layer is switched to high only when the
+    // actual format description (or the first HDR frame) proves HDR content is
+    // present; the user's HDR preference alone is not enough.
     if (@available(visionOS 26.0, *)) {
-        displayLayer.preferredDynamicRange = hdrEnabled ? CADynamicRangeHigh : CADynamicRangeStandard;
+        displayLayer.preferredDynamicRange = CADynamicRangeStandard;
+        displayLayer.toneMapMode = CAToneMapModeAutomatic;
     }
+    dynamicRangeHigh = NO;
     
     // Let AVFoundation do the aspect-fit. The layer fills the hosting view and
     // ResizeAspect creates the letterbox using the sample's real dimensions/PAR.
@@ -78,6 +86,19 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     }
 }
 
+- (AVSampleBufferVideoRenderer*)activeVideoRenderer
+{
+    if (self.externalVideoRenderer != nil) {
+        return self.externalVideoRenderer;
+    }
+    return displayLayer.sampleBufferRenderer;
+}
+
+- (BOOL)usesExternalRenderer
+{
+    return self.externalVideoRenderer != nil;
+}
+
 - (void)layoutDisplayLayer
 {
     if (displayLayer == nil || _view == nil) {
@@ -92,6 +113,13 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
     displayLayer.frame = bounds;
+    CGFloat scale = _view.window.traitCollection.displayScale;
+    if (scale <= 0) {
+        scale = _view.traitCollection.displayScale;
+    }
+    if (scale > 0) {
+        displayLayer.contentsScale = scale;
+    }
     [CATransaction commit];
 }
 
@@ -104,6 +132,43 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
         return;
     }
     [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
+}
+
+- (BOOL)isHDRFormatDescription
+{
+    if (formatDesc == NULL) {
+        return NO;
+    }
+    NSString *transfer = (__bridge NSString*)CMFormatDescriptionGetExtension(
+        formatDesc, kCMFormatDescriptionExtension_TransferFunction);
+    return [transfer isEqualToString:(__bridge NSString*)kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ] ||
+           [transfer isEqualToString:(__bridge NSString*)kCMFormatDescriptionTransferFunction_ITU_R_2100_HLG];
+}
+
+- (void)updateDynamicRange:(BOOL)high
+{
+    if (@available(visionOS 26.0, *)) {
+        if (dynamicRangeHigh == high) {
+            return;
+        }
+        dynamicRangeHigh = high;
+        AVSampleBufferDisplayLayer *targetLayer = displayLayer;
+        void (^apply)(void) = ^{
+            CADynamicRange range = high ? CADynamicRangeHigh : CADynamicRangeStandard;
+            targetLayer.toneMapMode = CAToneMapModeAutomatic;
+            if (targetLayer.preferredDynamicRange != range) {
+                targetLayer.preferredDynamicRange = range;
+                Log(LOG_I, @"Display layer dynamic range: %@", high ? @"high (HDR)" : @"standard");
+            }
+        };
+        // The range must be in place before the matching frame is enqueued;
+        // otherwise the layer can show a stale, wrongly tone-mapped image.
+        if ([NSThread isMainThread]) {
+            apply();
+        } else {
+            dispatch_sync(dispatch_get_main_queue(), apply);
+        }
+    }
 }
 
 - (void)dealloc
@@ -170,7 +235,10 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 - (void)setupWithVideoFormat:(int)videoFormat width:(int)videoWidth height:(int)videoHeight frameRate:(int)frameRate
 {
     self->videoFormat = videoFormat;
+    self->videoWidth = videoWidth;
+    self->videoHeight = videoHeight;
     self->frameRate = frameRate;
+    Log(LOG_I, @"Video setup format=0x%x %dx%d@%d", videoFormat, videoWidth, videoHeight, frameRate);
 }
 
 - (void)start
@@ -568,6 +636,23 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
             if (masteringDisplayColorVolume) {
                 [videoFormatParams setObject:masteringDisplayColorVolume forKey:(__bridge NSString*)kCMFormatDescriptionExtension_MasteringDisplayColorVolume];
             }
+
+            // HEVC VUI parsing is not guaranteed to surface the colour tags on
+            // every visionOS build. Tag HDR10 frames explicitly so the layer
+            // and compositor see PQ/BT.2020 rather than an untagged 10-bit
+            // buffer, which can be misinterpreted or tone-mapped incorrectly.
+            if (du->hdrActive) {
+                [videoFormatParams setObject:(__bridge NSString*)kCMFormatDescriptionColorPrimaries_ITU_R_2020
+                                      forKey:(__bridge NSString*)kCMFormatDescriptionExtension_ColorPrimaries];
+                [videoFormatParams setObject:(__bridge NSString*)kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ
+                                      forKey:(__bridge NSString*)kCMFormatDescriptionExtension_TransferFunction];
+                [videoFormatParams setObject:(__bridge NSString*)kCMFormatDescriptionYCbCrMatrix_ITU_R_2020
+                                      forKey:(__bridge NSString*)kCMFormatDescriptionExtension_YCbCrMatrix];
+                [videoFormatParams setObject:@(NO)
+                                      forKey:(__bridge NSString*)kCMFormatDescriptionExtension_FullRangeVideo];
+                [videoFormatParams setObject:@(10)
+                                      forKey:(__bridge NSString*)kCMFormatDescriptionExtension_BitsPerComponent];
+            }
             
             status = CMVideoFormatDescriptionCreateFromHEVCParameterSets(kCFAllocatorDefault,
                                                                          parameterSetCount,
@@ -576,6 +661,20 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
                                                                          NAL_LENGTH_PREFIX_SIZE,
                                                                          (__bridge CFDictionaryRef)videoFormatParams,
                                                                          &formatDesc);
+            
+            // A malformed MDCV/CLL extension must not leave the stream in an
+            // endless DR_NEED_IDR loop. Retry without the optional metadata so
+            // the video still decodes.
+            if (status != noErr && videoFormatParams.count > 0) {
+                Log(LOG_W, @"HEVC format description with HDR metadata failed (%d); retrying without metadata", (int)status);
+                status = CMVideoFormatDescriptionCreateFromHEVCParameterSets(kCFAllocatorDefault,
+                                                                             parameterSetCount,
+                                                                             parameterSetPointers,
+                                                                             parameterSetSizes,
+                                                                             NAL_LENGTH_PREFIX_SIZE,
+                                                                             NULL,
+                                                                             &formatDesc);
+            }
             
             if (status != noErr) {
                 Log(LOG_E, @"Failed to create HEVC format description: %d", (int)status);
@@ -602,19 +701,54 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         free(data);
         return DR_NEED_IDR;
     }
+
+    // Use the actual stream format, not the user's HDR preference, to choose
+    // the layer's dynamic range. du->hdrActive is a fallback for formats whose
+    // VUI transfer function is not exposed by VideoToolbox.
+    BOOL hdrRange = [self isHDRFormatDescription] || (hdrEnabled && du->hdrActive);
+    CMVideoDimensions dimensions = CMVideoFormatDescriptionGetDimensions(formatDesc);
+    Log(LOG_I, @"Video format: %dx%d hdrActive=%d hdrEnabled=%d formatHDR=%d range=%d",
+        dimensions.width, dimensions.height,
+        du->hdrActive ? 1 : 0, hdrEnabled ? 1 : 0,
+        [self isHDRFormatDescription] ? 1 : 0, hdrRange ? 1 : 0);
+    [self updateDynamicRange:hdrRange];
     
     // Check for previous decoder errors before doing anything. Use the
     // supported AVSampleBufferVideoRenderer surface; the queued-rendering
     // methods on AVSampleBufferDisplayLayer itself are deprecated on visionOS.
-    AVSampleBufferVideoRenderer *videoRenderer = displayLayer.sampleBufferRenderer;
+    // The frames belong to the standalone renderer owned by the window video
+    // surface, so status/flush/enqueue must all use that renderer.
+    AVSampleBufferVideoRenderer *videoRenderer = [self activeVideoRenderer];
     if (videoRenderer.status == AVQueuedSampleBufferRenderingStatusFailed) {
         Log(LOG_E, @"Display layer rendering failed: %@", videoRenderer.error);
-        
-        // Recreate the display layer. We are already on the main thread,
-        // so this is safe to do right here.
-        [self reinitializeDisplayLayer];
-        
-        // Request an IDR frame to initialize the new decoder
+
+        // Recreate the display layer on the main thread. submitDecodeBuffer can
+        // run on the video decode thread, and swapping layers off-main while
+        // the window is compositing HDR content can leave a stale/blurred image.
+        free(data);
+        void (^rebuildLayer)(void) = ^{
+            if ([self usesExternalRenderer]) {
+                // The standalone renderer is owned by the window video surface;
+                // flush it and wait for a fresh IDR rather than replacing the
+                // unused flat layer.
+                [self.externalVideoRenderer flush];
+            } else {
+                [self reinitializeDisplayLayer];
+            }
+        };
+        if ([NSThread isMainThread]) {
+            rebuildLayer();
+        } else {
+            dispatch_sync(dispatch_get_main_queue(), rebuildLayer);
+        }
+        return DR_NEED_IDR;
+    }
+    if (videoRenderer.requiresFlushToResumeDecoding) {
+        // The decoder lost permission to use its resources (for example while
+        // the window is changing compositing state). Flush and wait for an IDR
+        // instead of enqueueing into a queue that will not display.
+        Log(LOG_W, @"Display layer requires flush; resetting decoder");
+        [videoRenderer flush];
         free(data);
         return DR_NEED_IDR;
     }
@@ -686,11 +820,31 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     }
 
     // Enqueue the next frame through the supported renderer interface.
-    [self->displayLayer.sampleBufferRenderer enqueueSampleBuffer:sampleBuffer];
+    if ([self usesExternalRenderer]) {
+        // The standalone renderer has no movie timebase/preroll queue. Mark
+        // each sample for immediate display, otherwise VideoMaterial can wait
+        // for a presentation clock that never advances and stay black.
+        CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, YES);
+        if (attachments != NULL && CFArrayGetCount(attachments) > 0) {
+            CFMutableDictionaryRef attachment =
+                (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
+            CFDictionarySetValue(attachment,
+                                 kCMSampleAttachmentKey_DisplayImmediately,
+                                 kCFBooleanTrue);
+        }
+        if (!externalFrameLogged) {
+            externalFrameLogged = YES;
+            Log(LOG_I, @"VideoPlayerComponent renderer: first frame enqueued (%dx%d)",
+                videoWidth, videoHeight);
+        }
+    }
+    [videoRenderer enqueueSampleBuffer:sampleBuffer];
     
     if (du->frameType == FRAME_TYPE_IDR) {
-        // Ensure the layer is visible now
-        self->displayLayer.hidden = NO;
+        // Ensure the flat layer is visible now.
+        if (![self usesExternalRenderer]) {
+            self->displayLayer.hidden = NO;
+        }
         
         // Tell our parent VC to hide the progress indicator
         [self->_callbacks videoContentShown];
@@ -705,12 +859,15 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 }
 
 - (void)setHdrMode:(BOOL)enabled {
+    BOOL modeChanged = (hdrEnabled != enabled);
     hdrEnabled = enabled;
-    dispatch_async(dispatch_get_main_queue(), ^{
-        if (@available(visionOS 26.0, *)) {
-            self->displayLayer.preferredDynamicRange = enabled ? CADynamicRangeHigh : CADynamicRangeStandard;
-        }
-    });
+
+    // Do not put the layer into high dynamic range just because the user asked
+    // for HDR. Wait for the matching format description / HDR frame. When HDR
+    // is turned off, standard range is safe immediately.
+    if (!enabled) {
+        [self updateDynamicRange:NO];
+    }
 
     SS_HDR_METADATA hdrMetadata;
     
@@ -773,10 +930,33 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         metadataChanged = YES;
     }
     
-    // If the metadata changed, request an IDR frame to re-create the CMVideoFormatDescription
-    if (metadataChanged) {
+    // The dynamic range/format description changes require a clean decoder
+    // hand-off. Flush the layer, hide the stale image, and wait for the next
+    // IDR instead of leaving the old SDR/HDR frame on screen with a new range.
+    if (modeChanged) {
+        void (^resetLayer)(void) = ^{
+            [[self activeVideoRenderer] flush];
+            if (![self usesExternalRenderer]) {
+                self->displayLayer.hidden = YES;
+            }
+        };
+        // Hide/flush before asking for the IDR. If this ran asynchronously, an
+        // IDR could be enqueued and unhide the layer first, then this block
+        // would hide it again with no further frame to unhide it.
+        if ([NSThread isMainThread]) {
+            resetLayer();
+        } else {
+            dispatch_sync(dispatch_get_main_queue(), resetLayer);
+        }
+        LiRequestIdrFrame();
+    } else if (metadataChanged) {
+        // Metadata only: the next IDR rebuilds the format description, but the
+        // current picture does not need to be flushed/hidden.
         LiRequestIdrFrame();
     }
+
+    Log(LOG_I, @"HDR mode=%d changed=%d metadataChanged=%d metadata=%d",
+        enabled ? 1 : 0, modeChanged ? 1 : 0, metadataChanged ? 1 : 0, hasMetadata ? 1 : 0);
 }
 
 @end

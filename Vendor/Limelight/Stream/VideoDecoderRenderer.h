@@ -14,6 +14,10 @@
 
 @interface VideoDecoderRenderer : NSObject
 
+/// Set before the connection starts. Decoded frames go to this renderer; the
+/// window presents it through VideoPlayerComponent.
+@property (nonatomic, strong, nullable) AVSampleBufferVideoRenderer* externalVideoRenderer;
+
 - (id)initWithView:(UIView*)view callbacks:(id<ConnectionCallbacks>)callbacks streamAspectRatio:(float)aspectRatio useFramePacing:(BOOL)useFramePacing;
 
 - (void)setupWithVideoFormat:(int)videoFormat width:(int)videoWidth height:(int)videoHeight frameRate:(int)frameRate;

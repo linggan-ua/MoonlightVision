@@ -830,8 +830,8 @@ static const double MOUSE_SPEED_DIVISOR = 1.25;
 }
 
 -(void) unregisterMouseCallbacks:(GCMouse*)mouse API_AVAILABLE(ios(14.0)) {
-    // Mouse input is owned by StreamMouseInput in the app layer. This vendored
-    // duplicate is intentionally inert and kept only for the existing callers.
+    // Mouse input is owned by the app layer's selectable mouse strategies. This
+    // vendored duplicate is intentionally inert and kept only for the existing callers.
 }
 
 -(void) registerMouseCallbacks:(GCMouse*) mouse API_AVAILABLE(ios(14.0)) {

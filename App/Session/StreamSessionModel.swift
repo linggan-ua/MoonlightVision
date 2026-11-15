@@ -29,7 +29,7 @@ final class StreamSessionModel {
 
     let host: TemporaryHost
     let app: TemporaryApp
-    let renderView = StreamRenderView()
+    let inputView = StreamWindowInputView()
     let keyboardInput = StreamKeyboardInput()
 
     private(set) var phase: Phase = .idle
@@ -54,9 +54,12 @@ final class StreamSessionModel {
     private var userInitiatedStop = false
     private var activeConfig: StreamConfiguration?
 
-    private let mouseInput = StreamMouseInput()
-    private let pointerHider = StreamPointerHider()
-    private var pointerInteraction: UIPointerInteraction?
+    private var mouseStrategy: (any StreamMouseStrategy)?
+    private let touchInput = StreamTouchInput()
+    private(set) var hidesStreamChrome = false
+    private(set) var streamControlsRevealed = false
+    private(set) var physicalMousePresent = false
+    private var mousePresenceObservers: [NSObjectProtocol] = []
     private var gameControllerInteraction: GCEventInteraction?
     private var controllerSupport: ControllerSupport?
     private var controllerDelegate: StreamControllerDelegate?
@@ -194,6 +197,7 @@ final class StreamSessionModel {
             Task { @MainActor in
                 guard let self else { return }
                 self.phase = .streaming
+                self.refreshChromeVisibility()
                 self.startStatsTimer()
             }
         }
@@ -234,7 +238,7 @@ final class StreamSessionModel {
         }
 
         connectionDelegate = delegate
-        guard let manager = StreamManager(config: config, renderView: renderView, connectionCallbacks: delegate) else {
+        guard let manager = StreamManager(config: config, renderView: inputView, connectionCallbacks: delegate) else {
             finish(message: String(localized: "Could not start the stream."))
             return
         }
@@ -302,7 +306,6 @@ final class StreamSessionModel {
         // on visionOS, and gating on it silently disables HDR entirely.
         let hostMask = UInt32(truncatingIfNeeded: host.serverCodecModeSupport)
         let hostHEVCMain10 = (hostMask & UInt32(SCM_HEVC_MAIN10)) != 0
-        let hostAV1Main10 = (hostMask & UInt32(SCM_AV1_MAIN10)) != 0
         let hdrRequested = settings.hdrEnabled && settings.codec.supportsHDR
 
         var formats = Int32(VIDEO_FORMAT_H264)
@@ -315,11 +318,11 @@ final class StreamSessionModel {
                     formats |= Int32(VIDEO_FORMAT_H265_MAIN10)
                 }
             }
-            if av1Supported {
+            // AV1 Main10 is not advertised on visionOS: VTIsHardwareDecodeSupported
+            // is per-codec, not per-profile, and the Vision Pro AV1 decoder was
+            // observed freezing on an HDR Main10 stream. Keep AV1 for SDR only.
+            if av1Supported && !hdrRequested {
                 formats |= Int32(VIDEO_FORMAT_AV1_MAIN8)
-                if hdrRequested && hostAV1Main10 {
-                    formats |= Int32(VIDEO_FORMAT_AV1_MAIN10)
-                }
             }
         case .h264:
             break
@@ -331,11 +334,11 @@ final class StreamSessionModel {
                 }
             }
         case .av1:
-            if av1Supported {
+            // AV1 Main10 is not advertised on visionOS: VTIsHardwareDecodeSupported
+            // is per-codec, not per-profile, and the Vision Pro AV1 decoder was
+            // observed freezing on an HDR Main10 stream. Keep AV1 for SDR only.
+            if av1Supported && !hdrRequested {
                 formats |= Int32(VIDEO_FORMAT_AV1_MAIN8)
-                if hdrRequested && hostAV1Main10 {
-                    formats |= Int32(VIDEO_FORMAT_AV1_MAIN10)
-                }
             }
             // HEVC is a fallback when the host or client cannot do AV1.
             if hevcSupported {
@@ -383,19 +386,31 @@ final class StreamSessionModel {
         guard !inputActive else { return }
         inputActive = true
 
-        let pointer = UIPointerInteraction(delegate: pointerHider)
-        renderView.addInteraction(pointer)
-        pointerInteraction = pointer
-
         // Receive raw gamepad events instead of letting visionOS turn them into
         // gaze/pinch events on the focused view.
         let gameController = GCEventInteraction()
         gameController.receivesEventsInView = false
-        renderView.addInteraction(gameController)
+        inputView.addInteraction(gameController)
         gameControllerInteraction = gameController
 
+        touchInput.updateStreamSize(width: config.width, height: config.height)
+        inputView.directTouchDelegate = touchInput
+
         let settings = StreamSettingsStore.shared
-        mouseInput.start(mode: settings.mouseMode, streamWidth: config.width, streamHeight: config.height)
+        let strategy = makeMouseStrategy(settings.mouseInputScheme)
+        mouseStrategy = strategy
+        strategy.start(
+            view: inputView,
+            mode: settings.mouseMode,
+            streamWidth: config.width,
+            streamHeight: config.height,
+            active: !isBackgrounded
+        )
+        strategy.onMouseActivity = { [weak self] in
+            self?.handleMouseActivity()
+        }
+        startMousePresenceMonitoring()
+        refreshChromeVisibility()
 
         let delegate = StreamControllerDelegate()
         delegate.onExitRequested = { [weak self] in
@@ -407,22 +422,101 @@ final class StreamSessionModel {
         controllerSupport = ControllerSupport(config: config, delegate: delegate)
     }
 
+    // MARK: - Window chrome
+
+    /// Re-evaluate whether the control ornament, system cursor and system
+    /// overlays should be hidden for the current mouse/stream state.
+    func refreshChromeVisibility() {
+        let settings = StreamSettingsStore.shared
+        touchInput.setSuppressRestoreTap(settings.suppressRestoreTap)
+        let shouldHide = settings.hideChromeDuringMouseInput
+            && physicalMousePresent
+            && isStreaming
+            && !streamControlsRevealed
+        guard shouldHide != hidesStreamChrome else { return }
+        hidesStreamChrome = shouldHide
+        touchInput.setChromeHidden(shouldHide)
+        mouseStrategy?.setSystemCursorHidden(shouldHide)
+        NSLog("[Stream] mouse chrome hidden=%d", shouldHide ? 1 : 0)
+    }
+
+    /// A gaze tap on the picture restores the control ornament and normal
+    /// window behavior. The next mouse movement over the picture hides them.
+    func revealStreamControls() {
+        streamControlsRevealed = true
+        refreshChromeVisibility()
+    }
+
+    private func hideStreamControls() {
+        streamControlsRevealed = false
+        refreshChromeVisibility()
+    }
+
+    private func handleMouseActivity() {
+        guard streamControlsRevealed,
+              StreamSettingsStore.shared.hideChromeDuringMouseInput,
+              physicalMousePresent else { return }
+        hideStreamControls()
+    }
+
+    private func startMousePresenceMonitoring() {
+        stopMousePresenceMonitoring()
+        let center = NotificationCenter.default
+        let names: [Notification.Name] = [
+            .GCMouseDidConnect,
+            .GCMouseDidDisconnect,
+            .GCMouseDidBecomeCurrent
+        ]
+        mousePresenceObservers = names.map { name in
+            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.updateMousePresence() }
+            }
+        }
+        updateMousePresence()
+    }
+
+    private func stopMousePresenceMonitoring() {
+        mousePresenceObservers.forEach(NotificationCenter.default.removeObserver)
+        mousePresenceObservers.removeAll()
+        physicalMousePresent = false
+    }
+
+    private func updateMousePresence() {
+        physicalMousePresent = !GCMouse.mice().isEmpty
+        refreshChromeVisibility()
+    }
+
+    private func makeMouseStrategy(_ scheme: MouseInputScheme) -> any StreamMouseStrategy {
+        switch scheme {
+        case .longwave:
+            return GCMouseMouseStrategy()
+        case .punktfunk:
+            return other clientsMouseStrategy()
+        case .officialHybrid:
+            return OfficialHybridMouseStrategy()
+        }
+    }
+
     private func teardownInput() {
         guard inputActive else { return }
         inputActive = false
 
-        renderView.releaseHeldKeys()
-        mouseInput.stop()
+        inputView.releaseHeldKeys()
+        touchInput.setChromeHidden(false)
+        touchInput.cancelAll()
+        inputView.directTouchDelegate = nil
+        stopMousePresenceMonitoring()
+        mouseStrategy?.setSystemCursorHidden(false)
+        mouseStrategy?.stop()
+        mouseStrategy = nil
+        hidesStreamChrome = false
+        streamControlsRevealed = false
         controllerSupport?.cleanup()
         controllerSupport = nil
         controllerDelegate = nil
 
-        if let pointerInteraction {
-            renderView.removeInteraction(pointerInteraction)
-            self.pointerInteraction = nil
-        }
         if let gameControllerInteraction {
-            renderView.removeInteraction(gameControllerInteraction)
+            inputView.removeInteraction(gameControllerInteraction)
             self.gameControllerInteraction = nil
         }
     }

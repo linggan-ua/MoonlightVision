@@ -203,15 +203,19 @@
     }
     
     float interval = stats.endTime - stats.startTime;
+    double bitrateMbps = interval > 0
+        ? (double)stats.receivedBytes * 8.0 / interval / 1000000.0
+        : 0.0;
     NSString* colorDescription = [_connection getVideoColorDescription];
     NSString* colorString = colorDescription.length > 0
         ? [NSString stringWithFormat:@"\nColor: %@", colorDescription]
         : @"";
-    return [NSString stringWithFormat:@"Video stream: %dx%d %.2f FPS (Codec: %@)\nFrames dropped by your network connection: %.2f%%\nAverage network latency: %@%@%@",
+    return [NSString stringWithFormat:@"Video stream: %dx%d %.2f FPS (Codec: %@)\nVideo bitrate: %.2f Mbps\nFrames dropped by your network connection: %.2f%%\nAverage network latency: %@%@%@",
             _config.width,
             _config.height,
             stats.totalFrames / interval,
             [_connection getActiveCodecName],
+            bitrateMbps,
             stats.networkDroppedFrames / interval,
             latencyString,
             hostProcessingString,

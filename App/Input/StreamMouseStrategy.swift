@@ -24,6 +24,20 @@ enum MouseTrackingMode: String, CaseIterable, Identifiable {
     }
 }
 
+enum MouseInputMode: String, CaseIterable, Identifiable {
+    case touchscreenGCMouse
+    case touchpad
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .touchscreenGCMouse: return String(localized: "Touchscreen + GCMouse")
+        case .touchpad: return String(localized: "Touchpad Mode")
+        }
+    }
+}
+
 /// The subset of stream mouse buttons used by every strategy.
 enum StreamMouseButton: Int32 {
     case left = 0x01

@@ -324,11 +324,11 @@ struct SettingsView: View {
                 }
 
                 Section("Input") {
-                    LabeledContent("Mouse Input") {
-                        Text("Touchscreen + GCMouse")
-                            .foregroundStyle(.secondary)
+                    Picker("Mouse Input", selection: $settings.mouseInputMode) {
+                        ForEach(MouseInputMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
                     }
-                    Toggle("Touchpad Mode", isOn: $settings.touchpadMode)
                     Toggle("Hide Controls With Mouse", isOn: $settings.hideChromeDuringMouseInput)
                     Toggle("First Tap Only Restores Controls", isOn: $settings.suppressRestoreTap)
                         .disabled(!settings.hideChromeDuringMouseInput)

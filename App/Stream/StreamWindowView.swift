@@ -110,6 +110,9 @@ struct StreamWindowView: View {
         .onChange(of: settings.hideChromeDuringMouseInput) { _, _ in
             model.refreshChromeVisibility()
         }
+        .onChange(of: settings.mouseInputMode) { _, _ in
+            model.refreshChromeVisibility()
+        }
         .onChange(of: settings.suppressRestoreTap) { _, _ in
             model.refreshChromeVisibility()
         }

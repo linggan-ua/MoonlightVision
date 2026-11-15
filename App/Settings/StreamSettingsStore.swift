@@ -114,7 +114,8 @@ final class StreamSettingsStore {
     private static let migratedKey = "mv.settingsMigratedToCoreData"
     private static let audioModeKey = "mv.audioMode"
     private static let spatialAudioKey = "mv.spatialAudio"
-    private static let touchpadModeKey = "mv.touchpadMode"
+    private static let mouseInputModeKey = "mv.mouseInputMode"
+    private static let legacyTouchpadModeKey = "mv.touchpadMode"
     private static let hideChromeDuringMouseKey = "mv.hideChromeDuringMouseInput"
     private static let suppressRestoreTapKey = "mv.suppressRestoreTap"
 
@@ -141,9 +142,9 @@ final class StreamSettingsStore {
     var mouseMode: MouseTrackingMode = .relative {
         didSet { save() }
     }
-    var touchpadMode: Bool = false {
+    var mouseInputMode: MouseInputMode = .touchscreenGCMouse {
         didSet {
-            UserDefaults.standard.set(touchpadMode, forKey: Self.touchpadModeKey)
+            UserDefaults.standard.set(mouseInputMode.rawValue, forKey: Self.mouseInputModeKey)
         }
     }
     /// While a physical mouse is connected during a stream, hide the control
@@ -220,7 +221,14 @@ final class StreamSettingsStore {
             apply(official: dataManager.getSettings())
         }
 
-        touchpadMode = UserDefaults.standard.bool(forKey: Self.touchpadModeKey)
+        if let raw = UserDefaults.standard.string(forKey: Self.mouseInputModeKey),
+           let mode = MouseInputMode(rawValue: raw) {
+            mouseInputMode = mode
+        } else {
+            mouseInputMode = UserDefaults.standard.bool(forKey: Self.legacyTouchpadModeKey)
+                ? .touchpad
+                : .touchscreenGCMouse
+        }
         hideChromeDuringMouseInput = UserDefaults.standard.object(forKey: Self.hideChromeDuringMouseKey) as? Bool ?? true
         suppressRestoreTap = UserDefaults.standard.bool(forKey: Self.suppressRestoreTapKey)
     }
@@ -245,7 +253,7 @@ final class StreamSettingsStore {
         hdrEnabled = false
         audioMode = .auto
         mouseMode = .relative
-        touchpadMode = false
+        mouseInputMode = .touchscreenGCMouse
         hideChromeDuringMouseInput = true
         suppressRestoreTap = false
         showStats = true

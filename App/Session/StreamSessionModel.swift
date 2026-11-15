@@ -397,6 +397,7 @@ final class StreamSessionModel {
         inputView.directTouchDelegate = touchInput
 
         let settings = StreamSettingsStore.shared
+        inputView.setTouchpadMode(settings.mouseInputMode == .touchpad)
         let strategy: any StreamMouseStrategy = TouchscreenGCMouseStrategy()
         mouseStrategy = strategy
         strategy.start(
@@ -429,10 +430,13 @@ final class StreamSessionModel {
     func refreshChromeVisibility() {
         let settings = StreamSettingsStore.shared
         touchInput.setSuppressRestoreTap(settings.suppressRestoreTap)
+        inputView.setTouchpadMode(settings.mouseInputMode == .touchpad)
+        inputView.setTouchpadSuppressRestoreTap(settings.suppressRestoreTap)
         let shouldHide = settings.hideChromeDuringMouseInput
             && physicalMousePresent
             && isStreaming
             && !streamControlsRevealed
+        inputView.setTouchpadChromeHidden(shouldHide)
         guard shouldHide != hidesStreamChrome else { return }
         hidesStreamChrome = shouldHide
         touchInput.setChromeHidden(shouldHide)

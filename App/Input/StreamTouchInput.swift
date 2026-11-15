@@ -43,7 +43,7 @@ final class StreamTouchInput: StreamDirectTouchDelegate {
     private var touchpadTwoFinger = false
 
     private var touchpadMode: Bool {
-        StreamSettingsStore.shared.touchpadMode
+        StreamSettingsStore.shared.mouseInputMode == .touchpad
     }
 
     /// Fallback used when the host does not advertise touch/pen support.

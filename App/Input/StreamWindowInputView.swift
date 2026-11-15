@@ -24,6 +24,9 @@ final class StreamWindowInputView: UIView {
     /// indirect-pointer events and do not trigger this.
     var onDirectTap: (() -> Void)?
 
+    private let touchpad = StreamTouchpadInput()
+    private(set) var touchpadMode = false
+
     private var heldKeys: [UInt16: UIKey] = [:]
     private var heldArrowPresses: [UIPress] = []
 
@@ -53,6 +56,24 @@ final class StreamWindowInputView: UIView {
 
     override var canBecomeFirstResponder: Bool { true }
 
+    func setTouchpadMode(_ enabled: Bool) {
+        guard touchpadMode != enabled else { return }
+        touchpadMode = enabled
+        if enabled {
+            touchpad.install(on: self)
+        } else {
+            touchpad.remove()
+        }
+    }
+
+    func setTouchpadChromeHidden(_ hidden: Bool) {
+        touchpad.chromeHidden = hidden
+    }
+
+    func setTouchpadSuppressRestoreTap(_ value: Bool) {
+        touchpad.suppressRestoreTap = value
+    }
+
     override func didMoveToWindow() {
         super.didMoveToWindow()
         mouseSurfaceDelegate?.mouseSurfaceDidMoveToWindow()
@@ -63,7 +84,9 @@ final class StreamWindowInputView: UIView {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        directTouchDelegate?.directTouchesBegan(touches, in: self)
+        if !touchpadMode {
+            directTouchDelegate?.directTouchesBegan(touches, in: self)
+        }
         mouseSurfaceDelegate?.mouseSurfaceTouchesBegan(touches, event: event)
         if !isFirstResponder {
             _ = becomeFirstResponder()
@@ -72,19 +95,25 @@ final class StreamWindowInputView: UIView {
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        directTouchDelegate?.directTouchesMoved(touches, in: self)
+        if !touchpadMode {
+            directTouchDelegate?.directTouchesMoved(touches, in: self)
+        }
         mouseSurfaceDelegate?.mouseSurfaceTouchesMoved(touches, event: event)
         super.touchesMoved(touches, with: event)
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        directTouchDelegate?.directTouchesEnded(touches, in: self)
+        if !touchpadMode {
+            directTouchDelegate?.directTouchesEnded(touches, in: self)
+        }
         mouseSurfaceDelegate?.mouseSurfaceTouchesEnded(touches, event: event)
         super.touchesEnded(touches, with: event)
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        directTouchDelegate?.directTouchesCancelled(touches, in: self)
+        if !touchpadMode {
+            directTouchDelegate?.directTouchesCancelled(touches, in: self)
+        }
         mouseSurfaceDelegate?.mouseSurfaceTouchesCancelled(touches, event: event)
         super.touchesCancelled(touches, with: event)
     }

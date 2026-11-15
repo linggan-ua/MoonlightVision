@@ -103,13 +103,11 @@ struct StreamControlBar: View {
             .toggleStyle(.button)
 
             Toggle(isOn: touchpadBinding) {
-                Image(
-                    systemName: settings.mouseInputMode == .touchpad
-                        ? "trackpad"
+                Label(
+                    "Touchpad Mode",
+                    systemImage: settings.mouseInputMode == .touchpad
+                        ? "cursorarrow.and.square.on.square.dashed"
                         : "hand.tap.fill"
-                )
-                .foregroundStyle(
-                    settings.mouseInputMode == .touchpad ? Color.black : Color.primary
                 )
             }
             .toggleStyle(.button)

@@ -114,7 +114,7 @@ final class StreamSettingsStore {
     private static let migratedKey = "mv.settingsMigratedToCoreData"
     private static let audioModeKey = "mv.audioMode"
     private static let spatialAudioKey = "mv.spatialAudio"
-    private static let mouseInputSchemeKey = "mv.mouseInputScheme"
+    private static let touchpadModeKey = "mv.touchpadMode"
     private static let hideChromeDuringMouseKey = "mv.hideChromeDuringMouseInput"
     private static let suppressRestoreTapKey = "mv.suppressRestoreTap"
 
@@ -141,9 +141,9 @@ final class StreamSettingsStore {
     var mouseMode: MouseTrackingMode = .relative {
         didSet { save() }
     }
-    var mouseInputScheme: MouseInputScheme = .officialHybrid {
+    var touchpadMode: Bool = false {
         didSet {
-            UserDefaults.standard.set(mouseInputScheme.rawValue, forKey: Self.mouseInputSchemeKey)
+            UserDefaults.standard.set(touchpadMode, forKey: Self.touchpadModeKey)
         }
     }
     /// While a physical mouse is connected during a stream, hide the control
@@ -220,9 +220,7 @@ final class StreamSettingsStore {
             apply(official: dataManager.getSettings())
         }
 
-        mouseInputScheme = MouseInputScheme(
-            rawValue: UserDefaults.standard.string(forKey: Self.mouseInputSchemeKey) ?? ""
-        ) ?? .officialHybrid
+        touchpadMode = UserDefaults.standard.bool(forKey: Self.touchpadModeKey)
         hideChromeDuringMouseInput = UserDefaults.standard.object(forKey: Self.hideChromeDuringMouseKey) as? Bool ?? true
         suppressRestoreTap = UserDefaults.standard.bool(forKey: Self.suppressRestoreTapKey)
     }
@@ -247,7 +245,7 @@ final class StreamSettingsStore {
         hdrEnabled = false
         audioMode = .auto
         mouseMode = .relative
-        mouseInputScheme = .officialHybrid
+        touchpadMode = false
         hideChromeDuringMouseInput = true
         suppressRestoreTap = false
         showStats = true

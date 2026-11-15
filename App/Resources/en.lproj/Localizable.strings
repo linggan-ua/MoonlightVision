@@ -54,6 +54,11 @@
 "Aspect Ratio" = "Aspect Ratio";
 "Apply" = "Apply";
 "Bitrate" = "Bitrate";
+"Custom" = "Custom";
+"Custom Frame Rate" = "Custom Frame Rate";
+"Custom Bitrate" = "Custom Bitrate";
+"Choose a preset above or enter any width and height." = "Choose a preset above or enter any width and height.";
+"Changing the aspect ratio keeps the current width and recalculates the height." = "Changing the aspect ratio keeps the current width and recalculates the height.";
 "Video settings apply when the next stream starts." = "Video settings apply when the next stream starts.";
 "Frame Rate" = "Frame Rate";
 "%lld fps" = "%lld fps";
@@ -79,11 +84,8 @@
 "This device supports up to %lld output channels." = "This device supports up to %lld output channels.";
 "Input" = "Input";
 "Mouse Input" = "Mouse Input";
-"Core + GCMouse" = "Core + GCMouse";
-"GCMouse relative motion with hover absolute mode and pointer-over-content click gating. The system pointer stays visible." = "GCMouse relative motion with hover absolute mode and pointer-over-content click gating. The system pointer stays visible.";
-"Absolute pointer using hover and indirect-pointer clicks. No relative capture in a visionOS window; Mouse Mode is ignored." = "Absolute pointer using hover and indirect-pointer clicks. No relative capture in a visionOS window; Mouse Mode is ignored.";
-"Core view dual path plus GCMouse click and focus gating. Hides the pointer over the video when the absolute path owns it." = "Core view dual path plus GCMouse click and focus gating. Hides the pointer over the video when the absolute path owns it.";
-"Mouse Input changes apply when you restart the stream." = "Mouse Input changes apply when you restart the stream.";
+"Touchscreen + GCMouse" = "Touchscreen + GCMouse";
+"Touchpad Mode" = "Touchpad Mode";
 "First Tap Only Restores Controls" = "First Tap Only Restores Controls";
 "While mouse capture hides the controls, the first gaze tap restores them without sending a touch to the host. Later taps are sent normally." = "While mouse capture hides the controls, the first gaze tap restores them without sending a touch to the host. Later taps are sent normally.";
 "Hide Controls With Mouse" = "Hide Controls With Mouse";

@@ -69,9 +69,7 @@ struct StreamChromePreview: View {
                     }
                 )
                 if showKeyboard {
-                    VirtualKeyboardView(input: keyboardInput) {
-                        showKeyboard = false
-                    }
+                    VirtualKeyboardView(input: keyboardInput)
                 }
             }
         }

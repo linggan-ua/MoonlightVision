@@ -69,9 +69,16 @@ final class StreamKeyboardInput {
     }
 
     /// Sends a Windows virtual-key code directly. Used by the Fn media row.
+    /// Media keys have no US scancode, so tell Sunshine to interpret the VK
+    /// as-is instead of normalizing it to a scancode.
     func send(virtualKey: Int16, pressed: Bool, modifiers: Int8 = 0) {
         let action = pressed ? Int8(KEY_ACTION_DOWN) : Int8(KEY_ACTION_UP)
-        LiSendKeyboardEvent(virtualKey, action, modifiers)
+        LiSendKeyboardEvent2(
+            virtualKey,
+            action,
+            modifiers,
+            Int8(SS_KBE_FLAG_NON_NORMALIZED)
+        )
     }
 
     /// Sends a complete chord: modifiers down, key down/up (if any), modifiers

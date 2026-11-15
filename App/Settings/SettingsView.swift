@@ -11,9 +11,18 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable private var settings = StreamSettingsStore.shared
     @State private var showResetConfirm = false
-    @State private var aspectText = ""
+
+    @State private var selectedAspectRatio: String?
+    @State private var isCustomFrameRate = false
+    @State private var customFrameRate = 60
+    @State private var isCustomBitrate = false
+    @State private var customBitrate = 10
 
     var showsDoneButton = true
+
+    private static let frameRatePresets = [24, 30, 60, 90, 100, 120]
+    private static let bitratePresets = [5, 10, 30, 50, 75, 100, 120, 150, 200, 300, 400, 500, 600]
+    private static let aspectRatios = ["16:9", "16:10", "4:3", "21:9", "43:18", "12:5", "32:9"]
 
     private var widthBinding: Binding<Int> {
         Binding(
@@ -41,124 +50,249 @@ struct SettingsView: View {
         )
     }
 
-    private var frameRateBinding: Binding<Int> {
+    private var frameRateSelection: Binding<Int> {
         Binding(
-            get: { settings.frameRate },
-            set: { settings.frameRate = min(max($0, 1), 240) }
+            get: { isCustomFrameRate ? -1 : settings.frameRate },
+            set: { newValue in
+                if newValue == -1 {
+                    isCustomFrameRate = true
+                    settings.frameRate = customFrameRate
+                } else {
+                    isCustomFrameRate = false
+                    settings.frameRate = newValue
+                }
+            }
         )
     }
 
-    private var frameRateSlider: Binding<Double> {
+    private var customFrameRateBinding: Binding<Int> {
         Binding(
-            get: { Double(settings.frameRate) },
-            set: { settings.frameRate = min(max(Int($0.rounded()), 1), 240) }
+            get: { customFrameRate },
+            set: { newValue in
+                customFrameRate = min(max(newValue, 1), 240)
+                settings.frameRate = customFrameRate
+            }
         )
     }
 
-    private var bitrateBinding: Binding<Int> {
+    private var customFrameRateSlider: Binding<Double> {
         Binding(
-            get: { settings.bitrateMbps },
-            set: { settings.bitrateMbps = min(max($0, 1), 1000) }
+            get: { Double(customFrameRate) },
+            set: { newValue in
+                customFrameRate = min(max(Int(newValue.rounded()), 1), 240)
+                settings.frameRate = customFrameRate
+            }
         )
     }
 
-    private var bitrateSlider: Binding<Double> {
+    private var bitrateSelection: Binding<Int> {
         Binding(
-            get: { Double(settings.bitrateMbps) },
-            set: { settings.bitrateMbps = min(max(Int($0.rounded()), 1), 1000) }
+            get: { isCustomBitrate ? -1 : settings.bitrateMbps },
+            set: { newValue in
+                if newValue == -1 {
+                    isCustomBitrate = true
+                    settings.bitrateMbps = customBitrate
+                } else {
+                    isCustomBitrate = false
+                    settings.bitrateMbps = newValue
+                }
+            }
         )
     }
 
-    private func applyAspectRatio() {
-        let parts = aspectText
-            .replacingOccurrences(of: "x", with: ":")
-            .replacingOccurrences(of: "X", with: ":")
-            .split(separator: ":")
-        guard parts.count == 2,
-              let numerator = Double(parts[0].trimmingCharacters(in: .whitespaces)),
-              let denominator = Double(parts[1].trimmingCharacters(in: .whitespaces)),
-              numerator > 0, denominator > 0 else {
-            aspectText = settings.resolution.aspectDescription
-            return
+    private var customBitrateBinding: Binding<Int> {
+        Binding(
+            get: { customBitrate },
+            set: { newValue in
+                customBitrate = min(max(newValue, 1), 1000)
+                settings.bitrateMbps = customBitrate
+            }
+        )
+    }
+
+    private var customBitrateSlider: Binding<Double> {
+        Binding(
+            get: { Double(customBitrate) },
+            set: { newValue in
+                customBitrate = min(max(Int(newValue.rounded()), 1), 1000)
+                settings.bitrateMbps = customBitrate
+            }
+        )
+    }
+
+    private var resolutionGroups: [(String, [StreamResolution])] {
+        let order = ["16:9", "16:10", "4:3", "21:9", "43:18", "12:5", "32:9"]
+        let groups = Dictionary(grouping: StreamResolution.presets, by: \.aspectDescription)
+        return order.compactMap { aspect in
+            groups[aspect].map { (aspect, $0) }
         }
+    }
+
+    private func configureCustomState() {
+        if Self.frameRatePresets.contains(settings.frameRate) {
+            isCustomFrameRate = false
+            customFrameRate = settings.frameRate
+        } else {
+            isCustomFrameRate = true
+            customFrameRate = settings.frameRate
+        }
+
+        if Self.bitratePresets.contains(settings.bitrateMbps) {
+            isCustomBitrate = false
+            customBitrate = settings.bitrateMbps
+        } else {
+            isCustomBitrate = true
+            customBitrate = settings.bitrateMbps
+        }
+
+        if Self.aspectRatios.contains(settings.resolution.aspectDescription) {
+            selectedAspectRatio = settings.resolution.aspectDescription
+        } else {
+            selectedAspectRatio = nil
+        }
+    }
+
+    private func applyAspectRatio(_ text: String) {
+        let parts = text.split(separator: ":")
+        guard parts.count == 2,
+              let numerator = Double(parts[0]),
+              let denominator = Double(parts[1]),
+              numerator > 0, denominator > 0 else { return }
         let height = Int((Double(settings.resolution.width) * denominator / numerator).rounded())
         settings.resolution = StreamResolution(
             width: settings.resolution.width,
             height: Int32(min(max(height, 120), 4320))
         )
-        aspectText = settings.resolution.aspectDescription
+    }
+
+    private var resolutionPage: some View {
+        Form {
+            Picker("Resolution", selection: $settings.resolution) {
+                ForEach(resolutionGroups, id: \.0) { group in
+                    ForEach(group.1) { resolution in
+                        Text(resolution.title)
+                            .badge(group.0)
+                            .tag(resolution)
+                    }
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+
+            Section("Custom") {
+                HStack {
+                    TextField("Width", value: widthBinding, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.trailing)
+                    Text("×")
+                        .foregroundStyle(.secondary)
+                    TextField("Height", value: heightBinding, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.trailing)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("Resolution")
+    }
+
+    private var aspectRatioPage: some View {
+        Form {
+            Picker("Aspect Ratio", selection: $selectedAspectRatio) {
+                ForEach(Self.aspectRatios, id: \.self) { ratio in
+                    Text(ratio).tag(ratio as String?)
+                }
+                Text("Custom").tag(nil as String?)
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+
+            HStack {
+                Spacer()
+                Text(settings.resolution.aspectDescription)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .navigationTitle("Aspect Ratio")
+        .onChange(of: selectedAspectRatio) { _, ratio in
+            if let ratio {
+                applyAspectRatio(ratio)
+            }
+        }
     }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    LabeledContent("Resolution") {
-                        HStack(spacing: 6) {
-                            TextField("Width", value: widthBinding, format: .number)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 72)
-                                .multilineTextAlignment(.trailing)
-                            Text("×")
+                    NavigationLink {
+                        resolutionPage
+                    } label: {
+                        HStack {
+                            Label("Resolution", systemImage: "rectangle.inset.filled")
+                            Spacer()
+                            Text(settings.resolution.title)
                                 .foregroundStyle(.secondary)
-                            TextField("Height", value: heightBinding, format: .number)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 72)
-                                .multilineTextAlignment(.trailing)
-                            Menu {
-                                ForEach(StreamResolution.presets) { preset in
-                                    Button(preset.title) {
-                                        settings.resolution = preset
-                                    }
-                                }
-                            } label: {
-                                Image(systemName: "list.bullet")
-                            }
-                            .buttonStyle(.borderless)
                         }
                     }
 
-                    LabeledContent("Aspect Ratio") {
-                        HStack(spacing: 6) {
-                            TextField("16:9", text: $aspectText)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 76)
-                                .multilineTextAlignment(.trailing)
-                                .onSubmit(applyAspectRatio)
-                            Button("Apply", action: applyAspectRatio)
-                                .buttonStyle(.borderless)
+                    NavigationLink {
+                        aspectRatioPage
+                    } label: {
+                        HStack {
+                            Label("Aspect Ratio", systemImage: "aspectratio")
+                            Spacer()
+                            Text(settings.resolution.aspectDescription)
+                                .foregroundStyle(.secondary)
                         }
                     }
 
-                    LabeledContent("Frame Rate") {
-                        HStack(spacing: 8) {
-                            TextField("60", value: frameRateBinding, format: .number)
+                    Picker(selection: frameRateSelection) {
+                        ForEach(Self.frameRatePresets, id: \.self) { rate in
+                            Text("\(rate)").tag(rate)
+                        }
+                        Text("Custom").tag(-1)
+                    } label: {
+                        Label("Frame Rate", systemImage: "waveform.path.ecg")
+                    }
+
+                    if isCustomFrameRate {
+                        HStack {
+                            Label("Custom Frame Rate", systemImage: "dial.min")
+                            Spacer()
+                            TextField("", value: customFrameRateBinding, format: .number)
                                 .textFieldStyle(.roundedBorder)
-                                .frame(width: 62)
+                                .frame(width: 80)
                                 .multilineTextAlignment(.trailing)
                             Text("fps")
                                 .foregroundStyle(.secondary)
-                            Slider(value: frameRateSlider, in: 1...240, step: 1)
-                                .frame(maxWidth: 200)
                         }
+                        Slider(value: customFrameRateSlider, in: 1...240, step: 1)
                     }
 
-                    LabeledContent("Bitrate") {
-                        HStack(spacing: 8) {
-                            TextField("10", value: bitrateBinding, format: .number)
+                    Picker(selection: bitrateSelection) {
+                        ForEach(Self.bitratePresets, id: \.self) { rate in
+                            Text("\(rate) Mbps").tag(rate)
+                        }
+                        Text("Custom").tag(-1)
+                    } label: {
+                        Label("Bitrate", systemImage: "speedometer")
+                    }
+
+                    if isCustomBitrate {
+                        HStack {
+                            Label("Custom Bitrate", systemImage: "dial.max")
+                            Spacer()
+                            TextField("", value: customBitrateBinding, format: .number)
                                 .textFieldStyle(.roundedBorder)
-                                .frame(width: 62)
+                                .frame(width: 80)
                                 .multilineTextAlignment(.trailing)
                             Text("Mbps")
                                 .foregroundStyle(.secondary)
-                            Slider(value: bitrateSlider, in: 1...500, step: 1)
-                                .frame(maxWidth: 200)
                         }
+                        Slider(value: customBitrateSlider, in: 1...1000, step: 1)
                     }
-
-                    Text("Video settings apply when the next stream starts.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
 
                     Picker("Codec", selection: $settings.codec) {
                         ForEach(CodecPreference.allCases) { codec in
@@ -167,15 +301,6 @@ struct SettingsView: View {
                     }
                     Toggle("HDR (HDR10)", isOn: $settings.hdrEnabled)
                         .disabled(!settings.codec.supportsHDR)
-                    if !settings.codec.supportsHDR {
-                        Text("HDR requires HEVC or AV1.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else if settings.hdrEnabled && settings.codec == .av1 {
-                        Text("HDR uses HEVC on visionOS; AV1 HDR is not offered.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
                     Toggle("Frame Pacing", isOn: $settings.framePacing)
                 } header: {
                     Label("Video", systemImage: "tv")
@@ -196,38 +321,22 @@ struct SettingsView: View {
                         .onChange(of: settings.spatialAudio) { _, value in
                             MVSetStreamSpatialAudio(value)
                         }
-                    Text("This device supports up to \(StreamSettingsStore.maximumOutputChannels) output channels.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
 
                 Section("Input") {
-                    Picker("Mouse Input", selection: $settings.mouseInputScheme) {
-                        ForEach(MouseInputScheme.allCases) { scheme in
-                            Text(scheme.title).tag(scheme)
-                        }
+                    LabeledContent("Mouse Input") {
+                        Text("Touchscreen + GCMouse")
+                            .foregroundStyle(.secondary)
                     }
-                    Text(settings.mouseInputScheme.detail)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text("Mouse Input changes apply when you restart the stream.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Toggle("Touchpad Mode", isOn: $settings.touchpadMode)
                     Toggle("Hide Controls With Mouse", isOn: $settings.hideChromeDuringMouseInput)
-                    Text("Hides the control bar, system cursor, and window resizing while a physical mouse is connected.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                     Toggle("First Tap Only Restores Controls", isOn: $settings.suppressRestoreTap)
                         .disabled(!settings.hideChromeDuringMouseInput)
-                    Text("While mouse capture hides the controls, the first gaze tap restores them without sending a touch to the host. Later taps are sent normally.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                     Picker("Mouse Mode", selection: $settings.mouseMode) {
                         ForEach(MouseTrackingMode.allCases) { mode in
                             Text(mode.title).tag(mode)
                         }
                     }
-                    .disabled(settings.mouseInputScheme.ignoresTrackingMode)
                     Toggle("Swap A/B and X/Y", isOn: $settings.swapABXY)
                     Toggle("Multiple Controllers", isOn: $settings.multiController)
                 }
@@ -247,10 +356,12 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .navigationTitle("Settings")
             .onAppear {
-                aspectText = settings.resolution.aspectDescription
+                configureCustomState()
             }
             .onChange(of: settings.resolution) { _, resolution in
-                aspectText = resolution.aspectDescription
+                selectedAspectRatio = Self.aspectRatios.contains(resolution.aspectDescription)
+                    ? resolution.aspectDescription
+                    : nil
             }
             .onChange(of: settings.codec) { _, codec in
                 if !codec.supportsHDR {

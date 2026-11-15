@@ -32,6 +32,20 @@ final class StreamTouchInput: StreamDirectTouchDelegate {
     private var streamWidth: Int32 = 1920
     private var streamHeight: Int32 = 1080
 
+    private struct TouchpadContact {
+        var last: CGPoint
+    }
+
+    private var touchpadContacts: [ObjectIdentifier: TouchpadContact] = [:]
+    private var touchpadCentroid: CGPoint?
+    private var touchpadTapStartedAt: TimeInterval = 0
+    private var touchpadMoved = false
+    private var touchpadTwoFinger = false
+
+    private var touchpadMode: Bool {
+        StreamSettingsStore.shared.touchpadMode
+    }
+
     /// Fallback used when the host does not advertise touch/pen support.
     private weak var fallbackTouch: UITouch?
     private var fallbackPressed = false
@@ -55,6 +69,10 @@ final class StreamTouchInput: StreamDirectTouchDelegate {
                 suppressedTouches.insert(ObjectIdentifier(touch))
                 continue
             }
+            if touchpadMode {
+                beginTouchpadTouch(touch, in: view)
+                continue
+            }
             let id = nextID
             nextID &+= 1
             touchIDs[ObjectIdentifier(touch)] = id
@@ -65,6 +83,10 @@ final class StreamTouchInput: StreamDirectTouchDelegate {
     func directTouchesMoved(_ touches: Set<UITouch>, in view: UIView) {
         for touch in touches where touch.type == .direct {
             if suppressedTouches.contains(ObjectIdentifier(touch)) { continue }
+            if touchpadMode {
+                moveTouchpadTouch(touch, in: view)
+                continue
+            }
             guard let id = touchIDs[ObjectIdentifier(touch)] else { continue }
             send(event: Self.moveEvent, touch: touch, id: id, in: view)
         }
@@ -74,6 +96,10 @@ final class StreamTouchInput: StreamDirectTouchDelegate {
         for touch in touches where touch.type == .direct {
             let key = ObjectIdentifier(touch)
             if suppressedTouches.remove(key) != nil { continue }
+            if touchpadMode {
+                endTouchpadTouch(touch, in: view)
+                continue
+            }
             guard let id = touchIDs.removeValue(forKey: key) else { continue }
             send(event: Self.upEvent, touch: touch, id: id, in: view)
         }
@@ -83,6 +109,15 @@ final class StreamTouchInput: StreamDirectTouchDelegate {
         for touch in touches where touch.type == .direct {
             let key = ObjectIdentifier(touch)
             if suppressedTouches.remove(key) != nil { continue }
+            if touchpadMode {
+                touchpadContacts.removeValue(forKey: key)
+                if touchpadContacts.isEmpty {
+                    touchpadCentroid = nil
+                    touchpadMoved = false
+                    touchpadTwoFinger = false
+                }
+                continue
+            }
             guard let id = touchIDs.removeValue(forKey: key) else { continue }
             if hostSupportsTouch {
                 _ = LiSendTouchEvent(
@@ -97,6 +132,102 @@ final class StreamTouchInput: StreamDirectTouchDelegate {
             fallbackRelease(fallbackTouch, in: view)
         }
         fallbackTouch = nil
+    }
+
+    private func beginTouchpadTouch(_ touch: UITouch, in view: UIView) {
+        let key = ObjectIdentifier(touch)
+        let point = touch.location(in: view)
+        if touchpadContacts.isEmpty {
+            touchpadTapStartedAt = Date.timeIntervalSinceReferenceDate
+            touchpadMoved = false
+            touchpadTwoFinger = false
+            touchpadCentroid = nil
+        }
+        touchpadContacts[key] = TouchpadContact(last: point)
+        if touchpadContacts.count >= 2 {
+            touchpadTwoFinger = true
+            touchpadCentroid = centroid(of: touchpadContacts)
+        }
+    }
+
+    private func moveTouchpadTouch(_ touch: UITouch, in view: UIView) {
+        let key = ObjectIdentifier(touch)
+        guard var contact = touchpadContacts[key] else { return }
+        let point = touch.location(in: view)
+
+        if touchpadContacts.count >= 2 {
+            contact.last = point
+            touchpadContacts[key] = contact
+            let centre = centroid(of: touchpadContacts)
+            if let previous = touchpadCentroid {
+                let dx = centre.x - previous.x
+                let dy = centre.y - previous.y
+                if abs(dx) + abs(dy) > 0.5 {
+                    touchpadMoved = true
+                    let height = max(view.bounds.height, 1)
+                    let multiplier = 120.0 * 20.0 / height
+                    let scrollY = Int32(clamping: Int((dy * multiplier).rounded()))
+                    let scrollX = Int32(clamping: Int((-dx * multiplier).rounded()))
+                    if scrollY != 0 {
+                        LiSendHighResScrollEvent(Int16(clamping: scrollY))
+                    }
+                    if scrollX != 0 {
+                        LiSendHighResHScrollEvent(Int16(clamping: scrollX))
+                    }
+                }
+            }
+            touchpadCentroid = centre
+        } else {
+            let dx = point.x - contact.last.x
+            let dy = point.y - contact.last.y
+            if abs(dx) + abs(dy) > 0.5 {
+                touchpadMoved = true
+                LiSendMouseMoveEvent(
+                    Int16(clamping: Int32((dx * 2).rounded())),
+                    Int16(clamping: Int32((dy * 2).rounded()))
+                )
+            }
+            contact.last = point
+            touchpadContacts[key] = contact
+        }
+    }
+
+    private func endTouchpadTouch(_ touch: UITouch, in view: UIView) {
+        let key = ObjectIdentifier(touch)
+        guard touchpadContacts.removeValue(forKey: key) != nil else { return }
+        guard touchpadContacts.isEmpty else {
+            if touchpadContacts.count == 1 {
+                touchpadCentroid = nil
+                touchpadTwoFinger = false
+            }
+            return
+        }
+
+        let elapsed = Date.timeIntervalSinceReferenceDate - touchpadTapStartedAt
+        if !touchpadMoved && elapsed < 0.45 {
+            if touchpadTwoFinger {
+                LiSendMouseButtonEvent(0x07, 0x03)
+                LiSendMouseButtonEvent(0x08, 0x03)
+            } else {
+                LiSendMouseButtonEvent(0x07, 0x01)
+                LiSendMouseButtonEvent(0x08, 0x01)
+            }
+        }
+
+        touchpadCentroid = nil
+        touchpadMoved = false
+        touchpadTwoFinger = false
+    }
+
+    private func centroid(of contacts: [ObjectIdentifier: TouchpadContact]) -> CGPoint {
+        guard !contacts.isEmpty else { return .zero }
+        let sum = contacts.values.reduce(CGPoint.zero) { partial, contact in
+            CGPoint(x: partial.x + contact.last.x, y: partial.y + contact.last.y)
+        }
+        return CGPoint(
+            x: sum.x / CGFloat(contacts.count),
+            y: sum.y / CGFloat(contacts.count)
+        )
     }
 
     /// Cancels every active contact. Called on stream teardown/focus loss.
@@ -115,6 +246,10 @@ final class StreamTouchInput: StreamDirectTouchDelegate {
         fallbackTouch = nil
         touchIDs.removeAll()
         suppressedTouches.removeAll()
+        touchpadContacts.removeAll()
+        touchpadCentroid = nil
+        touchpadMoved = false
+        touchpadTwoFinger = false
     }
 
     // MARK: - Sending

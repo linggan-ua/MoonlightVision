@@ -24,45 +24,6 @@ enum MouseTrackingMode: String, CaseIterable, Identifiable {
     }
 }
 
-/// Selectable, complete mouse-input implementations. The scheme is read when a
-/// stream starts; changing it while streaming takes effect on the next stream.
-enum MouseInputScheme: String, CaseIterable, Identifiable {
-    /// an earlier client's visionOS policy: GCMouse raw deltas, hover absolute mode,
-    /// button-held delta forwarding, and pointer-over-content click gating.
-    case longwave
-    /// other clients's visionOS policy: absolute UIKit pointer (hover + indirect
-    /// pointer touches), key-window input ownership, no pointer lock in a window.
-    case punktfunk
-    /// Official moonlight-ios dual path (`StreamView.m`) plus an earlier client's click
-    /// and focus gating, adapted for visionOS windows.
-    case officialHybrid
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .longwave: return "GCMouse"
-        case .punktfunk: return "other clients"
-        case .officialHybrid: return String(localized: "Core + GCMouse")
-        }
-    }
-
-    var detail: String {
-        switch self {
-        case .longwave:
-            return String(localized: "GCMouse relative motion with hover absolute mode and pointer-over-content click gating. The system pointer stays visible.")
-        case .punktfunk:
-            return String(localized: "Absolute pointer using hover and indirect-pointer clicks. No relative capture in a visionOS window; Mouse Mode is ignored.")
-        case .officialHybrid:
-            return String(localized: "Core view dual path plus GCMouse click and focus gating. Hides the pointer over the video when the absolute path owns it.")
-        }
-    }
-
-    var ignoresTrackingMode: Bool {
-        self == .punktfunk
-    }
-}
-
 /// The subset of stream mouse buttons used by every strategy.
 enum StreamMouseButton: Int32 {
     case left = 0x01
@@ -89,7 +50,6 @@ protocol StreamMouseSurfaceDelegate: AnyObject {
 /// the next stream.
 @MainActor
 protocol StreamMouseStrategy: AnyObject, StreamMouseSurfaceDelegate {
-    var scheme: MouseInputScheme { get }
     func start(
         view: StreamWindowInputView,
         mode: MouseTrackingMode,

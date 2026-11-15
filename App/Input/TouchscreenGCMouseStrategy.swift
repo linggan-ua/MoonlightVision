@@ -1,5 +1,5 @@
 //
-//  OfficialHybridMouseStrategy.swift
+//  TouchscreenGCMouseStrategy.swift
 //  MoonlightVision
 //
 //  Created by Linggan-ua.
@@ -20,9 +20,7 @@ import UIKit
 /// - Presses require stream focus and pointer-over-content; releases are always
 ///   sent for a button this strategy pressed.
 @MainActor
-final class OfficialHybridMouseStrategy: NSObject, StreamMouseStrategy, UIPointerInteractionDelegate {
-    let scheme: MouseInputScheme = .officialHybrid
-
+final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointerInteractionDelegate {
     private weak var view: StreamWindowInputView?
     private let sender = MouseEventSender()
     private let mouseHub = GCMouseHub()
@@ -116,7 +114,7 @@ final class OfficialHybridMouseStrategy: NSObject, StreamMouseStrategy, UIPointe
         ))
 
         sender.setForwarding(active)
-        NSLog("[Mouse] OfficialHybrid start mode=%@ size=%dx%d", mode.rawValue, streamWidth, streamHeight)
+        NSLog("[Mouse] Touchscreen+GCMouse start mode=%@ size=%dx%d", mode.rawValue, streamWidth, streamHeight)
     }
 
     func stop() {
@@ -244,7 +242,7 @@ final class OfficialHybridMouseStrategy: NSObject, StreamMouseStrategy, UIPointe
             pointerOverContent = false
         }
         pointerInteraction?.invalidate()
-        NSLog("[Mouse] OfficialHybrid physical mouse %@", present ? "connected" : "disconnected")
+        NSLog("[Mouse] Touchscreen+GCMouse physical mouse %@", present ? "connected" : "disconnected")
     }
 
     // MARK: - Absolute pointer

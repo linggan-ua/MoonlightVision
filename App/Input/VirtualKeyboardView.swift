@@ -12,25 +12,34 @@ import SwiftUI
 struct VirtualKeyboardView: View {
     let input: StreamKeyboardInput
     let isActive: Bool
-    let onClose: () -> Void
+    let showsGlassBackground: Bool
+    let keyUnit: CGFloat
 
-    init(input: StreamKeyboardInput, isActive: Bool = true, onClose: @escaping () -> Void) {
+    init(
+        input: StreamKeyboardInput,
+        isActive: Bool = true,
+        showsGlassBackground: Bool = true,
+        keyUnit: CGFloat = 46
+    ) {
         self.input = input
         self.isActive = isActive
-        self.onClose = onClose
+        self.showsGlassBackground = showsGlassBackground
+        self.keyUnit = keyUnit
     }
 
     @State private var latched: Set<UInt16> = []
     @State private var locked: Set<UInt16> = []
     @State private var textEntry = ""
     @State private var fnActive = false
+    @State private var winLongPressHandled = false
+    @State private var winLongPressResetTask: Task<Void, Never>?
     @FocusState private var textFocused: Bool
 
     private static let shiftLeft: UInt16 = 0xE1
-    private static let shiftRight: UInt16 = 0xE5
     private static let fnUsage: UInt16 = 0xFFFE
-    private static let unit: CGFloat = 46
     private static let spacing: CGFloat = 5
+
+    private var unit: CGFloat { keyUnit }
 
     private struct Key: Identifiable {
         let usage: UInt16
@@ -62,9 +71,9 @@ struct VirtualKeyboardView: View {
         Shortcut(label: "Ctrl+V", modifiers: [0xE0], key: 0x19)
     ]
 
-    private let physicalFunctionRow: [Key] = [Key(usage: 0x29, label: "Esc", width: 1.2)]
+    private let physicalFunctionRow: [Key] = [Key(usage: 0x29, label: "Esc", width: 1.4)]
         + (1...12).map { Key(usage: 0x3A + UInt16($0 - 1), label: "F\($0)") }
-        + [Key(usage: 0x4C, label: "Del", width: 1.2)]
+        + [Key(usage: 0x4C, label: "Del", width: 1.4)]
 
     /// Fn switches the function row to the Windows media keys. Fn itself is a
     /// hardware key with no HID usage, so it only changes this on-screen row.
@@ -75,7 +84,9 @@ struct VirtualKeyboardView: View {
         Key(usage: 0x2004, label: "Previous Track", symbol: "backward.fill", virtualKey: 0xB1),
         Key(usage: 0x2005, label: "Play/Pause", symbol: "playpause.fill", virtualKey: 0xB3),
         Key(usage: 0x2006, label: "Next Track", symbol: "forward.fill", virtualKey: 0xB0),
-        Key(usage: 0x2007, label: "Stop", symbol: "stop.fill", virtualKey: 0xB2)
+        Key(usage: 0x2007, label: "Stop", symbol: "stop.fill", virtualKey: 0xB2),
+        Key(usage: 0x2C, label: "Space", width: 6.6),
+        Key(usage: Self.fnUsage, label: "Fn", width: 1.2, symbol: "globe"),
     ]
 
     private var functionRow: [Key] {
@@ -100,7 +111,7 @@ struct VirtualKeyboardView: View {
     ]
 
     private var topRow: [Key] {
-        [Key(usage: 0x2B, label: "Tab", width: 1.5)]
+        [Key(usage: 0x2B, label: "Tab", width: 1.6)]
             + letters("qwertyuiop")
             + [
                 Key(usage: 0x2F, label: "[", shiftedLabel: "{"),
@@ -120,13 +131,12 @@ struct VirtualKeyboardView: View {
     }
 
     private var bottomRow: [Key] {
-        [Key(usage: Self.shiftLeft, label: "Shift", width: 2.2, symbol: "shift")]
+        [Key(usage: Self.shiftLeft, label: "Shift", width: 1.8, symbol: "shift")]
             + letters("zxcvbnm")
             + [
                 Key(usage: 0x36, label: ",", shiftedLabel: "<"),
                 Key(usage: 0x37, label: ".", shiftedLabel: ">"),
                 Key(usage: 0x38, label: "/", shiftedLabel: "?"),
-                Key(usage: Self.shiftRight, label: "Shift", width: 1.5, symbol: "shift"),
             ]
     }
 
@@ -134,24 +144,12 @@ struct VirtualKeyboardView: View {
         Key(usage: 0xE0, label: "Ctrl", width: 1.5),
         Key(usage: 0xE3, label: "Win", width: 1.2, symbol: "square.grid.2x2"),
         Key(usage: 0xE2, label: "Alt", width: 1.2),
-        Key(usage: 0x2C, label: "Space", width: 4.0),
+        Key(usage: 0x2C, label: "Space", width: 6.7),
         Key(usage: Self.fnUsage, label: "Fn", width: 1.2, symbol: "globe"),
     ]
 
     var body: some View {
         VStack(spacing: Self.spacing) {
-            HStack {
-                Text("Keyboard")
-                    .font(.caption.bold())
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button(action: onClose) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title3)
-                }
-                .buttonStyle(.plain)
-            }
-
             HStack(spacing: 8) {
                 TextField("Type text…", text: $textEntry)
                     .textFieldStyle(.roundedBorder)
@@ -172,7 +170,6 @@ struct VirtualKeyboardView: View {
                 } label: {
                     Label("Shortcuts", systemImage: "command")
                 }
-                Spacer()
             }
 
             row(functionRow, height: 0.8)
@@ -188,7 +185,7 @@ struct VirtualKeyboardView: View {
             }
         }
         .padding(12)
-        .glassBackgroundEffect()
+        .glassBackgroundEffect(displayMode: showsGlassBackground ? .always : .never)
         .onChange(of: isActive) { _, active in
             if !active {
                 textFocused = false
@@ -201,7 +198,7 @@ struct VirtualKeyboardView: View {
 
     private var shifted: Bool {
         let active = latched.union(locked)
-        return active.contains(Self.shiftLeft) || active.contains(Self.shiftRight)
+        return active.contains(Self.shiftLeft)
     }
 
     private func letters(_ string: String) -> [Key] {
@@ -217,9 +214,9 @@ struct VirtualKeyboardView: View {
     private var arrowCluster: some View {
         VStack(spacing: Self.spacing) {
             HStack(spacing: Self.spacing) {
-                Color.clear.frame(width: Self.unit, height: Self.unit)
+                Color.clear.frame(width: unit, height: unit)
                 keyButton(Key(usage: 0x52, label: "Up", symbol: "arrowtriangle.up.fill"), height: 1)
-                Color.clear.frame(width: Self.unit, height: Self.unit)
+                Color.clear.frame(width: unit, height: unit)
             }
             HStack(spacing: Self.spacing) {
                 keyButton(Key(usage: 0x50, label: "Left", symbol: "arrowtriangle.left.fill"), height: 1)
@@ -237,41 +234,106 @@ struct VirtualKeyboardView: View {
         }
     }
 
+    @ViewBuilder
     private func keyButton(_ key: Key, height: CGFloat) -> some View {
         let modifier = modifierFlag(for: key.usage) != 0
-        let active = latched.contains(key.usage)
-            || locked.contains(key.usage)
-            || (key.usage == Self.fnUsage && fnActive)
-        return Button {
-            tap(key)
-        } label: {
-            Group {
-                if let symbol = key.symbol {
-                    Image(systemName: locked.contains(key.usage) && symbol == "shift" ? "capslock.fill" : symbol)
-                } else {
-                    Text(shifted ? (key.shiftedLabel ?? key.label) : key.label)
+        let isLatched = latched.contains(key.usage)
+        let isLocked = locked.contains(key.usage)
+        let isFn = key.usage == Self.fnUsage && fnActive
+        let active = isLatched || isLocked || isFn
+
+        if key.usage == 0xE3 {
+            // Keep it a Button so visionOS still provides gaze/press feedback;
+            // a simultaneous long press handles the sticky states and
+            // suppresses the button's tap on release.
+            Button {
+                if winLongPressHandled {
+                    winLongPressHandled = false
+                    winLongPressResetTask?.cancel()
+                    return
                 }
+                tapWin()
+            } label: {
+                keyContent(key, height: height)
             }
-            .font(key.label.count > 1 && key.symbol == nil ? .footnote : .body)
-            .frame(
-                width: Self.unit * key.width + Self.spacing * (key.width - 1),
-                height: Self.unit * height
+            .buttonStyle(.plain)
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.55)
+                    .onEnded { _ in
+                        winLongPressHandled = true
+                        toggleWinSticky()
+                        winLongPressResetTask?.cancel()
+                        winLongPressResetTask = Task { @MainActor in
+                            try? await Task.sleep(for: .seconds(1))
+                            guard !Task.isCancelled else { return }
+                            winLongPressHandled = false
+                        }
+                    }
             )
-            .background(
-                active ? AnyShapeStyle(.tint) : AnyShapeStyle(Color.white.opacity(0.12)),
-                in: .rect(cornerRadius: 9)
+            .accessibilityLabel(key.label)
+            .accessibilityHint(
+                "Tap for a normal Win press. Long-press once for the next key, twice to lock, again to release."
             )
-            .contentShape(.hoverEffect, .rect(cornerRadius: 9))
-            .hoverEffect()
+            .accessibilityAddTraits(active ? .isSelected : [])
+        } else {
+            Button {
+                tap(key)
+            } label: {
+                keyContent(key, height: height)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(key.label)
+            .accessibilityHint(
+                modifier
+                    ? "Tap once for the next key, twice to lock, again to release."
+                    : ""
+            )
+            .accessibilityAddTraits(modifier && active ? .isSelected : [])
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(key.label)
-        .accessibilityAddTraits(modifier && active ? .isSelected : [])
+    }
+
+    private func keyContent(_ key: Key, height: CGFloat) -> some View {
+        let isLatched = latched.contains(key.usage)
+        let isLocked = locked.contains(key.usage)
+        let isFn = key.usage == Self.fnUsage && fnActive
+        let background: Color = isLocked || isFn
+            ? .accentColor
+            : (isLatched ? Color.accentColor.opacity(0.45) : Color.white.opacity(0.12))
+        return Group {
+            if let symbol = key.symbol {
+                Image(systemName: isLocked && symbol == "shift" ? "capslock.fill" : symbol)
+            } else {
+                Text(shifted ? (key.shiftedLabel ?? key.label) : key.label)
+            }
+        }
+        .font(key.label.count > 1 && key.symbol == nil ? .footnote : .body)
+        .frame(
+            width: unit * key.width + Self.spacing * (key.width - 1),
+            height: unit * height
+        )
+        .background(background, in: .rect(cornerRadius: 9))
+        .overlay(alignment: .topTrailing) {
+            if isLocked {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 8, weight: .bold))
+                    .padding(4)
+            } else if isLatched {
+                Circle()
+                    .fill(.white)
+                    .frame(width: 5, height: 5)
+                    .padding(4)
+            }
+        }
+        .contentShape(.rect(cornerRadius: 9))
     }
 
     private func tap(_ key: Key) {
         if key.usage == Self.fnUsage {
             fnActive.toggle()
+            return
+        }
+        if key.usage == 0xE3 {
+            tapWin()
             return
         }
         if modifierFlag(for: key.usage) != 0 {
@@ -293,6 +355,44 @@ struct VirtualKeyboardView: View {
             input.send(hidUsage: modifier, pressed: false, modifiers: activeModifiers)
         }
         latched.removeAll()
+    }
+
+    /// A short Win tap is a complete Win press, unless Win is already latched
+    /// or locked: then the tap simply releases that sticky state.
+    private func tapWin() {
+        if locked.contains(0xE3) {
+            locked.remove(0xE3)
+            input.send(hidUsage: 0xE3, pressed: false, modifiers: activeModifiers)
+            return
+        }
+        if latched.contains(0xE3) {
+            latched.remove(0xE3)
+            input.send(hidUsage: 0xE3, pressed: false, modifiers: activeModifiers)
+            return
+        }
+
+        let flags = activeModifiers
+        input.send(hidUsage: 0xE3, pressed: true, modifiers: flags)
+        input.send(hidUsage: 0xE3, pressed: false, modifiers: flags)
+        for modifier in latched {
+            input.send(hidUsage: modifier, pressed: false, modifiers: activeModifiers)
+        }
+        latched.removeAll()
+    }
+
+    /// Long-press cycles Win through one-shot, locked, and released. Win
+    /// shortcuts (Win+D, Win+E, Win+L) then use the normal key row.
+    private func toggleWinSticky() {
+        if locked.contains(0xE3) {
+            locked.remove(0xE3)
+            input.send(hidUsage: 0xE3, pressed: false, modifiers: activeModifiers)
+        } else if latched.contains(0xE3) {
+            latched.remove(0xE3)
+            locked.insert(0xE3)
+        } else {
+            latched.insert(0xE3)
+            input.send(hidUsage: 0xE3, pressed: true, modifiers: activeModifiers)
+        }
     }
 
     private func toggleModifier(_ usage: UInt16) {

@@ -71,6 +71,8 @@ struct StreamWindowRootView: View {
         }
         .onDisappear {
             rememberWindowSize()
+            StreamKeyboardWindowState.shared.wantsKeyboard = false
+            dismissWindow(id: "stream-keyboard")
             presentation.close()
         }
     }

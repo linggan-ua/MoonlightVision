@@ -397,7 +397,7 @@ final class StreamSessionModel {
         inputView.directTouchDelegate = touchInput
 
         let settings = StreamSettingsStore.shared
-        let strategy = makeMouseStrategy(settings.mouseInputScheme)
+        let strategy: any StreamMouseStrategy = TouchscreenGCMouseStrategy()
         mouseStrategy = strategy
         strategy.start(
             view: inputView,
@@ -484,17 +484,6 @@ final class StreamSessionModel {
     private func updateMousePresence() {
         physicalMousePresent = !GCMouse.mice().isEmpty
         refreshChromeVisibility()
-    }
-
-    private func makeMouseStrategy(_ scheme: MouseInputScheme) -> any StreamMouseStrategy {
-        switch scheme {
-        case .longwave:
-            return GCMouseMouseStrategy()
-        case .punktfunk:
-            return other clientsMouseStrategy()
-        case .officialHybrid:
-            return OfficialHybridMouseStrategy()
-        }
     }
 
     private func teardownInput() {

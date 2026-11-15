@@ -54,6 +54,11 @@
 "Aspect Ratio" = "宽高比";
 "Apply" = "应用";
 "Bitrate" = "码率";
+"Custom" = "自定义";
+"Custom Frame Rate" = "自定义帧率";
+"Custom Bitrate" = "自定义码率";
+"Choose a preset above or enter any width and height." = "选择上方预设，或直接输入任意宽度和高度。";
+"Changing the aspect ratio keeps the current width and recalculates the height." = "修改宽高比会保留当前宽度并重新计算高度。";
 "Video settings apply when the next stream starts." = "视频设置会在下次启动串流时生效。";
 "Frame Rate" = "帧率";
 "%lld fps" = "%lld 帧/秒";
@@ -79,11 +84,8 @@
 "This device supports up to %lld output channels." = "此设备最多支持 %lld 个输出声道。";
 "Input" = "输入";
 "Mouse Input" = "鼠标输入";
-"Core + GCMouse" = "官方 + GCMouse";
-"GCMouse relative motion with hover absolute mode and pointer-over-content click gating. The system pointer stays visible." = "GCMouse 相对位移 + hover 绝对模式 + 指针在画面上时才转发点击。系统指针保持可见。";
-"Absolute pointer using hover and indirect-pointer clicks. No relative capture in a visionOS window; Mouse Mode is ignored." = "使用 hover 与 indirect pointer 的绝对指针。visionOS 窗口内没有相对捕获；鼠标模式会被忽略。";
-"Core view dual path plus GCMouse click and focus gating. Hides the pointer over the video when the absolute path owns it." = "核心视图双路径 + GCMouse 的点击/焦点门控。绝对路径接管时只在视频区域隐藏指针。";
-"Mouse Input changes apply when you restart the stream." = "鼠标输入方案的修改会在重新启动串流后生效。";
+"Touchscreen + GCMouse" = "触摸屏 + GCMouse";
+"Touchpad Mode" = "触控板模式";
 "First Tap Only Restores Controls" = "首次点击仅恢复控制条";
 "While mouse capture hides the controls, the first gaze tap restores them without sending a touch to the host. Later taps are sent normally." = "鼠标接管隐藏控制条时，第一次注视捏合只恢复控制条和窗口控件，不会把这次触摸发送到主机；之后的点击才正常发送。";
 "Hide Controls With Mouse" = "鼠标连接时隐藏控制条";

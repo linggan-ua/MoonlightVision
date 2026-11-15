@@ -60,10 +60,4 @@ final class MouseInputGeometryTests: XCTestCase {
         XCTAssertEqual(geometry.videoRect, .zero)
         XCTAssertNil(geometry.streamPoint(for: .zero))
     }
-
-    func testother clientsIgnoresTrackingMode() {
-        XCTAssertTrue(MouseInputScheme.punktfunk.ignoresTrackingMode)
-        XCTAssertFalse(MouseInputScheme.longwave.ignoresTrackingMode)
-        XCTAssertFalse(MouseInputScheme.officialHybrid.ignoresTrackingMode)
-    }
 }

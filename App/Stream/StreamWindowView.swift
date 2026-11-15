@@ -6,10 +6,9 @@
 //
 
 import SwiftUI
-import UIKit
 
 /// The stream window: the picture fills a plain window, controls live in a
-/// visionOS ornament below it, and stats sit in a compact HUD over the picture.
+/// visionOS ornament below it, and stats float in an ornament above it.
 struct StreamWindowView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Bindable private var settings = StreamSettingsStore.shared
@@ -17,8 +16,8 @@ struct StreamWindowView: View {
     let model: StreamSessionModel
     private let onExit: () -> Void
 
-    @State private var windowScene: UIWindowScene?
-    @State private var lockedAspect: Double?
+    @State private var keyboardHintVisible = false
+    @State private var keyboardHintTask: Task<Void, Never>?
 
     init(model: StreamSessionModel, onExit: @escaping () -> Void) {
         self.model = model
@@ -28,22 +27,6 @@ struct StreamWindowView: View {
     private var isEnded: Bool {
         if case .ended = model.phase { return true }
         return false
-    }
-
-    /// The stream picture's aspect. The window can only resize uniformly at
-    /// this aspect, so the whole window scales as one piece.
-    private var targetAspect: Double {
-        Double(settings.resolution.width) / Double(settings.resolution.height)
-    }
-
-    private func applyAspectLock(force: Bool = false) {
-        guard let scene = windowScene else { return }
-        let aspect = targetAspect
-        if !force, let lockedAspect, abs(lockedAspect - aspect) < 0.0005 {
-            return
-        }
-        lockedAspect = aspect
-        scene.lockStreamAspect(aspect)
     }
 
     var body: some View {
@@ -81,12 +64,24 @@ struct StreamWindowView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .allowsHitTesting(false)
             }
+
+            if keyboardHintVisible {
+                VStack(spacing: 6) {
+                    Label("Keyboard Active", systemImage: "keyboard")
+                        .font(.headline)
+                    Text("Use the on-screen keyboard to type.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .foregroundStyle(.white)
+                .padding(18)
+                .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .transition(.opacity)
+                .allowsHitTesting(false)
+            }
         }
         .background(.black)
-        .background(WindowSceneReader { scene in
-            windowScene = scene
-            applyAspectLock()
-        })
         // Do not wrap the video layer in a SwiftUI clip/mask. A masked
         // subtree is rendered offscreen; with an EDR video layer that
         // offscreen pass is what turns the HDR picture soft. The window
@@ -97,22 +92,20 @@ struct StreamWindowView: View {
                 StreamControlsView(model: model, onExit: onExit)
             }
         }
+        .ornament(attachmentAnchor: .scene(.top), contentAlignment: .bottom) {
+            if settings.showStats, model.isStreaming, !model.statsText.isEmpty {
+                StreamStatsPanel(text: model.statsText)
+            }
+        }
         .task { await model.startWhenReady() }
         .onAppear {
             model.inputView.onDirectTap = { [weak model] in
                 model?.revealStreamControls()
             }
             model.setBackgrounded(scenePhase != .active)
-            applyAspectLock()
         }
         .onChange(of: scenePhase) { _, newPhase in
             model.setBackgrounded(newPhase != .active)
-            if newPhase == .active {
-                applyAspectLock(force: true)
-            }
-        }
-        .onChange(of: targetAspect) { _, _ in
-            applyAspectLock(force: true)
         }
         .onChange(of: settings.hideChromeDuringMouseInput) { _, _ in
             model.refreshChromeVisibility()
@@ -120,16 +113,36 @@ struct StreamWindowView: View {
         .onChange(of: settings.suppressRestoreTap) { _, _ in
             model.refreshChromeVisibility()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .streamKeyboardDidActivate)) { _ in
+            showKeyboardHint()
+        }
+    }
+
+    private func showKeyboardHint() {
+        keyboardHintTask?.cancel()
+        withAnimation(.smooth(duration: 0.2)) {
+            keyboardHintVisible = true
+        }
+        keyboardHintTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.6))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.25)) {
+                keyboardHintVisible = false
+            }
+        }
     }
 
 }
 
 private struct StreamControlsView: View {
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
+
     let model: StreamSessionModel
     let onExit: () -> Void
 
     @Bindable private var settings = StreamSettingsStore.shared
-    @State private var showKeyboard = false
+    @State private var keyboardWindow = StreamKeyboardWindowState.shared
 
     private var isEnded: Bool {
         if case .ended = model.phase { return true }
@@ -138,52 +151,39 @@ private struct StreamControlsView: View {
 
     private var keyboardBinding: Binding<Bool> {
         Binding(
-            get: { showKeyboard },
+            get: { keyboardWindow.wantsKeyboard },
             set: { newValue in
-                withAnimation(.smooth(duration: 0.22)) {
-                    showKeyboard = newValue
+                keyboardWindow.wantsKeyboard = newValue
+                if newValue {
+                    NotificationCenter.default.post(
+                        name: .streamKeyboardDidActivate,
+                        object: nil
+                    )
+                    openWindow(id: "stream-keyboard")
+                } else {
+                    dismissWindow(id: "stream-keyboard")
                 }
             }
         )
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            if settings.showStats, model.isStreaming, !model.statsText.isEmpty {
-                StreamStatsPanel(text: model.statsText)
+        StreamControlBar(
+            isEnded: isEnded,
+            volume: Binding(
+                get: { model.volume },
+                set: { model.volume = $0 }
+            ),
+            showStats: $settings.showStats,
+            showKeyboard: keyboardBinding,
+            onDisconnect: {
+                model.stop()
+                onExit()
+            },
+            onToggleMute: {
+                model.toggleMute()
             }
-
-            StreamControlBar(
-                isEnded: isEnded,
-                volume: Binding(
-                    get: { model.volume },
-                    set: { model.volume = $0 }
-                ),
-                showStats: $settings.showStats,
-                showKeyboard: keyboardBinding,
-                onDisconnect: {
-                    model.stop()
-                    onExit()
-                },
-                onToggleMute: {
-                    model.toggleMute()
-                }
-            )
-
-            // Keep the keyboard mounted so the first toggle does not have to
-            // build ~60 buttons and their glass backgrounds on the main thread.
-            VirtualKeyboardView(input: model.keyboardInput, isActive: showKeyboard) {
-                withAnimation(.smooth(duration: 0.22)) {
-                    showKeyboard = false
-                }
-                _ = model.inputView.becomeFirstResponder()
-            }
-            .frame(height: showKeyboard ? nil : 0)
-            .opacity(showKeyboard ? 1 : 0)
-            .clipped()
-            .allowsHitTesting(showKeyboard)
-            .accessibilityHidden(!showKeyboard)
-        }
+        )
     }
 }
 
@@ -208,4 +208,8 @@ private struct StreamStatsPanel: View {
         .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .allowsHitTesting(false)
     }
+}
+
+extension Notification.Name {
+    static let streamKeyboardDidActivate = Notification.Name("mv.streamKeyboardDidActivate")
 }

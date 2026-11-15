@@ -62,6 +62,10 @@ struct StreamKeyboardWindowView: View {
         })
         .onDisappear {
             windowState.wantsKeyboard = false
+            NotificationCenter.default.post(
+                name: .streamKeyboardWindowDidClose,
+                object: nil
+            )
         }
         .onChange(of: presentation.session == nil) { _, missing in
             if missing {

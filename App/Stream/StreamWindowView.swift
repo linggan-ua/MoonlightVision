@@ -161,6 +161,7 @@ private struct StreamControlsView: View {
 
     @Bindable private var settings = StreamSettingsStore.shared
     @Bindable private var keyboardWindow = StreamKeyboardWindowState.shared
+    @State private var showKeyboard = false
 
     private var isEnded: Bool {
         if case .ended = model.phase { return true }
@@ -169,8 +170,9 @@ private struct StreamControlsView: View {
 
     private var keyboardBinding: Binding<Bool> {
         Binding(
-            get: { keyboardWindow.wantsKeyboard },
+            get: { showKeyboard },
             set: { newValue in
+                showKeyboard = newValue
                 keyboardWindow.wantsKeyboard = newValue
                 if newValue {
                     openWindow(id: "stream-keyboard")
@@ -210,6 +212,18 @@ private struct StreamControlsView: View {
                 model.toggleMute()
             }
         )
+        .onAppear {
+            showKeyboard = keyboardWindow.wantsKeyboard
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .streamKeyboardWindowDidClose)) { _ in
+            showKeyboard = false
+            keyboardWindow.wantsKeyboard = false
+        }
+        .onChange(of: keyboardWindow.wantsKeyboard) { _, wantsKeyboard in
+            if showKeyboard != wantsKeyboard {
+                showKeyboard = wantsKeyboard
+            }
+        }
     }
 }
 
@@ -261,4 +275,5 @@ private struct StreamGlassOverlay<Content: View>: View {
 extension Notification.Name {
     static let streamKeyboardDidActivate = Notification.Name("mv.streamKeyboardDidActivate")
     static let streamKeyboardDidDeactivate = Notification.Name("mv.streamKeyboardDidDeactivate")
+    static let streamKeyboardWindowDidClose = Notification.Name("mv.streamKeyboardWindowDidClose")
 }

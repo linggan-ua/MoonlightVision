@@ -50,13 +50,6 @@ struct StreamControlBar: View {
         return settings.spatialAudio ? .spatial : .stereo
     }
 
-    private var touchpadBinding: Binding<Bool> {
-        Binding(
-            get: { settings.mouseInputMode == .touchpad },
-            set: { settings.mouseInputMode = $0 ? .touchpad : .touchscreenGCMouse }
-        )
-    }
-
     private func applyQuickAudio(_ mode: QuickAudioMode) {
         switch mode {
         case .stereo:
@@ -102,7 +95,11 @@ struct StreamControlBar: View {
             }
             .toggleStyle(.button)
 
-            Toggle(isOn: touchpadBinding) {
+            Button {
+                settings.mouseInputMode = settings.mouseInputMode == .touchpad
+                    ? .touchscreenGCMouse
+                    : .touchpad
+            } label: {
                 Label(
                     "Touchpad Mode",
                     systemImage: settings.mouseInputMode == .touchpad
@@ -110,7 +107,8 @@ struct StreamControlBar: View {
                         : "hand.tap.fill"
                 )
             }
-            .toggleStyle(.button)
+            .accessibilityLabel("Touchpad Mode")
+            .accessibilityValue(settings.mouseInputMode == .touchpad ? "On" : "Off")
             .help("Switch between screen touch and whole-screen touchpad.")
 
             Menu {

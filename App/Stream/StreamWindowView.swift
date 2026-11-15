@@ -31,15 +31,12 @@ struct StreamWindowView: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            if model.isStreaming {
-                Color.black.ignoresSafeArea()
-            } else {
-                // Before the first frame, show a native glass window instead
-                // of a black rectangle; the loading panel floats in it.
-                Color.clear
-                    .glassBackgroundEffect()
-                    .ignoresSafeArea()
-            }
+            // Keep the native glass behind the video. The display layer has a
+            // clear background with aspect-fit gravity, so letterbox areas let
+            // the glass through instead of drawing black bars.
+            Color.clear
+                .glassBackgroundEffect()
+                .ignoresSafeArea()
 
             // One UIView for the window: it hosts the stream's display layer
             // and receives keyboard, mouse, trackpad, and direct touches.

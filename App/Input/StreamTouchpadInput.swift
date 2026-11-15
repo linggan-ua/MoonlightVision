@@ -22,6 +22,9 @@ final class StreamTouchpadInput: NSObject {
 
     var chromeHidden = false
     var suppressRestoreTap = false
+    /// A single tap always restores the stream controls, even when this tap is
+    /// being swallowed for anti-mistouch.
+    var onTap: (() -> Void)?
 
     func install(on view: UIView) {
         remove()
@@ -118,6 +121,7 @@ final class StreamTouchpadInput: NSObject {
     }
 
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
+        onTap?()
         if chromeHidden && suppressRestoreTap { return }
         click(button: 0x01)
     }

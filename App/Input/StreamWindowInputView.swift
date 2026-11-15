@@ -43,6 +43,10 @@ final class StreamWindowInputView: UIView {
         tap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
         tap.cancelsTouchesInView = false
         addGestureRecognizer(tap)
+
+        touchpad.onTap = { [weak self] in
+            self?.onDirectTap?()
+        }
     }
 
     @objc private func handleDirectTap(_ gesture: UITapGestureRecognizer) {

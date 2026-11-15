@@ -50,13 +50,6 @@ struct StreamControlBar: View {
         return settings.spatialAudio ? .spatial : .stereo
     }
 
-    private var touchpadBinding: Binding<Bool> {
-        Binding(
-            get: { settings.mouseInputMode == .touchpad },
-            set: { settings.mouseInputMode = $0 ? .touchpad : .touchscreenGCMouse }
-        )
-    }
-
     private func applyQuickAudio(_ mode: QuickAudioMode) {
         switch mode {
         case .stereo:
@@ -92,23 +85,31 @@ struct StreamControlBar: View {
 
             Divider().frame(height: 26)
 
-            Toggle(isOn: $showKeyboard) {
-                Label("Keyboard", systemImage: "keyboard")
+            BarControlToggle(
+                title: "Keyboard",
+                symbol: "keyboard",
+                isOn: showKeyboard
+            ) {
+                showKeyboard.toggle()
             }
-            .toggleStyle(.button)
 
-            Toggle(isOn: $showStats) {
-                Label("Stats", systemImage: "chart.bar.xaxis")
+            BarControlToggle(
+                title: "Stats",
+                symbol: "chart.bar.xaxis",
+                isOn: showStats
+            ) {
+                showStats.toggle()
             }
-            .toggleStyle(.button)
 
-            Toggle(isOn: touchpadBinding) {
-                Label(
-                    "Touchpad Mode",
-                    systemImage: settings.mouseInputMode == .touchpad ? "trackpad" : "hand.tap.fill"
-                )
+            BarControlToggle(
+                title: "Touchpad Mode",
+                symbol: settings.mouseInputMode == .touchpad ? "trackpad" : "hand.tap.fill",
+                isOn: settings.mouseInputMode == .touchpad
+            ) {
+                settings.mouseInputMode = settings.mouseInputMode == .touchpad
+                    ? .touchscreenGCMouse
+                    : .touchpad
             }
-            .toggleStyle(.button)
             .help("Switch between screen touch and whole-screen touchpad.")
 
             Menu {
@@ -141,5 +142,33 @@ struct StreamControlBar: View {
         .labelStyle(.iconOnly)
         .padding(12)
         .glassBackgroundEffect()
+    }
+}
+
+/// A control-bar toggle with explicit contrast. The system `.button` toggle
+/// style can draw a white selected pill with a white icon in the glass bar.
+private struct BarControlToggle: View {
+    let title: String
+    let symbol: String
+    let isOn: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.body)
+                .frame(width: 22, height: 22)
+                .foregroundStyle(isOn ? Color.black : Color.primary)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 6)
+                .background(
+                    isOn ? Color.white : Color.white.opacity(0.12),
+                    in: Capsule()
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityValue(isOn ? "On" : "Off")
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }

@@ -44,6 +44,10 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     BOOL hdrEnabled;
     BOOL dynamicRangeHigh;
     BOOL externalFrameLogged;
+    int lastLoggedVideoWidth;
+    int lastLoggedVideoHeight;
+    BOOL lastLoggedHdrRange;
+    BOOL hasLoggedVideoFormat;
 
 }
 
@@ -712,10 +716,19 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
     // VUI transfer function is not exposed by VideoToolbox.
     BOOL hdrRange = [self isHDRFormatDescription] || (hdrEnabled && du->hdrActive);
     CMVideoDimensions dimensions = CMVideoFormatDescriptionGetDimensions(formatDesc);
-    Log(LOG_I, @"Video format: %dx%d hdrActive=%d hdrEnabled=%d formatHDR=%d range=%d",
-        dimensions.width, dimensions.height,
-        du->hdrActive ? 1 : 0, hdrEnabled ? 1 : 0,
-        [self isHDRFormatDescription] ? 1 : 0, hdrRange ? 1 : 0);
+    if (!hasLoggedVideoFormat ||
+        dimensions.width != lastLoggedVideoWidth ||
+        dimensions.height != lastLoggedVideoHeight ||
+        hdrRange != lastLoggedHdrRange) {
+        hasLoggedVideoFormat = YES;
+        lastLoggedVideoWidth = dimensions.width;
+        lastLoggedVideoHeight = dimensions.height;
+        lastLoggedHdrRange = hdrRange;
+        Log(LOG_I, @"Video format: %dx%d hdrActive=%d hdrEnabled=%d formatHDR=%d range=%d",
+            dimensions.width, dimensions.height,
+            du->hdrActive ? 1 : 0, hdrEnabled ? 1 : 0,
+            [self isHDRFormatDescription] ? 1 : 0, hdrRange ? 1 : 0);
+    }
     [self updateDynamicRange:hdrRange];
     
     // Check for previous decoder errors before doing anything. Use the

@@ -17,6 +17,56 @@ struct StreamControlBar: View {
     let onDisconnect: () -> Void
     let onToggleMute: () -> Void
 
+    @Bindable private var settings = StreamSettingsStore.shared
+
+    private enum QuickAudioMode: String, CaseIterable, Identifiable {
+        case stereo
+        case spatial
+        case surround
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .stereo: return String(localized: "Stereo")
+            case .spatial: return String(localized: "Spatial Audio")
+            case .surround: return String(localized: "7.1 Surround")
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .stereo: return "speaker.wave.2.fill"
+            case .spatial: return "headphones"
+            case .surround: return "speaker.wave.3.fill"
+            }
+        }
+    }
+
+    private var quickAudioMode: QuickAudioMode {
+        if settings.audioMode == .surround71 || settings.audioMode == .surround51 {
+            return .surround
+        }
+        return settings.spatialAudio ? .spatial : .stereo
+    }
+
+    private func applyQuickAudio(_ mode: QuickAudioMode) {
+        switch mode {
+        case .stereo:
+            settings.audioMode = .stereo
+            settings.spatialAudio = false
+        case .spatial:
+            settings.audioMode = .stereo
+            settings.spatialAudio = true
+        case .surround:
+            settings.audioMode = .surround71
+            settings.spatialAudio = false
+        }
+        // Spatial mixing is live; a channel-layout change takes effect on the
+        // next stream.
+        MVSetStreamSpatialAudio(settings.spatialAudio)
+    }
+
     private var volumeSymbol: String {
         switch volume {
         case 0: return "speaker.slash.fill"
@@ -44,6 +94,22 @@ struct StreamControlBar: View {
                 Label("Stats", systemImage: "chart.bar.xaxis")
             }
             .toggleStyle(.button)
+
+            Menu {
+                ForEach(QuickAudioMode.allCases) { mode in
+                    Button {
+                        applyQuickAudio(mode)
+                    } label: {
+                        Label(
+                            mode.title,
+                            systemImage: mode == quickAudioMode ? "checkmark" : mode.symbol
+                        )
+                    }
+                }
+            } label: {
+                Label(quickAudioMode.title, systemImage: quickAudioMode.symbol)
+            }
+            .help("Spatial Audio applies live; Stereo and 7.1 apply on the next stream.")
 
             Divider().frame(height: 26)
 

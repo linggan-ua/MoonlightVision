@@ -66,6 +66,10 @@
 "5.1 Surround" = "5.1 Surround";
 "7.1 Surround" = "7.1 Surround";
 "Spatial Audio (Head-Tracked)" = "Spatial Audio (Head-Tracked)";
+"Spatial Audio" = "Spatial Audio";
+"Spatial Audio applies live; Stereo and 7.1 apply on the next stream." = "Spatial Audio applies live; Stereo and 7.1 apply on the next stream.";
+"Keyboard Active" = "Keyboard Active";
+"Use the on-screen keyboard to type." = "Use the on-screen keyboard to type.";
 "This device supports up to %lld output channels." = "This device supports up to %lld output channels.";
 "Input" = "Input";
 "Mouse Input" = "Mouse Input";

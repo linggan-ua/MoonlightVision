@@ -66,6 +66,10 @@
 "5.1 Surround" = "5.1 环绕声";
 "7.1 Surround" = "7.1 环绕声";
 "Spatial Audio (Head-Tracked)" = "空间音频（头部追踪）";
+"Spatial Audio" = "空间音频";
+"Spatial Audio applies live; Stereo and 7.1 apply on the next stream." = "空间音频立即生效；立体声和 7.1 在下次串流生效。";
+"Keyboard Active" = "键盘已激活";
+"Use the on-screen keyboard to type." = "使用屏幕键盘输入。";
 "This device supports up to %lld output channels." = "此设备最多支持 %lld 个输出声道。";
 "Input" = "输入";
 "Mouse Input" = "鼠标输入";

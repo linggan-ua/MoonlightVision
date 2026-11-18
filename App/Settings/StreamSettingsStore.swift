@@ -123,6 +123,7 @@ final class StreamSettingsStore {
     private static let stereoSBSKey = "mv.stereoSBS"
     private static let packedSBSInputKey = "mv.packedSBSInput"
     private static let windowCornerRadiusKey = "mv.windowCornerRadius"
+    private static let antiShimmerKey = "mv.antiShimmerMipmaps"
 
     private let dataManager = DataManager()
 
@@ -213,6 +214,14 @@ final class StreamSettingsStore {
             UserDefaults.standard.set(windowCornerRadius, forKey: Self.windowCornerRadiusKey)
         }
     }
+    /// Allocate and generate a mipmap chain for the video drawable in both 2D
+    /// and 3D, so a minified picture is filtered instead of shimmering. Off
+    /// samples level 0, which keeps the sharpest, most direct picture.
+    var antiShimmerMipmaps: Bool = false {
+        didSet {
+            UserDefaults.standard.set(antiShimmerMipmaps, forKey: Self.antiShimmerKey)
+        }
+    }
 
     /// Only used for the one-time migration away from the old UserDefaults blob.
     private struct LegacyStored: Codable {
@@ -266,6 +275,7 @@ final class StreamSettingsStore {
         if UserDefaults.standard.object(forKey: Self.windowCornerRadiusKey) != nil {
             windowCornerRadius = UserDefaults.standard.double(forKey: Self.windowCornerRadiusKey)
         }
+        antiShimmerMipmaps = UserDefaults.standard.bool(forKey: Self.antiShimmerKey)
     }
 
     func reset() {
@@ -303,6 +313,7 @@ final class StreamSettingsStore {
         stereoSBS = false
         packedSBSInput = false
         windowCornerRadius = 1.2
+        antiShimmerMipmaps = false
     }
 
     private func apply(_ legacy: LegacyStored) {

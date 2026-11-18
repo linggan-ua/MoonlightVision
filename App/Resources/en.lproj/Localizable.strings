@@ -68,6 +68,8 @@
 "HEVC" = "HEVC";
 "HDR (HDR10)" = "HDR (HDR10)";
 "Frame Pacing" = "Frame Pacing";
+"Anti-Shimmer (Mipmaps)" = "Anti-Shimmer (Mipmaps)";
+"Smooths shimmer and moiré in motion with mipmaps; the picture becomes slightly less sharp. Turn off for the sharpest picture." = "Smooths shimmer and moiré in motion with mipmaps; the picture becomes slightly less sharp. Turn off for the sharpest picture.";
 "Host" = "Host";
 "Optimize Game Settings" = "Optimize Game Settings";
 "Play Audio on PC" = "Play Audio on PC";

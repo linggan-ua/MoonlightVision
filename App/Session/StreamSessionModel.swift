@@ -207,6 +207,11 @@ final class StreamSessionModel {
         applyVideoModeChange()
     }
 
+    /// Applies the anti-shimmer (mipmap) option to the live decoder.
+    func setAntiShimmerMipmaps(_ enabled: Bool) {
+        activeDecoder?.setMipmappedOutput(enabled)
+    }
+
     /// Reconciles the stream with the current display mode: local 2D→3D needs
     /// a double-width texture and the decoder's stereo output.
     private func applyVideoModeChange() {
@@ -429,6 +434,7 @@ final class StreamSessionModel {
             return
         }
         let hdr = StreamSettingsStore.shared.hdrEnabled
+        let mipmappedOutput = StreamSettingsStore.shared.antiShimmerMipmaps
         let useFramePacing = config.useFramePacing
         let activation = realtime3DActivation
         let initialAspect = Float(streamAspect)
@@ -446,6 +452,7 @@ final class StreamSessionModel {
                     realtime3DSettingsProvider: {
                         Realtime3DSettingsStore.shared.settings(active: activation.isActive)
                     },
+                    mipmappedOutput: mipmappedOutput,
                     callbackToRender: { [weak self] queue, _, _ in
                         self?.frameMailbox.deposit(queue)
                     }

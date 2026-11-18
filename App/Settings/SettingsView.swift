@@ -303,8 +303,11 @@ struct SettingsView: View {
                     Toggle("HDR (HDR10)", isOn: $settings.hdrEnabled)
                         .disabled(!settings.codec.supportsHDR)
                     Toggle("Frame Pacing", isOn: $settings.framePacing)
+                    Toggle("Anti-Shimmer (Mipmaps)", isOn: $settings.antiShimmerMipmaps)
                 } header: {
                     Label("Video", systemImage: "tv")
+                } footer: {
+                    Text("Smooths shimmer and moiré in motion with mipmaps; the picture becomes slightly less sharp. Turn off for the sharpest picture.")
                 }
 
                 Section {

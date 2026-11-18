@@ -247,6 +247,9 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
     private var realtime3DConverter: Realtime3DConverter?
     private var realtime3DConverterAttempted = false
     private var stereoOutputMultiplier = 1
+    /// When on, the video drawable carries a mipmap chain and the frame path
+    /// regenerates it, so minified motion is filtered instead of shimmering.
+    private var mipmappedVideoOutput = false
     private var depthPreviewPipeline: MTLRenderPipelineState?
     private var lastPresentationTimeSeconds: Double?
     private let renderFrameLock = NSLock()
@@ -294,6 +297,7 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         hdrSettingsProvider: (() -> HDRParams)? = nil,
         enhancementsProvider: (() -> (Float, Float, Float))? = nil,
         realtime3DSettingsProvider: (() -> LSRealtime3DSettings)? = nil,
+        mipmappedOutput: Bool = false,
         callbackToRender: @MainActor @escaping (TextureResource.DrawableQueue, TextureResource.DrawableQueue?, (Int, Int)?) -> Void
     ) {
         metalFormat = enableHDR ? .rgba16Float : .bgra8Unorm_srgb
@@ -311,6 +315,7 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         self.hdrSettingsProvider = hdrSettingsProvider
         self.enhancementsProvider = enhancementsProvider
         self.realtime3DSettingsProvider = realtime3DSettingsProvider
+        self.mipmappedVideoOutput = mipmappedOutput
         self.callbackToRender = callbackToRender
 
         decoderCallback = VTDecompressionOutputCallbackRecord()
@@ -954,6 +959,16 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         }
     }
 
+    /// Turns the video drawable's mipmap chain on or off while streaming.
+    /// Rebuilding the queues rebinds them through the normal mailbox path.
+    func setMipmappedOutput(_ enabled: Bool) {
+        renderFrameLock.lock()
+        defer { renderFrameLock.unlock() }
+        guard mipmappedVideoOutput != enabled else { return }
+        mipmappedVideoOutput = enabled
+        runOnMainSync { self.rebuildDrawableQueues() }
+    }
+
     func setupLowLevelTexture() {
         runOnMainSync { self.rebuildDrawableQueues() }
     }
@@ -1003,13 +1018,11 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
                 width: outputWidth,
                 height: outputHeight,
                 usage: [.renderTarget, .shaderRead],
-                // The picture material samples level 0: this chain only fed the
-                // dormant bloom pass (which reads mip 0 anyway), and letting
-                // RealityKit pick a mip level made the mono plane visibly
-                // softer than the stereo path, which has never had mipmaps.
-                // Dropping it matches the two modes and saves the per-frame
-                // mip generation on 4K HDR textures.
-                mipmapsMode: .none
+                // Anti-shimmer option: a mip chain lets the plane material
+                // filter minified motion; off samples level 0 for the sharpest
+                // picture. Both 2D and 3D follow the same choice so the two
+                // modes keep the same look.
+                mipmapsMode: mipmappedVideoOutput ? .allocateAll : .none
             )
             let queue = try TextureResource.DrawableQueue(descriptor)
             queue.allowsNextDrawableTimeout = true

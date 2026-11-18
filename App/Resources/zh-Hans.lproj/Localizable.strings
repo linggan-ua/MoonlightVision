@@ -68,6 +68,8 @@
 "HEVC" = "HEVC";
 "HDR (HDR10)" = "HDR (HDR10)";
 "Frame Pacing" = "帧节奏";
+"Anti-Shimmer (Mipmaps)" = "抗闪烁（Mipmap）";
+"Smooths shimmer and moiré in motion with mipmaps; the picture becomes slightly less sharp. Turn off for the sharpest picture." = "用 mipmap 减轻运动画面的闪烁和摩尔纹，清晰度会略微下降；关闭可保持最清晰的画面。";
 "Host" = "主机";
 "Optimize Game Settings" = "优化游戏设置";
 "Play Audio on PC" = "在 PC 上播放音频";

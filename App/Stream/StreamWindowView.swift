@@ -185,6 +185,9 @@ struct StreamWindowView: View {
         .onChange(of: settings.packedSBSInput) { _, _ in
             model.refreshSBSLayout()
         }
+        .onChange(of: settings.antiShimmerMipmaps) { _, enabled in
+            model.setAntiShimmerMipmaps(enabled)
+        }
         .onChange(of: settings.mouseMode) { _, mode in
             model.setMouseMode(mode)
         }

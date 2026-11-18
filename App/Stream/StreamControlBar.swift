@@ -18,9 +18,16 @@ struct StreamControlBar: View {
     @Binding var showKeyboard: Bool
     let onDisconnect: () -> Void
     let onToggle3D: () -> Void
+    let onShow3DSettings: () -> Void
+    let onRestartStream: () -> Void
     let onToggleMute: () -> Void
 
     @Bindable private var settings = StreamSettingsStore.shared
+
+    @State private var showSettings = false
+    @State private var restartBaseline: StreamRestartSettings?
+    @State private var showRestartPrompt = false
+    @State private var suppress3DChange = false
 
     private enum QuickAudioMode: String, CaseIterable, Identifiable {
         case stereo
@@ -98,13 +105,24 @@ struct StreamControlBar: View {
             }
             .toggleStyle(.button)
 
-            Button(action: onToggle3D) {
-                Label(is3DEnabled ? "3D" : "Standard", systemImage: "view.3d")
+            Toggle(isOn: desktop3DBinding) {
+                Label("3D", systemImage: "view.3d")
             }
+            .toggleStyle(.button)
             .disabled(!canToggle3D)
             .accessibilityLabel("SBS 3D")
             .accessibilityValue(is3DEnabled ? "On" : "Off")
-            .help("Show the stream as side-by-side 3D. The host must send a 32:9 SBS frame.")
+            .help("Show the stream as side-by-side 3D. Long-press for 3D settings.")
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.55).onEnded { _ in
+                    suppress3DChange = true
+                    onShow3DSettings()
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .seconds(1.5))
+                        suppress3DChange = false
+                    }
+                }
+            )
 
             Button {
                 settings.mouseInputMode = settings.mouseInputMode == .touchpad
@@ -148,9 +166,59 @@ struct StreamControlBar: View {
             Slider(value: $volume, in: 0...1)
                 .frame(width: 160)
                 .accessibilityLabel("Stream Volume")
+
+            Divider().frame(height: 26)
+
+            Button {
+                restartBaseline = StreamRestartSettings()
+                showSettings = true
+            } label: {
+                Label("Settings", systemImage: "gearshape")
+            }
+            .help("Adjust stream settings without leaving the picture.")
+            .popover(isPresented: $showSettings, arrowEdge: .bottom) {
+                StreamLiveSettingsPanel()
+                    .frame(width: 440, height: 620)
+            }
+            .onChange(of: showSettings) { _, showing in
+                guard !showing else { return }
+                checkForRestart()
+            }
         }
         .labelStyle(.iconOnly)
         .padding(12)
         .glassBackgroundEffect()
+        .alert(
+            "Some settings take effect after the stream restarts",
+            isPresented: $showRestartPrompt
+        ) {
+            Button("Restart") {
+                onRestartStream()
+            }
+            Button("Later", role: .cancel) {}
+        }
+    }
+
+    private var desktop3DBinding: Binding<Bool> {
+        Binding(
+            get: { is3DEnabled },
+            set: { newValue in
+                if suppress3DChange {
+                    suppress3DChange = false
+                    return
+                }
+                if newValue != is3DEnabled {
+                    onToggle3D()
+                }
+            }
+        )
+    }
+
+    private func checkForRestart() {
+        guard let baseline = restartBaseline else { return }
+        restartBaseline = nil
+        if StreamRestartSettings() != baseline {
+            showRestartPrompt = true
+        }
     }
 }

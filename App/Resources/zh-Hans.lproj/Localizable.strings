@@ -86,10 +86,10 @@
 "Mouse Input" = "鼠标输入";
 "Touchscreen + GCMouse" = "触摸屏 + GCMouse";
 "Touchpad Mode" = "触控板模式";
-"First Tap Only Restores Controls" = "首次点击仅恢复控制条";
-"While mouse capture hides the controls, the first gaze tap restores them without sending a touch to the host. Later taps are sent normally." = "鼠标接管隐藏控制条时，第一次注视捏合只恢复控制条和窗口控件，不会把这次触摸发送到主机；之后的点击才正常发送。";
-"Hide Controls With Mouse" = "鼠标连接时隐藏控制条";
-"Hides the control bar, system cursor, and window resizing while a physical mouse is connected." = "连接物理鼠标时隐藏控制条、系统光标，并禁用窗口缩放。";
+"Gaze Tap Only Releases Capture" = "注视点击仅退出捕获";
+"While the mouse is captured, the first gaze tap releases capture without sending a touch to the host. Later taps are sent normally." = "鼠标被捕获时，第一次注视点击只退出捕获，不会把这次触摸发送到主机；之后的点击才正常发送。";
+"Hide Controls While Captured" = "捕获鼠标时隐藏控制条";
+"Hides the control bar, system cursor, and window resizing while the mouse is captured." = "鼠标被捕获时隐藏控制条、系统光标，并禁用窗口缩放。";
 "Mouse Mode" = "鼠标模式";
 "Relative (FPS)" = "相对（FPS）";
 "Absolute" = "绝对";
@@ -175,3 +175,42 @@
 "Enable SBS 3D" = "启用 SBS 3D";
 "Use software such as ReShade + Depth3D on your host PC to utilize SBS mode." = "请在主机上使用 ReShade + Depth3D 等软件以启用 SBS 模式。";
 "Show the stream as side-by-side 3D. The host must send a 32:9 SBS frame." = "以左右分屏 3D 显示串流。主机需要输出 32:9 的 SBS 画面。";
+
+"Enable Real-time 3D" = "启用实时 3D";
+"Convert this 2D stream to 3D on this device using the Neural Engine." = "在本设备上用神经网络引擎把这个 2D 串流转换成 3D。";
+"Enable 3D" = "启用 3D";
+
+"Real-time 3D" = "实时 3D";
+"Scheme" = "方案";
+"Preset" = "预设";
+"Comfort" = "舒适";
+"Balanced" = "均衡";
+"Strong" = "强烈";
+"Depth Strength" = "3D 深度";
+"Convergence" = "汇聚";
+"Above the model default is harder on the eyes" = "超过模型默认值会更累眼";
+"The 3D control in the stream window turns this on for a normal 2D stream." = "串流窗口里的 3D 按钮会在普通 2D 串流上启用它。";
+"Depth" = "深度";
+"Model" = "模型";
+"Auto (scheme default)" = "自动（跟随方案）";
+"Depth Rate" = "深度刷新";
+"Default" = "默认";
+"Unlimited" = "不限速";
+"Swap Eyes" = "交换左右眼";
+"Show Depth Map" = "显示深度图";
+"Reset 3D Tuning" = "重置 3D 参数";
+"ZipDepth · Occlusion Per-Frame" = "ZipDepth · 遮挡视差 逐帧";
+"ZipDepth · Occlusion 30/s" = "ZipDepth · 遮挡视差 30/s";
+"ZipDepth · Occlusion 20/s" = "ZipDepth · 遮挡视差 20/s";
+"ZipDepth · Smooth Parallax" = "ZipDepth · 平滑视差";
+"DA V2 · Smooth Parallax" = "DA V2 · 平滑视差";
+"ZipDepth is the fast model. Depth Anything V2 is sharper but needs more power. The depth rate caps how often the model runs." = "ZipDepth 更快；Depth Anything V2 深度更锐利但更耗性能。深度刷新频率限制模型每秒运行次数。";
+
+"Stream Settings" = "串流设置";
+"Some settings take effect after the stream restarts" = "部分设置需要重新启动串流生效";
+"Restart" = "重启";
+"Later" = "暂不";
+"3D Settings" = "3D 设置";
+"Changes apply live where possible. Video, audio layout and host options need a stream restart." = "设置会尽量实时生效；视频、声道布局和主机选项需要重新启动串流。";
+"Adjust stream settings without leaving the picture." = "不离开画面调整串流设置。";
+"Show the stream as side-by-side 3D. Long-press for 3D settings." = "以左右分屏 3D 显示串流。长按打开 3D 设置。";

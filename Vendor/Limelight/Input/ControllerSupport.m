@@ -48,6 +48,11 @@ static const double MOUSE_SPEED_DIVISOR = 1.25;
     bool _swapABXYButtons;
 }
 
+- (void)applySwapABXYButtons:(BOOL)swap
+{
+    _swapABXYButtons = swap;
+}
+
 // UPDATE_BUTTON_FLAG(controller, flag, pressed)
 #define UPDATE_BUTTON_FLAG(controller, x, y) \
 ((y) ? [self setButtonFlag:controller flags:x] : [self clearButtonFlag:controller flags:x])

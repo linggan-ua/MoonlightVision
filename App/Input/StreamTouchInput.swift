@@ -29,6 +29,7 @@ final class StreamTouchInput: StreamDirectTouchDelegate {
     private var chromeHidden = false
     private var suppressRestoreTap = false
     private var suppressedTouches = Set<ObjectIdentifier>()
+    private var suppressNextContactPending = false
     private var size = StreamInputSize(
         hostWidth: 1920,
         hostHeight: 1080,
@@ -66,8 +67,19 @@ final class StreamTouchInput: StreamDirectTouchDelegate {
         suppressRestoreTap = value
     }
 
+    /// Swallows the next direct contact. Used for the touch that releases mouse
+    /// capture so it does not also click the host.
+    func suppressNextContact() {
+        suppressNextContactPending = true
+    }
+
     func directTouchesBegan(_ touches: Set<UITouch>, in view: UIView) {
         for touch in touches where touch.type == .direct {
+            if suppressNextContactPending {
+                suppressNextContactPending = false
+                suppressedTouches.insert(ObjectIdentifier(touch))
+                continue
+            }
             if chromeHidden && suppressRestoreTap {
                 suppressedTouches.insert(ObjectIdentifier(touch))
                 continue

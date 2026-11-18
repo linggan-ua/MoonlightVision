@@ -54,6 +54,7 @@ struct StreamWindowView: View {
                     videoMode: model.videoMode,
                     streamWidth: model.streamWidth,
                     streamHeight: model.streamHeight,
+                    localConversion: !model.isSBSStream,
                     showSBSConfirm: model.showSBSConfirm,
                     onEnableSBS: {
                         model.showSBSConfirm = false
@@ -122,9 +123,6 @@ struct StreamWindowView: View {
         }
         .task { await model.startWhenReady() }
         .onAppear {
-            model.inputView.onDirectTap = { [weak model] in
-                model?.revealStreamControls()
-            }
             model.inputView.isUserInteractionEnabled = !model.showSBSConfirm
             model.setBackgrounded(scenePhase != .active)
         }
@@ -144,6 +142,12 @@ struct StreamWindowView: View {
         }
         .onChange(of: settings.suppressRestoreTap) { _, _ in
             model.refreshChromeVisibility()
+        }
+        .onChange(of: settings.mouseMode) { _, mode in
+            model.setMouseMode(mode)
+        }
+        .onChange(of: settings.swapABXY) { _, swap in
+            model.setSwapABXY(swap)
         }
         .onReceive(NotificationCenter.default.publisher(for: .streamKeyboardDidActivate)) { _ in
             showKeyboardHint()
@@ -237,6 +241,12 @@ private struct StreamControlsView: View {
                 } else {
                     model.showSBSConfirm = true
                 }
+            },
+            onShow3DSettings: {
+                openWindow(id: "stream-3d-settings")
+            },
+            onRestartStream: {
+                Task { await model.restart() }
             },
             onToggleMute: {
                 model.toggleMute()

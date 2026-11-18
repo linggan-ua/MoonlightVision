@@ -898,3 +898,16 @@ fragment half4 chromaHaloBlurVFragment(
     half softZero = smoothstep(half(0.0), half(0.006), blended.a);
     return half4(blended.rgb * softZero, blended.a * softZero);
 }
+
+// MARK: - Real-time 3D depth preview
+
+/// Draws the renderer's normalized depth field. Used by the real-time 2D→3D
+/// debug view; the stereo synthesis itself lives in RealtimeStereo.metal.
+fragment half4 realtimeDepthPreviewFragment(
+    CopyVertexOut in [[stage_in]],
+    texture2d<float> depthTex [[texture(0)]]
+) {
+    constexpr sampler s(coord::normalized, address::clamp_to_edge, filter::nearest);
+    float d = depthTex.sample(s, in.uv).r;
+    return half4(half3(d), 1.0h);
+}

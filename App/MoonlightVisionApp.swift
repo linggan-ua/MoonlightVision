@@ -27,6 +27,19 @@ struct MoonlightVisionApp: SwiftUI.App {
         .defaultLaunchBehavior(.suppressed)
         .defaultSize(width: 1280, height: 720)
 
+        Window("3D Settings", id: "stream-3d-settings") {
+            Stream3DSettingsWindowView()
+        }
+        .defaultSize(width: 430, height: 650)
+        .defaultWindowPlacement { _, context in
+            if let stream = context.windows.first(where: { $0.id == "stream" }) {
+                return WindowPlacement(.trailing(stream))
+            }
+            return WindowPlacement(.none)
+        }
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
+
         Window("Keyboard", id: "stream-keyboard") {
             StreamKeyboardWindowView()
         }

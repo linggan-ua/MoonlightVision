@@ -7,13 +7,16 @@
 
 import Foundation
 import UIKit
-/// - GCMouse raw deltas while available (relative mode).
-/// - `UIPointerInteraction` over the aspect-fit video rect for absolute mode,
-///   and as the fallback when no GCMouse is present.
-/// - `UITouch.indirectPointer` buttons when no GCMouse is present.
-/// - Continuous/discrete pan recognizers for scroll.
-/// - Presses require stream focus and pointer-over-content; releases are always
-///   sent for a button this strategy pressed.
+/// Steam Link-style pointer handling:
+/// - Uncaptured (default): the system pointer is visible and moves normally
+///   over the picture; nothing is forwarded to the host.
+/// - A click on the picture captures the mouse: the system pointer hides and
+///   GCMouse deltas, buttons and scrolling drive the host.
+/// - A direct gaze touch releases capture and restores the system pointer.
+/// - `UIPointerInteraction` still supplies absolute positions while captured
+///   (absolute mode); `UITouch.indirectPointer` buttons work without a GCMouse.
+/// - Presses require stream focus; releases are always sent for a button this
+///   strategy pressed.
 @MainActor
 final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointerInteractionDelegate {
     private weak var view: StreamWindowInputView?
@@ -32,9 +35,10 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         displayedHeight: 1080
     )
     private var active = false
-    private var pointerOverContent = true
-    private var systemCursorHidden = false
-    var onMouseActivity: (@MainActor () -> Void)?
+    private var pointerOverContent = false
+    private var captured = false
+    private var lastHoverPoint: CGPoint?
+    var onCaptureChanged: (@MainActor (Bool) -> Void)?
     private var hasGCMouse = false
     private var lastGCMouseActivity = Date.timeIntervalSinceReferenceDate
     private var pointerFallbackArmed = false
@@ -43,6 +47,8 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
     private var moveRemainderY: Float = 0
 
     private static let speedDivisor: Float = 1.25
+
+    var isCaptured: Bool { captured }
 
     func start(
         view: StreamWindowInputView,
@@ -55,7 +61,8 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         self.mode = mode
         self.size = size
         self.active = active
-        self.pointerOverContent = true
+        self.pointerOverContent = false
+        self.captured = false
         running = true
         lastGCMouseActivity = Date.timeIntervalSinceReferenceDate
         pointerFallbackArmed = false
@@ -69,26 +76,26 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         hover.install(on: view)
 
         scroll.onHighResScroll = { [weak self] x, y in
-            guard let self else { return }
-            if self.pointerOverContent { self.onMouseActivity?() }
+            guard let self, self.captured else { return }
             self.sender.highResScroll(y: y, x: x)
         }
         scroll.onDiscreteScroll = { [weak self] x, y in
-            guard let self else { return }
-            if self.pointerOverContent { self.onMouseActivity?() }
+            guard let self, self.captured else { return }
             self.sender.scroll(y: y, x: x)
         }
         scroll.install(on: view)
 
         indirect.onPosition = { [weak self] point in
-            guard let self else { return }
-            self.sendAbsolute(point)
-            if self.pointerOverContent { self.onMouseActivity?() }
+            guard let self, self.running else { return }
+            self.lastHoverPoint = point
+            self.updatePointerOverContent(point)
+            if self.captured {
+                self.sendAbsolute(point)
+            }
         }
         indirect.onButton = { [weak self] button, pressed in
             guard let self, self.running, !self.hasGCMouse else { return }
-            if pressed, self.pointerOverContent { self.onMouseActivity?() }
-            self.sender.button(button, pressed: pressed, allowed: self.active)
+            self.handlePointerButton(button, pressed: pressed, at: self.lastHoverPoint)
         }
 
         let interaction = UIPointerInteraction(delegate: self)
@@ -117,6 +124,7 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
     func stop() {
         guard running || view != nil else { return }
         running = false
+        captured = false
         hover.onHover = nil
         hover.remove()
         scroll.onHighResScroll = nil
@@ -136,11 +144,12 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         }
         view = nil
         hasGCMouse = false
-        systemCursorHidden = false
+        lastHoverPoint = nil
     }
 
     func setTrackingMode(_ mode: MouseTrackingMode) {
         self.mode = mode
+        setCaptured(false)
         resetAccumulators()
         pointerInteraction?.invalidate()
     }
@@ -149,6 +158,7 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         self.active = active
         sender.setForwarding(active)
         if !active {
+            setCaptured(false)
             pointerOverContent = false
             resetAccumulators()
         }
@@ -160,9 +170,17 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         pointerInteraction?.invalidate()
     }
 
-    func setSystemCursorHidden(_ hidden: Bool) {
-        systemCursorHidden = hidden
+    func setCaptured(_ value: Bool) {
+        guard captured != value else { return }
+        captured = value
+        if !value {
+            sender.releaseAll()
+            resetAccumulators()
+            pointerFallbackArmed = false
+        }
         pointerInteraction?.invalidate()
+        onCaptureChanged?(value)
+        NSLog("[Mouse] capture %@", value ? "on" : "off")
     }
 
     func mouseSurfaceDidLayout() {
@@ -196,9 +214,8 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         guard running, hasGCMouse else { return }
         lastGCMouseActivity = Date.timeIntervalSinceReferenceDate
         pointerFallbackArmed = false
-        if pointerOverContent {
-            onMouseActivity?()
-        }
+        guard captured else { return }
+
         moveRemainderX += dx / Self.speedDivisor
         moveRemainderY -= dy / Self.speedDivisor
         let wholeX = moveRemainderX.rounded(.towardZero)
@@ -218,13 +235,34 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         guard running, hasGCMouse else { return }
         lastGCMouseActivity = Date.timeIntervalSinceReferenceDate
         pointerFallbackArmed = false
-        if pressed, pointerOverContent {
-            onMouseActivity?()
+        if pressed, !captured, active, pointerOverContent {
+            if mode == .absolute, let point = lastHoverPoint {
+                sendAbsolute(point)
+            }
+            setCaptured(true)
         }
         sender.button(
             button,
             pressed: pressed,
-            allowed: active && pointerOverContent
+            allowed: active && (captured || pointerOverContent)
+        )
+    }
+
+    private func handlePointerButton(
+        _ button: StreamMouseButton,
+        pressed: Bool,
+        at point: CGPoint?
+    ) {
+        if pressed, !captured, active, pointerOverContent {
+            if let point {
+                sendAbsolute(point)
+            }
+            setCaptured(true)
+        }
+        sender.button(
+            button,
+            pressed: pressed,
+            allowed: active && (captured || pointerOverContent)
         )
     }
 
@@ -236,26 +274,20 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         if !present {
             sender.releaseAll()
             pointerOverContent = false
+            setCaptured(false)
         }
         pointerInteraction?.invalidate()
         NSLog("[Mouse] Touchscreen+GCMouse physical mouse %@", present ? "connected" : "disconnected")
     }
 
-    // MARK: - Absolute pointer
+    // MARK: - Pointer position
 
     private func handleHover(_ point: CGPoint, isActive: Bool) {
         guard running, let view else { return }
         if isActive {
-            let geometry = MouseInputGeometry(
-                viewSize: view.bounds.size,
-                streamWidth: size.displayedWidth,
-                streamHeight: size.displayedHeight
-            )
-            pointerOverContent = geometry.contains(point)
-            if pointerOverContent {
-                onMouseActivity?()
-            }
-            if mode == .relative, hasGCMouse, pointerFallbackAvailable,
+            lastHoverPoint = point
+            updatePointerOverContent(point)
+            if captured, mode == .relative, hasGCMouse, pointerFallbackAvailable,
                pointerOverContent, sender.heldButtons.isEmpty {
                 // A trackpad may only report hover while a mouse GCMouse is
                 // also present. Arm on the first hover event and move on the
@@ -270,6 +302,20 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         } else if sender.heldButtons.isEmpty {
             pointerOverContent = false
         }
+        _ = view
+    }
+
+    private func updatePointerOverContent(_ point: CGPoint) {
+        guard let view else {
+            pointerOverContent = false
+            return
+        }
+        let geometry = MouseInputGeometry(
+            viewSize: view.bounds.size,
+            streamWidth: size.displayedWidth,
+            streamHeight: size.displayedHeight
+        )
+        pointerOverContent = geometry.contains(point)
     }
 
     private func sendAbsolute(_ point: CGPoint) {
@@ -303,13 +349,13 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
             streamWidth: size.displayedWidth,
             streamHeight: size.displayedHeight
         )
+        lastHoverPoint = request.location
+        let insideVideo = geometry.contains(request.location)
+        pointerOverContent = insideVideo
 
-        if systemCursorHidden {
-            let insideVideo = geometry.contains(request.location)
-            pointerOverContent = insideVideo
-            // While the GCMouse owns relative motion, the system pointer is
-            // hidden for appearance only. Sending its absolute location too
-            // would fight the GCMouse deltas and make the host cursor jitter.
+        if captured {
+            // While captured the system pointer is hidden and must not leave
+            // the picture; feed absolute positions in absolute mode only.
             if (mode == .absolute || !hasGCMouse), insideVideo, sender.heldButtons.isEmpty {
                 sendAbsolute(request.location)
             }
@@ -319,20 +365,10 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
             )
         }
 
-        // With a GCMouse in relative mode, official StreamView.m leaves the
-        // pointer alone and lets GCMouse motion drive the host.
-        if mode == .relative, hasGCMouse {
-            return nil
-        }
-
+        // Uncaptured: the pointer stays visible with its normal style over the
+        // picture; a click here captures.
         let rect = geometry.videoRect
         guard rect.width > 0, rect.height > 0 else { return nil }
-
-        pointerOverContent = true
-        onMouseActivity?()
-        if sender.heldButtons.isEmpty {
-            sendAbsolute(request.location)
-        }
         return UIPointerRegion(rect: rect, identifier: nil)
     }
 
@@ -341,16 +377,7 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         styleFor region: UIPointerRegion
     ) -> UIPointerStyle? {
         guard running else { return nil }
-        if systemCursorHidden {
-            return .hidden()
-        }
-        // Official behavior: hide the local pointer over the video when the
-        // absolute path owns it. In relative mode with a GCMouse the pointer
-        // stays visible.
-        if mode == .absolute || !hasGCMouse {
-            return .hidden()
-        }
-        return nil
+        return captured ? .hidden() : nil
     }
 
     private var pointerFallbackAvailable: Bool {

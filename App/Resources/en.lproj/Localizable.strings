@@ -86,10 +86,10 @@
 "Mouse Input" = "Mouse Input";
 "Touchscreen + GCMouse" = "Touchscreen + GCMouse";
 "Touchpad Mode" = "Touchpad Mode";
-"First Tap Only Restores Controls" = "First Tap Only Restores Controls";
-"While mouse capture hides the controls, the first gaze tap restores them without sending a touch to the host. Later taps are sent normally." = "While mouse capture hides the controls, the first gaze tap restores them without sending a touch to the host. Later taps are sent normally.";
-"Hide Controls With Mouse" = "Hide Controls With Mouse";
-"Hides the control bar, system cursor, and window resizing while a physical mouse is connected." = "Hides the control bar, system cursor, and window resizing while a physical mouse is connected.";
+"Gaze Tap Only Releases Capture" = "Gaze Tap Only Releases Capture";
+"While the mouse is captured, the first gaze tap releases capture without sending a touch to the host. Later taps are sent normally." = "While the mouse is captured, the first gaze tap releases capture without sending a touch to the host. Later taps are sent normally.";
+"Hide Controls While Captured" = "Hide Controls While Captured";
+"Hides the control bar, system cursor, and window resizing while the mouse is captured." = "Hides the control bar, system cursor, and window resizing while the mouse is captured.";
 "Mouse Mode" = "Mouse Mode";
 "Relative (FPS)" = "Relative (FPS)";
 "Absolute" = "Absolute";
@@ -175,3 +175,42 @@
 "Enable SBS 3D" = "Enable SBS 3D";
 "Use software such as ReShade + Depth3D on your host PC to utilize SBS mode." = "Use software such as ReShade + Depth3D on your host PC to utilize SBS mode.";
 "Show the stream as side-by-side 3D. The host must send a 32:9 SBS frame." = "Show the stream as side-by-side 3D. The host must send a 32:9 SBS frame.";
+
+"Enable Real-time 3D" = "Enable Real-time 3D";
+"Convert this 2D stream to 3D on this device using the Neural Engine." = "Convert this 2D stream to 3D on this device using the Neural Engine.";
+"Enable 3D" = "Enable 3D";
+
+"Real-time 3D" = "Real-time 3D";
+"Scheme" = "Scheme";
+"Preset" = "Preset";
+"Comfort" = "Comfort";
+"Balanced" = "Balanced";
+"Strong" = "Strong";
+"Depth Strength" = "Depth Strength";
+"Convergence" = "Convergence";
+"Above the model default is harder on the eyes" = "Above the model default is harder on the eyes";
+"The 3D control in the stream window turns this on for a normal 2D stream." = "The 3D control in the stream window turns this on for a normal 2D stream.";
+"Depth" = "Depth";
+"Model" = "Model";
+"Auto (scheme default)" = "Auto (scheme default)";
+"Depth Rate" = "Depth Rate";
+"Default" = "Default";
+"Unlimited" = "Unlimited";
+"Swap Eyes" = "Swap Eyes";
+"Show Depth Map" = "Show Depth Map";
+"Reset 3D Tuning" = "Reset 3D Tuning";
+"ZipDepth · Occlusion Per-Frame" = "ZipDepth · Occlusion Per-Frame";
+"ZipDepth · Occlusion 30/s" = "ZipDepth · Occlusion 30/s";
+"ZipDepth · Occlusion 20/s" = "ZipDepth · Occlusion 20/s";
+"ZipDepth · Smooth Parallax" = "ZipDepth · Smooth Parallax";
+"DA V2 · Smooth Parallax" = "DA V2 · Smooth Parallax";
+"ZipDepth is the fast model. Depth Anything V2 is sharper but needs more power. The depth rate caps how often the model runs." = "ZipDepth is the fast model. Depth Anything V2 is sharper but needs more power. The depth rate caps how often the model runs.";
+
+"Stream Settings" = "Stream Settings";
+"Some settings take effect after the stream restarts" = "Some settings take effect after the stream restarts";
+"Restart" = "Restart";
+"Later" = "Later";
+"3D Settings" = "3D Settings";
+"Changes apply live where possible. Video, audio layout and host options need a stream restart." = "Changes apply live where possible. Video, audio layout and host options need a stream restart.";
+"Adjust stream settings without leaving the picture." = "Adjust stream settings without leaving the picture.";
+"Show the stream as side-by-side 3D. Long-press for 3D settings." = "Show the stream as side-by-side 3D. Long-press for 3D settings.";

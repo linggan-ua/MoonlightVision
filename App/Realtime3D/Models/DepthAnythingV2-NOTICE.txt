@@ -1,0 +1,4 @@
+Depth Anything V2 (Small) - https://github.com/DepthAnything/Depth-Anything-V2
+Copyright (c) 2024-2026 the Depth Anything V2 authors.
+Licensed under the Apache License, Version 2.0 (see DepthAnythingV2-LICENSE.txt).
+The Core ML model in this folder is a converted build of the official Small checkpoint.

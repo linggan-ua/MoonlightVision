@@ -240,6 +240,17 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
 
     private var enhancementsProvider: (() -> (Float, Float, Float))? = nil
 
+    // Real-time 2D→3D (ported from the old Moonlight Vision Realtime3D module).
+    // While active the drawable is double width and each eye is rendered into
+    // one half; the screen keeps using the SBS material.
+    private let realtime3DSettingsProvider: (() -> LSRealtime3DSettings)?
+    private var realtime3DConverter: Realtime3DConverter?
+    private var realtime3DConverterAttempted = false
+    private var stereoOutputMultiplier = 1
+    private var depthPreviewPipeline: MTLRenderPipelineState?
+    private var lastPresentationTimeSeconds: Double?
+    private let renderFrameLock = NSLock()
+
     private var copyPipelineState: MTLRenderPipelineState?
     private var copyPipelineFormat: MTLPixelFormat?
     private var copyPipelineStateYUV: MTLRenderPipelineState?
@@ -282,6 +293,7 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         enableHDR: Bool = false,
         hdrSettingsProvider: (() -> HDRParams)? = nil,
         enhancementsProvider: (() -> (Float, Float, Float))? = nil,
+        realtime3DSettingsProvider: (() -> LSRealtime3DSettings)? = nil,
         callbackToRender: @MainActor @escaping (TextureResource.DrawableQueue, TextureResource.DrawableQueue?, (Int, Int)?) -> Void
     ) {
         metalFormat = enableHDR ? .rgba16Float : .bgra8Unorm_srgb
@@ -298,6 +310,7 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         hdrEnabled = enableHDR
         self.hdrSettingsProvider = hdrSettingsProvider
         self.enhancementsProvider = enhancementsProvider
+        self.realtime3DSettingsProvider = realtime3DSettingsProvider
         self.callbackToRender = callbackToRender
 
         decoderCallback = VTDecompressionOutputCallbackRecord()
@@ -324,8 +337,8 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         status _: OSStatus,
         infoFlags _: VTDecodeInfoFlags,
         imageBuffer: CVImageBuffer?,
-        presentationTimeStamp _: CMTime,
-        presentationDuration _: CMTime?
+        presentationTimeStamp: CMTime,
+        presentationDuration: CMTime?
     ) {
         guard let imageBuffer = imageBuffer else { return }
 
@@ -333,13 +346,61 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         if inflightSemaphore.wait(timeout: .now()) != .success { return }
 
         autoreleasepool {
-            renderFrame(imageBuffer: imageBuffer)
+            renderFrame(
+                imageBuffer: imageBuffer,
+                presentationTime: presentationTimeStamp,
+                duration: presentationDuration
+            )
         }
     }
 
-    private func renderFrame(imageBuffer: CVImageBuffer) {
+    private func renderFrame(
+        imageBuffer: CVImageBuffer,
+        presentationTime: CMTime,
+        duration: CMTime?
+    ) {
+        // VideoToolbox may deliver callbacks concurrently; the converter and its
+        // texture cache are queue-confined, so serialize frame conversion.
+        renderFrameLock.lock()
+        defer { renderFrameLock.unlock() }
+
+        let realtimeSettings = realtime3DSettingsProvider?() ?? .disabled
+        let wantStereo = realtimeSettings.isEnabled && stereoOutputMultiplier == 2
+        if wantStereo, !realtime3DConverterAttempted {
+            realtime3DConverterAttempted = true
+            realtime3DConverter = Realtime3DConverter()
+        }
+        let converter = wantStereo ? realtime3DConverter : nil
+
+        // Convert while the drawable is not needed; the eye copy below is
+        // submitted on the converter's queue so it runs after synthesis.
+        var stereoConversion: Realtime3DConverter.Conversion?
+        if let converter {
+            let nowSeconds = CMTimeGetSeconds(presentationTime)
+            var isStill = false
+            if let previous = lastPresentationTimeSeconds, nowSeconds.isFinite {
+                let delta = nowSeconds - previous
+                if delta == 0 {
+                    isStill = true
+                } else if delta < 0 || delta > 1.0 {
+                    converter.reset()
+                }
+            }
+            if nowSeconds.isFinite {
+                lastPresentationTimeSeconds = nowSeconds
+            }
+            stereoConversion = converter.convert(
+                source: imageBuffer,
+                settings: realtimeSettings,
+                presentationTime: presentationTime,
+                duration: duration ?? .invalid,
+                isStill: isStill
+            )
+        }
+
+        let frameQueue = converter?.commandQueue ?? commandQueue
         guard
-            let commandBuffer = commandQueue?.makeCommandBuffer(),
+            let commandBuffer = frameQueue?.makeCommandBuffer(),
             let textureCache  = textureCache
         else {
             inflightSemaphore.signal()
@@ -452,6 +513,21 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             return
         }
 
+        let outputWidth = drawable.texture.width
+        let outputHeight = drawable.texture.height
+        // The drawable is double width whenever 3D is enabled, even if this
+        // frame could not be converted; keeping per-eye halves in that case
+        // shows a mono picture instead of a stretched side-by-side one.
+        let outputIsStereoWidth = outputWidth >= CVPixelBufferGetWidth(imageBuffer) * 2
+        let eyeWidth = outputIsStereoWidth ? outputWidth / 2 : outputWidth
+
+        let depthPreviewTexture: MTLTexture? = {
+            guard realtimeSettings.isEnabled, realtimeSettings.showsDepth,
+                  let converter = realtime3DConverter else { return nil }
+            let textures = converter.debugTextures()
+            return textures.normalized ?? textures.working
+        }()
+
         // SDR uses default TestFlight entry points; HDR uses separate Metal symbols (never shares SDR shader body).
         let fragment: String = {
             if hdrEnabled {
@@ -492,40 +568,7 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             return
         }
 
-        if isBiPlanar {
-            let w0 = CVPixelBufferGetWidthOfPlane(imageBuffer, 0)
-            let h0 = CVPixelBufferGetHeightOfPlane(imageBuffer, 0)
-            let w1 = CVPixelBufferGetWidthOfPlane(imageBuffer, 1)
-            let h1 = CVPixelBufferGetHeightOfPlane(imageBuffer, 1)
-
-            var yRef:    CVMetalTexture?
-            var cbcrRef: CVMetalTexture?
-            let r0 = CVMetalTextureCacheCreateTextureFromImage(kCFAllocatorDefault, textureCache, imageBuffer, nil, yFormat,    w0, h0, 0, &yRef)
-            let r1 = CVMetalTextureCacheCreateTextureFromImage(kCFAllocatorDefault, textureCache, imageBuffer, nil, cbcrFormat, w1, h1, 1, &cbcrRef)
-            guard r0 == 0, r1 == 0,
-                  let yTex   = yRef.flatMap(CVMetalTextureGetTexture),
-                  let uvTex  = cbcrRef.flatMap(CVMetalTextureGetTexture) else {
-                renderEncoder.endEncoding()
-                commandBuffer.commit()
-                return
-            }
-            renderEncoder.setRenderPipelineState(copyPipelineStateYUV!)
-            renderEncoder.setFragmentTexture(yTex,  index: 0)
-            renderEncoder.setFragmentTexture(uvTex, index: 1)
-        } else {
-            var imgRef: CVMetalTexture?
-            let w = CVPixelBufferGetWidthOfPlane(imageBuffer, 0)
-            let h = CVPixelBufferGetHeightOfPlane(imageBuffer, 0)
-            let srcFmt = CVMetalHelpers.getTextureTypesForFormat(pf)[0]
-            let result = CVMetalTextureCacheCreateTextureFromImage(kCFAllocatorDefault, textureCache, imageBuffer, nil, srcFmt, w, h, 0, &imgRef)
-            guard result == 0, let srcTex = imgRef.flatMap(CVMetalTextureGetTexture) else {
-                renderEncoder.endEncoding()
-                commandBuffer.commit()
-                return
-            }
-            renderEncoder.setRenderPipelineState(copyPipelineState!)
-            renderEncoder.setFragmentTexture(srcTex, index: 0)
-        }
+        renderEncoder.setRenderPipelineState(isBiPlanar ? copyPipelineStateYUV! : copyPipelineState!)
 
         // Buffer 0: ShaderHDRParams — frame signal description
         // visionOS has fixed EDR headroom (Vision Pro's micro-OLED peak capability).
@@ -600,11 +643,78 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         var enh = ColorEnhancementUniforms(saturation: satConWarm.0, contrast: satConWarm.1, warmth: satConWarm.2, padding1: 0)
         renderEncoder.setFragmentBytes(&enh, length: MemoryLayout<ColorEnhancementUniforms>.size, index: 2)
 
-        renderEncoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+        func encodeEye(_ buffer: CVImageBuffer, originX: Int, width: Int) {
+            if isBiPlanar {
+                let w0 = CVPixelBufferGetWidthOfPlane(buffer, 0)
+                let h0 = CVPixelBufferGetHeightOfPlane(buffer, 0)
+                let w1 = CVPixelBufferGetWidthOfPlane(buffer, 1)
+                let h1 = CVPixelBufferGetHeightOfPlane(buffer, 1)
+
+                var yRef: CVMetalTexture?
+                var cbcrRef: CVMetalTexture?
+                let r0 = CVMetalTextureCacheCreateTextureFromImage(kCFAllocatorDefault, textureCache, buffer, nil, yFormat, w0, h0, 0, &yRef)
+                let r1 = CVMetalTextureCacheCreateTextureFromImage(kCFAllocatorDefault, textureCache, buffer, nil, cbcrFormat, w1, h1, 1, &cbcrRef)
+                guard r0 == 0, r1 == 0,
+                      let yTex = yRef.flatMap(CVMetalTextureGetTexture),
+                      let uvTex = cbcrRef.flatMap(CVMetalTextureGetTexture) else { return }
+                renderEncoder.setFragmentTexture(yTex, index: 0)
+                renderEncoder.setFragmentTexture(uvTex, index: 1)
+            } else {
+                var imgRef: CVMetalTexture?
+                let w = CVPixelBufferGetWidthOfPlane(buffer, 0)
+                let h = CVPixelBufferGetHeightOfPlane(buffer, 0)
+                let bufferFormat = CVPixelBufferGetPixelFormatType(buffer)
+                let formats = CVMetalHelpers.getTextureTypesForFormat(bufferFormat)
+                guard let srcFmt = formats.first, srcFmt != .invalid else { return }
+                let result = CVMetalTextureCacheCreateTextureFromImage(kCFAllocatorDefault, textureCache, buffer, nil, srcFmt, w, h, 0, &imgRef)
+                guard result == 0, let srcTex = imgRef.flatMap(CVMetalTextureGetTexture) else { return }
+                renderEncoder.setFragmentTexture(srcTex, index: 0)
+            }
+            renderEncoder.setViewport(MTLViewport(
+                originX: Double(originX),
+                originY: 0,
+                width: Double(width),
+                height: Double(outputHeight),
+                znear: 0,
+                zfar: 1
+            ))
+            renderEncoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+        }
+
+        if let depthPreviewTexture {
+            if depthPreviewPipeline == nil {
+                depthPreviewPipeline = buildCopyPipeline(fragment: "realtimeDepthPreviewFragment")
+            }
+            if let pipeline = depthPreviewPipeline {
+                renderEncoder.setRenderPipelineState(pipeline)
+                renderEncoder.setFragmentTexture(depthPreviewTexture, index: 0)
+                for originX in stride(from: 0, to: outputWidth, by: max(eyeWidth, 1)) {
+                    renderEncoder.setViewport(MTLViewport(
+                        originX: Double(originX),
+                        originY: 0,
+                        width: Double(eyeWidth),
+                        height: Double(outputHeight),
+                        znear: 0,
+                        zfar: 1
+                    ))
+                    renderEncoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
+                }
+            }
+        } else if let conversion = stereoConversion {
+            encodeEye(conversion.left, originX: 0, width: eyeWidth)
+            encodeEye(conversion.right, originX: eyeWidth, width: eyeWidth)
+        } else if outputIsStereoWidth {
+            // A failed conversion keeps the frame visible as mono in both eyes.
+            encodeEye(imageBuffer, originX: 0, width: eyeWidth)
+            encodeEye(imageBuffer, originX: eyeWidth, width: eyeWidth)
+        } else {
+            encodeEye(imageBuffer, originX: 0, width: eyeWidth)
+        }
         renderEncoder.endEncoding()
 
         // Mipmap generation — used by both ChromaHalo bloom and ambient zone sampling
-        if let blitEncoder = commandBuffer.makeBlitCommandEncoder() {
+        if drawable.texture.mipmapLevelCount > 1,
+           let blitEncoder = commandBuffer.makeBlitCommandEncoder() {
             blitEncoder.generateMipmaps(for: drawable.texture)
             blitEncoder.endEncoding()
         }
@@ -839,72 +949,103 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
     }
 
     func setupLowLevelTexture() {
-        let work = { [self] in
-            if videoWidth == 0 || videoHeight == 0 {
-                print("Tried to set up client texture without defined dimensions (\(videoWidth), \(videoHeight)) - skipping")
-                return
-            }
+        runOnMainSync { self.rebuildDrawableQueues() }
+    }
 
-            self.drawableQueue = {
-                let descriptor = TextureResource.DrawableQueue.Descriptor(
-                    pixelFormat: metalFormat,
-                    width: Int(videoWidth),
-                    height: Int(videoHeight),
-                    usage: [.renderTarget, .shaderRead],
-                    // FIX: Must allocate mipmaps for them to be generated later
-                    mipmapsMode: .allocateAll
-                )
-                do {
-                    let queue = try TextureResource.DrawableQueue(descriptor)
-                    queue.allowsNextDrawableTimeout = true
-                    return queue
-                } catch {
-                    // A failed queue only means no picture; don't take the app
-                    // down with the stream.
-                    NSLog("%@", "DrawableVideoDecoder: Could not create DrawableQueue: \(error)")
-                    return nil
-                }
-            }()
-
-            // ChromaHalo: downsampled queue (see `ChromaHaloDownsample.mipShift`)
-            self.chromaHaloQueue = {
-                let mipShift = ChromaHaloDownsample.mipShift
-                let cw = max(1, videoWidth  >> mipShift)
-                let ch = max(1, videoHeight >> mipShift)
-                let descriptor = TextureResource.DrawableQueue.Descriptor(
-                    pixelFormat: metalFormat,
-                    width: cw,
-                    height: ch,
-                    usage: [.renderTarget, .shaderWrite, .shaderRead],
-                    mipmapsMode: .none
-                )
-                do {
-                    let q = try TextureResource.DrawableQueue(descriptor)
-                    q.allowsNextDrawableTimeout = true
-                    return q
-                } catch {
-                    print("DrawableVideoDecoder: Could not create ChromaHalo queue: \(error)")
-                    return nil
-                }
-            }()
-
-            self.chromaHaloScratchA = nil
-            self.chromaHaloScratchB = nil
-
-            region = MTLRegionMake2D(0, 0, videoWidth, videoHeight)
-
-            if let queue = self.drawableQueue {
-                MainActor.assumeIsolated {
-                    self.callbackToRender(queue, self.chromaHaloQueue, (self.videoWidth, self.videoHeight))
-                }
-            }
+    /// Enables/disables the double-width (SBS) output used by real-time 3D.
+    /// The caller must resize the screen texture to match before calling this
+    /// (2x width for stereo, 1x for mono), then rebind the material.
+    func setStereoOutputEnabled(_ enabled: Bool, forceReattach: Bool = false) {
+        // Serialize with the VideoToolbox frame path: this swaps the drawable
+        // queues and resets the depth renderer while frames may be in flight.
+        renderFrameLock.lock()
+        defer { renderFrameLock.unlock() }
+        let multiplier = enabled ? 2 : 1
+        let changed = multiplier != stereoOutputMultiplier
+        stereoOutputMultiplier = multiplier
+        if !changed && !forceReattach { return }
+        if multiplier == 1 {
+            realtime3DConverter?.reset()
+            lastPresentationTimeSeconds = nil
         }
+        runOnMainSync { self.rebuildDrawableQueues() }
+    }
 
+    private func runOnMainSync(_ body: @escaping @MainActor () -> Void) {
         if Thread.isMainThread {
-            work()
+            MainActor.assumeIsolated { body() }
         } else {
-            DispatchQueue.main.sync(execute: work)
+            DispatchQueue.main.sync {
+                MainActor.assumeIsolated { body() }
+            }
         }
+    }
+
+    @MainActor
+    private func rebuildDrawableQueues() {
+        if videoWidth == 0 || videoHeight == 0 {
+            print("Tried to set up client texture without defined dimensions (\(videoWidth), \(videoHeight)) - skipping")
+            return
+        }
+        let outputWidth = Int(videoWidth) * stereoOutputMultiplier
+        let outputHeight = Int(videoHeight)
+
+        let newQueue: TextureResource.DrawableQueue
+        do {
+            let descriptor = TextureResource.DrawableQueue.Descriptor(
+                pixelFormat: metalFormat,
+                width: outputWidth,
+                height: outputHeight,
+                usage: [.renderTarget, .shaderRead],
+                // Stereo has no bloom sampling, so skip the mip chain: the
+                // double-width 4K HDR case is the largest allocation in the app.
+                mipmapsMode: stereoOutputMultiplier == 2 ? .none : .allocateAll
+            )
+            let queue = try TextureResource.DrawableQueue(descriptor)
+            queue.allowsNextDrawableTimeout = true
+            newQueue = queue
+        } catch {
+            // Keep the previous queue rather than killing the app under memory
+            // pressure; the caller can turn 3D off to fall back to mono.
+            NSLog("%@", "DrawableVideoDecoder: Could not create DrawableQueue (\(outputWidth)x\(outputHeight)): \(error)")
+            return
+        }
+        self.drawableQueue = newQueue
+
+        // The bloom layer samples the whole texture, which would mix both eyes;
+        // keep it off while the output is stereo.
+        self.chromaHaloQueue = stereoOutputMultiplier == 2 ? nil : {
+            let mipShift = ChromaHaloDownsample.mipShift
+            let cw = max(1, Int(videoWidth) >> mipShift)
+            let ch = max(1, Int(videoHeight) >> mipShift)
+            let descriptor = TextureResource.DrawableQueue.Descriptor(
+                pixelFormat: metalFormat,
+                width: cw,
+                height: ch,
+                usage: [.renderTarget, .shaderWrite, .shaderRead],
+                mipmapsMode: .none
+            )
+            do {
+                let q = try TextureResource.DrawableQueue(descriptor)
+                q.allowsNextDrawableTimeout = true
+                return q
+            } catch {
+                print("DrawableVideoDecoder: Could not create ChromaHalo queue: \(error)")
+                return nil
+            }
+        }()
+
+        self.chromaHaloScratchA = nil
+        self.chromaHaloScratchB = nil
+
+        region = MTLRegionMake2D(0, 0, outputWidth, outputHeight)
+
+        self.callbackToRender(newQueue, self.chromaHaloQueue, (videoWidth, videoHeight))
+    }
+
+    /// Latest real-time 3D depth report (nil when 3D is off or no frame yet).
+    func realtime3DReport() -> LSRealtimeStereoRenderer.Report? {
+        realtime3DConverter?.lastReport
     }
 
     /// Basic setup for the decoder

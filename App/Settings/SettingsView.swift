@@ -329,8 +329,8 @@ struct SettingsView: View {
                             Text(mode.title).tag(mode)
                         }
                     }
-                    Toggle("Hide Controls With Mouse", isOn: $settings.hideChromeDuringMouseInput)
-                    Toggle("First Tap Only Restores Controls", isOn: $settings.suppressRestoreTap)
+                    Toggle("Hide Controls While Captured", isOn: $settings.hideChromeDuringMouseInput)
+                    Toggle("Gaze Tap Only Releases Capture", isOn: $settings.suppressRestoreTap)
                         .disabled(!settings.hideChromeDuringMouseInput)
                     Picker("Mouse Mode", selection: $settings.mouseMode) {
                         ForEach(MouseTrackingMode.allCases) { mode in
@@ -339,6 +339,14 @@ struct SettingsView: View {
                     }
                     Toggle("Swap A/B and X/Y", isOn: $settings.swapABXY)
                     Toggle("Multiple Controllers", isOn: $settings.multiController)
+                }
+
+                Section("3D") {
+                    NavigationLink {
+                        Realtime3DSettingsPage()
+                    } label: {
+                        Label("Real-time 3D", systemImage: "cube.transparent")
+                    }
                 }
 
                 Section("Diagnostics") {

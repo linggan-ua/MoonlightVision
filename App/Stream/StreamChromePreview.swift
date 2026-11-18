@@ -67,6 +67,8 @@ struct StreamChromePreview: View {
                     showKeyboard: $showKeyboard,
                     onDisconnect: {},
                     onToggle3D: {},
+                    onShow3DSettings: {},
+                    onRestartStream: {},
                     onToggleMute: {
                         volume = volume > 0 ? 0 : 0.72
                     }

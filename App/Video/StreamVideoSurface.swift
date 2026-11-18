@@ -28,6 +28,9 @@ struct StreamVideoSurface: View {
     let videoMode: VideoMode
     let streamWidth: Int
     let streamHeight: Int
+    /// True when enabling 3D will run the on-device 2D→3D conversion instead of
+    /// showing a frame-packed host stream.
+    let localConversion: Bool
     let showSBSConfirm: Bool
     let onEnableSBS: () -> Void
     let onCancelSBS: () -> Void
@@ -49,7 +52,8 @@ struct StreamVideoSurface: View {
         let _ = runtime.configure(
             screenAspect: screenAspect,
             videoMode: videoMode,
-            showConfirmCard: showSBSConfirm
+            showConfirmCard: showSBSConfirm,
+            texture: texture
         )
 
         GeometryReader { proxy in
@@ -60,7 +64,9 @@ struct StreamVideoSurface: View {
                     setupRealityView(content: content, attachments: attachments)
                     _ = content.subscribe(to: SceneEvents.Update.self) { _ in
                         if let frame = mailbox.collect() {
-                            bind(frame)
+                            MainActor.assumeIsolated {
+                                runtime.bind(frame)
+                            }
                         }
                         MainActor.assumeIsolated {
                             runtime.updateConfirmCard()
@@ -75,7 +81,11 @@ struct StreamVideoSurface: View {
                     }
                     Attachment(id: "sbsConfirm") {
                         if showSBSConfirm {
-                            SBSConfirmCard(onEnable: onEnableSBS, onCancel: onCancelSBS)
+                            SBSConfirmCard(
+                                localConversion: localConversion,
+                                onEnable: onEnableSBS,
+                                onCancel: onCancelSBS
+                            )
                         } else {
                             Color.clear.frame(width: 1, height: 1)
                         }
@@ -171,21 +181,6 @@ struct StreamVideoSurface: View {
     }
 
     // MARK: - Texture and material
-
-    /// Binds a freshly delivered drawable queue to the texture. RealityKit
-    /// delivers scene updates on the main thread; the fallback hop keeps this
-    /// safe if that ever stops being true.
-    private func bind(_ queue: TextureResource.DrawableQueue) {
-        if Thread.isMainThread {
-            MainActor.assumeIsolated {
-                texture.replace(withDrawables: queue)
-            }
-        } else {
-            Task { @MainActor in
-                texture.replace(withDrawables: queue)
-            }
-        }
-    }
 
     @MainActor
     private func setupMaterial() async {
@@ -342,17 +337,31 @@ final class StreamVideoSurfaceRuntime {
 
     private var lastUpdateSize: CGSize = .zero
     private var appliedMode: VideoMode?
+    private var appliedTexture: ObjectIdentifier?
     private var desiredAspect: Float = 0
     private var desiredMode: VideoMode = .standard2D
     private var desiredShowConfirmCard = false
+    private var currentTexture: TextureResource?
     private var lastCardScale: Float = 0
 
     /// Refreshes the values the per-frame closure reads. The subscription is
     /// created once, so it must not capture presentation state.
-    func configure(screenAspect: Float, videoMode: VideoMode, showConfirmCard: Bool) {
+    func configure(
+        screenAspect: Float,
+        videoMode: VideoMode,
+        showConfirmCard: Bool,
+        texture: TextureResource
+    ) {
         desiredAspect = screenAspect
         desiredMode = videoMode
         desiredShowConfirmCard = showConfirmCard
+        currentTexture = texture
+    }
+
+    /// Binds a freshly delivered drawable queue to the current texture. The
+    /// texture changes when a live 3D toggle resizes the SBS output.
+    func bind(_ queue: TextureResource.DrawableQueue) {
+        currentTexture?.replace(withDrawables: queue)
     }
 
     func updateScene(
@@ -407,21 +416,26 @@ final class StreamVideoSurfaceRuntime {
         texture: TextureResource
     ) {
         desiredMode = videoMode
-        guard let screen, appliedMode != videoMode else { return }
+        let textureID = ObjectIdentifier(texture)
+        guard let screen,
+              appliedMode != videoMode || appliedTexture != textureID else { return }
 
         if videoMode == .sideBySide3D, var material {
             do {
                 try material.setParameter(name: "texture", value: .textureResource(texture))
                 screen.model?.materials = [material]
                 appliedMode = .sideBySide3D
+                appliedTexture = textureID
             } catch {
                 NSLog("[Video] Failed to set SBS texture parameter: %@", "\(error)")
                 screen.model?.materials = [UnlitMaterial(texture: texture)]
                 appliedMode = .standard2D
+                appliedTexture = textureID
             }
         } else {
             screen.model?.materials = [UnlitMaterial(texture: texture)]
             appliedMode = .standard2D
+            appliedTexture = textureID
         }
     }
 
@@ -467,8 +481,23 @@ final class StreamVideoSurfaceRuntime {
 /// Asks before switching the window into side-by-side 3D, matching the
 /// core client's confirmation card.
 struct SBSConfirmCard: View {
+    let localConversion: Bool
     let onEnable: () -> Void
     let onCancel: () -> Void
+
+    private var title: LocalizedStringKey {
+        localConversion ? "Enable Real-time 3D" : "Enable SBS 3D"
+    }
+
+    private var detail: LocalizedStringKey {
+        localConversion
+            ? "Convert this 2D stream to 3D on this device using the Neural Engine."
+            : "Use software such as ReShade + Depth3D on your host PC to utilize SBS mode."
+    }
+
+    private var actionTitle: LocalizedStringKey {
+        localConversion ? "Enable 3D" : "Enable SBS 3D"
+    }
 
     var body: some View {
         VStack(spacing: 18) {
@@ -477,10 +506,10 @@ struct SBSConfirmCard: View {
                 .foregroundStyle(.white)
 
             VStack(spacing: 8) {
-                Text("Enable SBS 3D")
+                Text(title)
                     .font(.title3.bold())
                     .foregroundStyle(.white)
-                Text("Use software such as ReShade + Depth3D on your host PC to utilize SBS mode.")
+                Text(detail)
                     .font(.callout)
                     .foregroundStyle(.white.opacity(0.75))
                     .multilineTextAlignment(.center)
@@ -491,7 +520,7 @@ struct SBSConfirmCard: View {
                     .buttonStyle(.bordered)
 
                 Button(action: onEnable) {
-                    Text("Enable SBS 3D")
+                    Text(actionTitle)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)

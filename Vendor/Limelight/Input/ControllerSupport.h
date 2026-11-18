@@ -50,4 +50,6 @@
 
 -(NSUInteger) getConnectedGamepadCount;
 
+- (void)applySwapABXYButtons:(BOOL)swap;
+
 @end

@@ -96,13 +96,13 @@ protocol StreamMouseStrategy: AnyObject, StreamMouseSurfaceDelegate {
     func setTrackingMode(_ mode: MouseTrackingMode)
     func setActive(_ active: Bool)
     func updateStreamSize(_ size: StreamInputSize)
-    /// Hides the system pointer over the whole stream window and its margins.
-    /// Used while the mouse has taken over so it cannot wander onto system chrome.
-    func setSystemCursorHidden(_ hidden: Bool)
 
-    /// Called when the physical mouse actually moves/clicks/scrolls over the
-    /// picture. The session uses it to hide controls again after a gaze tap.
-    var onMouseActivity: (@MainActor () -> Void)? { get set }
+    /// True while mouse input is captured and forwarded to the host. Clicking
+    /// the picture captures; a direct gaze touch releases.
+    var isCaptured: Bool { get }
+    func setCaptured(_ captured: Bool)
+    /// Called when capture changes because of a click or a direct touch.
+    var onCaptureChanged: (@MainActor (Bool) -> Void)? { get set }
 }
 
 extension StreamMouseStrategy {
@@ -112,7 +112,6 @@ extension StreamMouseStrategy {
     func mouseSurfaceTouchesCancelled(_ touches: Set<UITouch>, event: UIEvent?) {}
     func mouseSurfaceDidLayout() {}
     func mouseSurfaceDidMoveToWindow() {}
-    func setSystemCursorHidden(_ hidden: Bool) {}
 }
 
 /// Sends stream input and owns the held-button state. A press is forwarded
@@ -464,6 +463,9 @@ final class GCMouseHub {
             },
             center.addObserver(forName: .GCMouseDidDisconnect, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.refreshProfiles() }
+            },
+            center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.repairHandlers() }
             }
         ]
         refreshProfiles()
@@ -476,8 +478,6 @@ final class GCMouseHub {
         attachRetry?.cancel()
         attachRetry = nil
         attachRetries = 0
-        let attached = profiles
-        attached.forEach(detach)
         profiles.removeAll()
         activeProfile = nil
         handlers = nil
@@ -488,6 +488,7 @@ final class GCMouseHub {
     private func refreshProfiles() {
         guard running else { return }
         let current = GCMouse.mice().filter { $0.mouseInput != nil }
+        let previousCount = profiles.count
         let attached = profiles
         for mouse in attached where !current.contains(where: { $0 === mouse }) {
             detach(mouse)
@@ -502,9 +503,15 @@ final class GCMouseHub {
             attachRetry = nil
             attachRetries = 0
         }
+        if profiles.count != previousCount {
+            NSLog("[Mouse] GCMouse profiles: %d -> %d (mice=%d)", previousCount, profiles.count, current.count)
+        }
         reportPresence()
     }
 
+    /// While no profile is attached, keep looking for one for a few seconds.
+    /// (Profiles that are present but whose handlers were dropped are repaired
+    /// by the connect/current and app-activation events instead of a poll.)
     private func scheduleAttachRetry() {
         guard attachRetries < 20 else { return }
         attachRetries += 1
@@ -517,9 +524,25 @@ final class GCMouseHub {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
     }
 
+    /// Re-installs handlers on the current profiles. Called by connect/current
+    /// notifications and when the app becomes active again, which is when the
+    /// system may have reset them (for example after a window is re-opened).
+    func repairHandlers() {
+        guard running else { return }
+        refreshProfiles()
+        for mouse in profiles {
+            installHandlers(on: mouse)
+        }
+    }
+
     private func attach(_ mouse: GCMouse) {
-        guard let input = mouse.mouseInput else { return }
+        guard mouse.mouseInput != nil else { return }
         profiles.append(mouse)
+        installHandlers(on: mouse)
+    }
+
+    private func installHandlers(on mouse: GCMouse) {
+        guard let input = mouse.mouseInput else { return }
 
         input.mouseMovedHandler = { [weak self, weak mouse] _, dx, dy in
             MainActor.assumeIsolated {
@@ -581,15 +604,10 @@ final class GCMouseHub {
         if activeProfile === mouse {
             activeProfile = nil
         }
-        if let input = mouse.mouseInput {
-            input.mouseMovedHandler = nil
-            input.leftButton.pressedChangedHandler = nil
-            input.rightButton?.pressedChangedHandler = nil
-            input.middleButton?.pressedChangedHandler = nil
-            input.auxiliaryButtons?.forEach { $0.pressedChangedHandler = nil }
-            input.scroll.xAxis.valueChangedHandler = nil
-            input.scroll.yAxis.valueChangedHandler = nil
-        }
+        // Handlers are left installed on purpose: they capture this hub weakly
+        // and no-op once it is stopped, and clearing them here used to race a
+        // newer session that had just attached its own handlers to the same
+        // GCMouse, leaving the app without mouse input until relaunch.
         profiles.removeAll { $0 === mouse }
     }
 

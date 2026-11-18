@@ -22,6 +22,10 @@ final class StreamWindowInputView: UIView {
     /// indirect-pointer events and do not trigger this.
     var onDirectTap: (() -> Void)?
 
+    /// The first direct contact of a gaze/pinch gesture, delivered before the
+    /// touch is forwarded. The session uses it to release mouse capture.
+    var onDirectTouchBegan: (() -> Void)?
+
     private let touchpad = StreamTouchpadInput()
     private(set) var touchpadMode = false
 
@@ -86,6 +90,9 @@ final class StreamWindowInputView: UIView {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if touches.contains(where: { $0.type == .direct }) {
+            onDirectTouchBegan?()
+        }
         if !touchpadMode {
             directTouchDelegate?.directTouchesBegan(touches, in: self)
         }

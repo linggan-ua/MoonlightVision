@@ -37,7 +37,14 @@ final class StreamSessionModel {
     /// The window plane's texture. Created for each stream with the requested
     /// resolution and pixel format; the decoder renders frames into it.
     private(set) var videoTexture: TextureResource?
+    private var videoTextureWidth = 0
     let frameMailbox = StreamFrameMailbox()
+
+    /// Set while a local 2D→3D conversion is running; the decoder reads it
+    /// from its own thread through this flag.
+    private let realtime3DActivation = Realtime3DActivationFlag()
+    /// The decoder of the active stream, for live 3D toggles and stats.
+    private(set) var activeDecoder: DrawableVideoDecoder?
 
     /// 2D or side-by-side 3D presentation. Runtime-only, like the mature
     /// clients: each stream starts in 2D.
@@ -46,7 +53,7 @@ final class StreamSessionModel {
             if videoMode != .sideBySide3D {
                 showSBSConfirm = false
             }
-            refreshInputSize()
+            applyVideoModeChange()
         }
     }
     /// The SBS confirmation card is showing in the stream window.
@@ -76,10 +83,8 @@ final class StreamSessionModel {
 
     private var mouseStrategy: (any StreamMouseStrategy)?
     private let touchInput = StreamTouchInput()
+    private(set) var isRestarting = false
     private(set) var hidesStreamChrome = false
-    private(set) var streamControlsRevealed = false
-    private(set) var physicalMousePresent = false
-    private var mousePresenceObservers: [NSObjectProtocol] = []
     private var gameControllerInteraction: GCEventInteraction?
     private var controllerSupport: ControllerSupport?
     private var controllerDelegate: StreamControllerDelegate?
@@ -137,6 +142,16 @@ final class StreamSessionModel {
         Int(activeConfig?.height ?? StreamSettingsStore.shared.resolution.height)
     }
 
+    /// True when the host itself sends a frame-packed side-by-side picture.
+    var isSBSStream: Bool {
+        StreamPictureGeometry.isSideBySideFrame(width: streamWidth, height: streamHeight)
+    }
+
+    /// A normal 2D stream shown as side-by-side 3D by converting it on device.
+    var isRealtime3DActive: Bool {
+        videoMode == .sideBySide3D && !isSBSStream
+    }
+
     /// Maps the host frame onto what the window actually shows. In side-by-side
     /// 3D the picture is one eye's half, so absolute pointer and touch input
     /// must be compressed into that half instead of stretched over the frame.
@@ -162,6 +177,26 @@ final class StreamSessionModel {
             width: activeConfig?.width ?? settings.resolution.width,
             height: activeConfig?.height ?? settings.resolution.height
         )
+    }
+
+    /// Reconciles the stream with the current display mode: local 2D→3D needs
+    /// a double-width texture and the decoder's stereo output.
+    private func applyVideoModeChange() {
+        let active = isRealtime3DActive
+        realtime3DActivation.isActive = active
+        refreshInputSize()
+
+        guard let config = activeConfig else { return }
+        let desiredWidth = max(1, Int(config.width) * (active ? 2 : 1))
+        let needsTexture = videoTextureWidth != desiredWidth
+        if needsTexture {
+            prepareVideoTexture(for: config)
+            frameMailbox.clear()
+        }
+        activeDecoder?.setStereoOutputEnabled(active, forceReattach: needsTexture)
+        if isStreaming {
+            LiRequestIdrFrame()
+        }
     }
 
     private func refreshInputSize() {
@@ -216,6 +251,44 @@ final class StreamSessionModel {
                 self?.finish(message: nil)
             }
         })
+    }
+
+    /// Rebuilds the connection in place, keeping the stream window and its
+    /// chrome. Used when a setting that only applies at connect time changes.
+    func restart() async {
+        guard !isRestarting, !userInitiatedStop else { return }
+        isRestarting = true
+        defer { isRestarting = false }
+
+        phase = .preparing
+        teardownInput()
+        statsTimer?.invalidate()
+        statsTimer = nil
+        statsText = ""
+        connectionPoor = false
+        showSBSConfirm = false
+        frameMailbox.clear()
+        videoTexture = nil
+        videoTextureWidth = 0
+        activeDecoder = nil
+        realtime3DActivation.isActive = false
+
+        let manager = streamManager
+        streamManager = nil
+        connectionDelegate = nil
+
+        if let manager {
+            await withCheckedContinuation { continuation in
+                manager.stopStream {
+                    continuation.resume()
+                }
+            }
+        }
+
+        guard !userInitiatedStop else { return }
+        phase = .idle
+        started = false
+        await start()
     }
 
     /// Called from the stream scene when visionOS backgrounds or foregrounds the window.
@@ -328,21 +401,30 @@ final class StreamSessionModel {
         }
         let hdr = StreamSettingsStore.shared.hdrEnabled
         let useFramePacing = config.useFramePacing
+        let activation = realtime3DActivation
+        let initialAspect = Float(streamAspect)
         guard let manager = StreamManager(
             config: config,
             rendererProvider: { [weak self] in
-                DrawableVideoDecoder(
+                let decoder = DrawableVideoDecoder(
                     texture: texture,
                     callbacks: delegate,
-                    aspectRatio: Float(self?.streamAspect ?? (16.0 / 9.0)),
+                    aspectRatio: initialAspect,
                     useFramePacing: useFramePacing,
                     enableHDR: hdr,
                     hdrSettingsProvider: nil,
                     enhancementsProvider: nil,
+                    realtime3DSettingsProvider: {
+                        Realtime3DSettingsStore.shared.settings(active: activation.isActive)
+                    },
                     callbackToRender: { [weak self] queue, _, _ in
                         self?.frameMailbox.deposit(queue)
                     }
                 )
+                // Must be set before setup(): it decides the initial queue width.
+                decoder.setStereoOutputEnabled(self?.isRealtime3DActive ?? false)
+                self?.activeDecoder = decoder
+                return decoder
             },
             connectionCallbacks: delegate
         ) else {
@@ -403,8 +485,11 @@ final class StreamSessionModel {
     }
 
     private func prepareVideoTexture(for config: StreamConfiguration) {
-        let width = max(1, Int(config.width))
+        // Local 2D→3D packs both eyes into one double-width frame.
+        let multiplier = isRealtime3DActive ? 2 : 1
+        let width = max(1, Int(config.width) * multiplier)
         let height = max(1, Int(config.height))
+        videoTextureWidth = width
         let hdr = StreamSettingsStore.shared.hdrEnabled
         let bytesPerPixel = hdr ? 8 : 4
         let pixelFormat: MTLPixelFormat = hdr ? .rgba16Float : .bgra8Unorm_srgb
@@ -535,6 +620,9 @@ final class StreamSessionModel {
         let size = makeInputSize(width: config.width, height: config.height)
         touchInput.updateStreamSize(size)
         inputView.directTouchDelegate = touchInput
+        inputView.onDirectTouchBegan = { [weak self] in
+            self?.exitMouseCapture()
+        }
 
         let settings = StreamSettingsStore.shared
         inputView.setTouchpadMode(settings.mouseInputMode == .touchpad)
@@ -546,10 +634,9 @@ final class StreamSessionModel {
             size: size,
             active: !isBackgrounded
         )
-        strategy.onMouseActivity = { [weak self] in
-            self?.handleMouseActivity()
+        strategy.onCaptureChanged = { [weak self] _ in
+            self?.refreshChromeVisibility()
         }
-        startMousePresenceMonitoring()
         refreshChromeVisibility()
 
         let delegate = StreamControllerDelegate()
@@ -562,71 +649,44 @@ final class StreamSessionModel {
         controllerSupport = ControllerSupport(config: config, delegate: delegate)
     }
 
-    // MARK: - Window chrome
+    // MARK: - Window chrome and mouse capture
 
-    /// Re-evaluate whether the control ornament, system cursor and system
-    /// overlays should be hidden for the current mouse/stream state.
+    /// Re-evaluate whether the control ornament and system overlays should be
+    /// hidden. The mouse captures on a click on the picture, so chrome hides
+    /// only while a capture is active.
     func refreshChromeVisibility() {
         let settings = StreamSettingsStore.shared
+        let captured = mouseStrategy?.isCaptured ?? false
         touchInput.setSuppressRestoreTap(settings.suppressRestoreTap)
+        touchInput.setChromeHidden(captured)
         inputView.setTouchpadMode(settings.mouseInputMode == .touchpad)
         inputView.setTouchpadSuppressRestoreTap(settings.suppressRestoreTap)
-        let shouldHide = settings.hideChromeDuringMouseInput
-            && physicalMousePresent
-            && isStreaming
-            && !streamControlsRevealed
-        inputView.setTouchpadChromeHidden(shouldHide)
+        inputView.setTouchpadChromeHidden(captured)
+
+        let shouldHide = settings.hideChromeDuringMouseInput && captured && isStreaming
         guard shouldHide != hidesStreamChrome else { return }
         hidesStreamChrome = shouldHide
-        touchInput.setChromeHidden(shouldHide)
-        mouseStrategy?.setSystemCursorHidden(shouldHide)
-        NSLog("[Stream] mouse chrome hidden=%d", shouldHide ? 1 : 0)
+        NSLog("[Stream] mouse captured=%d chrome hidden=%d", captured ? 1 : 0, shouldHide ? 1 : 0)
     }
 
-    /// A gaze tap on the picture restores the control ornament and normal
-    /// window behavior. The next mouse movement over the picture hides them.
-    func revealStreamControls() {
-        streamControlsRevealed = true
-        refreshChromeVisibility()
-    }
-
-    private func hideStreamControls() {
-        streamControlsRevealed = false
-        refreshChromeVisibility()
-    }
-
-    private func handleMouseActivity() {
-        guard streamControlsRevealed,
-              StreamSettingsStore.shared.hideChromeDuringMouseInput,
-              physicalMousePresent else { return }
-        hideStreamControls()
-    }
-
-    private func startMousePresenceMonitoring() {
-        stopMousePresenceMonitoring()
-        let center = NotificationCenter.default
-        let names: [Notification.Name] = [
-            .GCMouseDidConnect,
-            .GCMouseDidDisconnect,
-            .GCMouseDidBecomeCurrent
-        ]
-        mousePresenceObservers = names.map { name in
-            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.updateMousePresence() }
-            }
+    /// Releases mouse capture when the user gaze-taps the picture, and keeps
+    /// that contact from also clicking the host.
+    func exitMouseCapture() {
+        guard let strategy = mouseStrategy, strategy.isCaptured else { return }
+        if StreamSettingsStore.shared.suppressRestoreTap {
+            touchInput.suppressNextContact()
         }
-        updateMousePresence()
+        strategy.setCaptured(false)
     }
 
-    private func stopMousePresenceMonitoring() {
-        mousePresenceObservers.forEach(NotificationCenter.default.removeObserver)
-        mousePresenceObservers.removeAll()
-        physicalMousePresent = false
+    /// Applies a mouse tracking mode change to the live strategy.
+    func setMouseMode(_ mode: MouseTrackingMode) {
+        mouseStrategy?.setTrackingMode(mode)
     }
 
-    private func updateMousePresence() {
-        physicalMousePresent = !GCMouse.mice().isEmpty
-        refreshChromeVisibility()
+    /// Applies the ABXY swap without reconnecting.
+    func setSwapABXY(_ swap: Bool) {
+        controllerSupport?.applySwapABXYButtons(swap)
     }
 
     private func teardownInput() {
@@ -637,12 +697,10 @@ final class StreamSessionModel {
         touchInput.setChromeHidden(false)
         touchInput.cancelAll()
         inputView.directTouchDelegate = nil
-        stopMousePresenceMonitoring()
-        mouseStrategy?.setSystemCursorHidden(false)
+        inputView.onDirectTouchBegan = nil
         mouseStrategy?.stop()
         mouseStrategy = nil
         hidesStreamChrome = false
-        streamControlsRevealed = false
         controllerSupport?.cleanup()
         controllerSupport = nil
         controllerDelegate = nil
@@ -664,6 +722,8 @@ final class StreamSessionModel {
         statsText = ""
         connectionPoor = false
         showSBSConfirm = false
+        realtime3DActivation.isActive = false
+        activeDecoder = nil
         frameMailbox.clear()
         videoTexture = nil
         if case .ended = phase { return }
@@ -681,7 +741,17 @@ final class StreamSessionModel {
                     }
                     return
                 }
-                self.statsText = manager.getStatsOverlayText() ?? ""
+                var text = manager.getStatsOverlayText() ?? ""
+                if self.isRealtime3DActive,
+                   let report = self.activeDecoder?.realtime3DReport() {
+                    let inferMS = (report.inferenceSeconds ?? 0) * 1000
+                    text += String(
+                        format: "\n3D: depth age %d fr | stride %d | infer %.1f ms | synth %.1f ms",
+                        report.depthAgeFrames, report.depthStride,
+                        inferMS, report.synthesisSeconds * 1000
+                    )
+                }
+                self.statsText = text
             }
         }
     }

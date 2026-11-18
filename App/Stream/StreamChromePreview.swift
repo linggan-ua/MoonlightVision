@@ -68,7 +68,7 @@ struct StreamChromePreview: View {
                     onDisconnect: {},
                     onToggle3D: {},
                     onShow3DSettings: {},
-                    onRestartStream: {},
+                    onOpenSettings: {},
                     onToggleMute: {
                         volume = volume > 0 ? 0 : 0.72
                     }

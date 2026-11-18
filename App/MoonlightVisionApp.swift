@@ -30,7 +30,7 @@ struct MoonlightVisionApp: SwiftUI.App {
         Window("3D Settings", id: "stream-3d-settings") {
             Stream3DSettingsWindowView()
         }
-        .defaultSize(width: 430, height: 650)
+        .defaultSize(width: 560, height: 700)
         .defaultWindowPlacement { _, context in
             if let stream = context.windows.first(where: { $0.id == "stream" }) {
                 return WindowPlacement(.trailing(stream))

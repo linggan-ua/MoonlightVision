@@ -214,3 +214,19 @@
 "Changes apply live where possible. Video, audio layout and host options need a stream restart." = "设置会尽量实时生效；视频、声道布局和主机选项需要重新启动串流。";
 "Adjust stream settings without leaving the picture." = "不离开画面调整串流设置。";
 "Show the stream as side-by-side 3D. Long-press for 3D settings." = "以左右分屏 3D 显示串流。长按打开 3D 设置。";
+
+"Stereo 3D" = "立体 3D";
+"Synthesis" = "合成";
+"Scheme Default" = "方案默认";
+"Depth Model" = "深度模型";
+"Show Depth" = "显示深度图";
+"Packed SBS Input" = "并排 SBS 输入";
+"Reset Tuning" = "重置调校";
+"Parallax" = "视差";
+
+"Off" = "关闭";
+
+"Some settings require restarting the stream to take effect." = "部分设置需要重新启动串流才能生效。";
+"Restarting keeps this window open and reconnects to the host." = "重启会保留当前窗口并重新连接主机。";
+"Not Now" = "暂不";
+"Stream settings" = "串流设置";

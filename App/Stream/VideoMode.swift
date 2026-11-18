@@ -18,6 +18,10 @@ enum VideoMode: Equatable {
 }
 
 enum StreamPictureGeometry {
+    /// A stream at least this wide is plausibly packed side-by-side. 32:9 is
+    /// 3.56; a 21:9 ultrawide (2.33) stays mono.
+    static let packedAspectThreshold: Double = 3.0
+
     /// True when a frame is the usual 32:9 side-by-side layout holding both
     /// eyes in one picture.
     static func isSideBySideFrame(width: Int, height: Int) -> Bool {
@@ -25,10 +29,31 @@ enum StreamPictureGeometry {
         return abs(Double(width) / Double(height) - 32.0 / 9.0) < 0.01
     }
 
+    static func isPackedFrame(aspect: Double) -> Bool {
+        aspect.isFinite && aspect >= packedAspectThreshold
+    }
+
+    /// Packed detection with the user's explicit "Packed SBS Input" assertion:
+    /// it extends the automatic 32:9 rule to any 3:1-or-wider frame, but never
+    /// claims a normal wide picture.
+    static func isPackedStream(width: Int, height: Int, allowWide: Bool) -> Bool {
+        guard width > 0, height > 0 else { return false }
+        if allowWide, isPackedFrame(aspect: Double(width) / Double(height)) {
+            return true
+        }
+        return isSideBySideFrame(width: width, height: height)
+    }
+
     /// Height ÷ width of the plane the window shows.
-    static func planeHeightToWidth(width: Int, height: Int, mode: VideoMode) -> Double {
+    static func planeHeightToWidth(
+        width: Int,
+        height: Int,
+        mode: VideoMode,
+        assumePacked: Bool = false
+    ) -> Double {
         guard width > 0, height > 0 else { return 9.0 / 16.0 }
-        if mode == .sideBySide3D, isSideBySideFrame(width: width, height: height) {
+        if mode == .sideBySide3D,
+           assumePacked || isSideBySideFrame(width: width, height: height) {
             return Double(height) / (Double(width) / 2)
         }
         return Double(height) / Double(width)

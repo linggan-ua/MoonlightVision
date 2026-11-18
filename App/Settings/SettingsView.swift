@@ -10,6 +10,7 @@ import SwiftUI
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable private var settings = StreamSettingsStore.shared
+    @ObservedObject private var realtime3D = Realtime3DSettingsStore.shared
     @State private var showResetConfirm = false
 
     @State private var selectedAspectRatio: String?
@@ -306,6 +307,26 @@ struct SettingsView: View {
                     Label("Video", systemImage: "tv")
                 }
 
+                Section {
+                    Toggle("Stereo 3D", isOn: $settings.stereoSBS)
+                    NavigationLink {
+                        Stereo3DSettingsView()
+                    } label: {
+                        HStack {
+                            Label("3D Settings", systemImage: "cube.transparent")
+                            Spacer()
+                            Text(
+                                settings.stereoSBS
+                                    ? LocalizedStringKey(realtime3D.scheme.tileTitle)
+                                    : LocalizedStringKey("Off")
+                            )
+                            .foregroundStyle(.secondary)
+                        }
+                    }
+                } header: {
+                    Label("3D", systemImage: "cube.transparent")
+                }
+
                 Section("Host") {
                     Toggle("Optimize Game Settings", isOn: $settings.optimizeGameSettings)
                     Toggle("Play Audio on PC", isOn: $settings.playAudioOnPC)
@@ -339,14 +360,6 @@ struct SettingsView: View {
                     }
                     Toggle("Swap A/B and X/Y", isOn: $settings.swapABXY)
                     Toggle("Multiple Controllers", isOn: $settings.multiController)
-                }
-
-                Section("3D") {
-                    NavigationLink {
-                        Realtime3DSettingsPage()
-                    } label: {
-                        Label("Real-time 3D", systemImage: "cube.transparent")
-                    }
                 }
 
                 Section("Diagnostics") {

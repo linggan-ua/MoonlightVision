@@ -120,6 +120,8 @@ final class StreamSettingsStore {
     private static let legacyTouchpadModeKey = "mv.touchpadMode"
     private static let hideChromeDuringMouseKey = "mv.hideChromeDuringMouseInput"
     private static let suppressRestoreTapKey = "mv.suppressRestoreTap"
+    private static let stereoSBSKey = "mv.stereoSBS"
+    private static let packedSBSInputKey = "mv.packedSBSInput"
 
     private let dataManager = DataManager()
 
@@ -185,6 +187,24 @@ final class StreamSettingsStore {
     var spatialAudio: Bool = false {
         didSet { save() }
     }
+    /// Present the stream through the window's side-by-side stereo plane.
+    /// Mono streams are converted to stereo by the real-time 2D→3D pipeline
+    /// (depth model + Metal synthesis); a packed SBS stream is split one half
+    /// per eye. The tuning lives in `Realtime3DSettingsStore`.
+    var stereoSBS: Bool = false {
+        didSet {
+            UserDefaults.standard.set(stereoSBS, forKey: Self.stereoSBSKey)
+        }
+    }
+    /// Assert that a very wide (3:1 or wider) stream is already packed
+    /// side-by-side instead of a mono frame to convert. Off by default: a
+    /// 32:9 frame is still detected automatically; enable this for other
+    /// packed sources.
+    var packedSBSInput: Bool = false {
+        didSet {
+            UserDefaults.standard.set(packedSBSInput, forKey: Self.packedSBSInputKey)
+        }
+    }
 
     /// Only used for the one-time migration away from the old UserDefaults blob.
     private struct LegacyStored: Codable {
@@ -233,11 +253,15 @@ final class StreamSettingsStore {
         }
         hideChromeDuringMouseInput = UserDefaults.standard.object(forKey: Self.hideChromeDuringMouseKey) as? Bool ?? true
         suppressRestoreTap = UserDefaults.standard.bool(forKey: Self.suppressRestoreTapKey)
+        stereoSBS = UserDefaults.standard.bool(forKey: Self.stereoSBSKey)
+        packedSBSInput = UserDefaults.standard.bool(forKey: Self.packedSBSInputKey)
     }
 
     func reset() {
         applyDefaults()
         save()
+        stereoSBS = false
+        packedSBSInput = false
     }
 
     // MARK: - Loading
@@ -265,6 +289,8 @@ final class StreamSettingsStore {
         swapABXY = false
         multiController = false
         spatialAudio = false
+        stereoSBS = false
+        packedSBSInput = false
     }
 
     private func apply(_ legacy: LegacyStored) {

@@ -53,6 +53,11 @@ final class StreamSessionModel {
             if videoMode != .sideBySide3D {
                 showSBSConfirm = false
             }
+            let enabled = videoMode == .sideBySide3D
+            let store = StreamSettingsStore.shared
+            if store.stereoSBS != enabled {
+                store.stereoSBS = enabled
+            }
             applyVideoModeChange()
         }
     }
@@ -93,6 +98,10 @@ final class StreamSessionModel {
     init(host: TemporaryHost, app: TemporaryApp) {
         self.host = host
         self.app = app
+        // The persisted master switch decides how the next stream presents.
+        videoMode = StreamSettingsStore.shared.stereoSBS
+            ? .sideBySide3D
+            : .standard2D
     }
 
     var statusText: String {
@@ -122,15 +131,14 @@ final class StreamSessionModel {
         return false
     }
 
-    /// Width ÷ height of the picture the window shows. SBS streams carry both
-    /// eyes side by side, so each eye's picture is half as wide; the window
-    /// locks to that per-eye aspect in 3D.
+    /// Width ÷ height of the picture the window shows. Packed SBS streams
+    /// carry both eyes side by side, so each eye's picture is half as wide; the
+    /// window locks to that per-eye aspect in 3D.
     var streamAspect: Double {
-        StreamPictureGeometry.aspectRatio(
-            width: streamWidth,
-            height: streamHeight,
-            mode: videoMode
-        )
+        if videoMode == .sideBySide3D, isSBSStream {
+            return (Double(streamWidth) / 2) / Double(max(streamHeight, 1))
+        }
+        return Double(streamWidth) / Double(max(streamHeight, 1))
     }
 
     /// Host frame size for the active stream.
@@ -143,8 +151,14 @@ final class StreamSessionModel {
     }
 
     /// True when the host itself sends a frame-packed side-by-side picture.
+    /// 32:9 is detected automatically; "Packed SBS Input" extends that to any
+    /// 3:1-or-wider frame.
     var isSBSStream: Bool {
-        StreamPictureGeometry.isSideBySideFrame(width: streamWidth, height: streamHeight)
+        StreamPictureGeometry.isPackedStream(
+            width: streamWidth,
+            height: streamHeight,
+            allowWide: StreamSettingsStore.shared.packedSBSInput
+        )
     }
 
     /// A normal 2D stream shown as side-by-side 3D by converting it on device.
@@ -159,9 +173,10 @@ final class StreamSessionModel {
         let hostWidth = max(width, 1)
         let hostHeight = max(height, 1)
         let isSBS = videoMode == .sideBySide3D
-            && StreamPictureGeometry.isSideBySideFrame(
+            && StreamPictureGeometry.isPackedStream(
                 width: Int(hostWidth),
-                height: Int(hostHeight)
+                height: Int(hostHeight),
+                allowWide: StreamSettingsStore.shared.packedSBSInput
             )
         return StreamInputSize(
             hostWidth: hostWidth,
@@ -177,6 +192,19 @@ final class StreamSessionModel {
             width: activeConfig?.width ?? settings.resolution.width,
             height: activeConfig?.height ?? settings.resolution.height
         )
+    }
+
+    /// Applies the master Stereo 3D switch from the settings page to the live
+    /// session.
+    func setStereoSBS(_ enabled: Bool) {
+        let mode: VideoMode = enabled ? .sideBySide3D : .standard2D
+        guard videoMode != mode else { return }
+        videoMode = mode
+    }
+
+    /// Re-applies the layout after the packed-input assertion changes.
+    func refreshSBSLayout() {
+        applyVideoModeChange()
     }
 
     /// Reconciles the stream with the current display mode: local 2D→3D needs
@@ -320,6 +348,7 @@ final class StreamSessionModel {
         connectionPoor = false
         let config = makeConfiguration()
         activeConfig = config
+        realtime3DActivation.isActive = isRealtime3DActive
         prepareVideoTexture(for: config)
         setupInput(config: config)
         MVSetStreamVolume(Float(volume))

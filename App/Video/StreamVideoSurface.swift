@@ -28,6 +28,9 @@ struct StreamVideoSurface: View {
     let videoMode: VideoMode
     let streamWidth: Int
     let streamHeight: Int
+    /// The host frame is already packed side-by-side (32:9 automatically, or
+    /// any 3:1 frame when "Packed SBS Input" is on).
+    let packedSBS: Bool
     /// True when enabling 3D will run the on-device 2D→3D conversion instead of
     /// showing a frame-packed host stream.
     let localConversion: Bool
@@ -43,7 +46,8 @@ struct StreamVideoSurface: View {
         let aspect = StreamPictureGeometry.planeHeightToWidth(
             width: streamWidth,
             height: streamHeight,
-            mode: videoMode
+            mode: videoMode,
+            assumePacked: packedSBS
         )
         return Float(aspect)
     }
@@ -126,7 +130,7 @@ struct StreamVideoSurface: View {
             mesh = .generatePlane(width: baseWidth, height: baseWidth * aspect)
         }
 
-        let entity = ModelEntity(mesh: mesh, materials: [UnlitMaterial(texture: texture)])
+        let entity = ModelEntity(mesh: mesh, materials: [StreamVideoMaterialFactory.unlit(texture: texture)])
         entity.position = .zero
         content.add(entity)
         runtime.screen = entity
@@ -182,6 +186,24 @@ struct StreamVideoSurface: View {
 
     // MARK: - Texture and material
 
+    /// RealityKit still tone-maps ShaderGraph unlit surfaces by default, which
+    /// lifts brightness, contrast and saturation compared with the system video
+    /// layer. Video pixels are already display-referred, so opt out like the
+    /// core client and pass them through unchanged.
+    private static func disablingToneMapping(
+        on material: ShaderGraphMaterial
+    ) async -> ShaderGraphMaterial {
+        var descriptor = material.program.descriptor
+        descriptor.lightingModel = .unlit(isTonemappingEnabled: false)
+        do {
+            let program = try await ShaderGraphMaterial.Program(descriptor: descriptor)
+            return ShaderGraphMaterial(program: program)
+        } catch {
+            NSLog("[Video] Failed to disable SBS tone mapping: %@", "\(error)")
+            return material
+        }
+    }
+
     @MainActor
     private func setupMaterial() async {
         guard surfaceMaterial == nil else { return }
@@ -190,6 +212,7 @@ struct StreamVideoSurface: View {
                 named: "/Root/SBSMaterial",
                 from: "SBSMaterial.usda"
             )
+            material = await Self.disablingToneMapping(on: material)
             try material.setParameter(name: "texture", value: .textureResource(texture))
             surfaceMaterial = material
             runtime.updateScreenMaterial(
@@ -326,6 +349,19 @@ enum StreamVideoSurfaceMesh {
     }
 }
 
+/// The window picture is video, not scene content: RealityKit's post-process
+/// tone map would raise brightness, contrast and saturation relative to the
+/// system video layer. The plane's unlit material opts out so the decoder's
+/// colors reach the compositor unchanged.
+@MainActor
+enum StreamVideoMaterialFactory {
+    static func unlit(texture: TextureResource) -> UnlitMaterial {
+        var material = UnlitMaterial(applyPostProcessToneMap: false)
+        material.color.texture = UnlitMaterial.Texture(texture)
+        return material
+    }
+}
+
 /// Holds the scene handles and the last applied transforms. RealityKit
 /// delivers scene updates on the main thread, so the box needs no lock.
 @MainActor
@@ -428,12 +464,12 @@ final class StreamVideoSurfaceRuntime {
                 appliedTexture = textureID
             } catch {
                 NSLog("[Video] Failed to set SBS texture parameter: %@", "\(error)")
-                screen.model?.materials = [UnlitMaterial(texture: texture)]
+                screen.model?.materials = [StreamVideoMaterialFactory.unlit(texture: texture)]
                 appliedMode = .standard2D
                 appliedTexture = textureID
             }
         } else {
-            screen.model?.materials = [UnlitMaterial(texture: texture)]
+            screen.model?.materials = [StreamVideoMaterialFactory.unlit(texture: texture)]
             appliedMode = .standard2D
             appliedTexture = textureID
         }

@@ -214,3 +214,19 @@
 "Changes apply live where possible. Video, audio layout and host options need a stream restart." = "Changes apply live where possible. Video, audio layout and host options need a stream restart.";
 "Adjust stream settings without leaving the picture." = "Adjust stream settings without leaving the picture.";
 "Show the stream as side-by-side 3D. Long-press for 3D settings." = "Show the stream as side-by-side 3D. Long-press for 3D settings.";
+
+"Stereo 3D" = "Stereo 3D";
+"Synthesis" = "Synthesis";
+"Scheme Default" = "Scheme Default";
+"Depth Model" = "Depth Model";
+"Show Depth" = "Show Depth";
+"Packed SBS Input" = "Packed SBS Input";
+"Reset Tuning" = "Reset Tuning";
+"Parallax" = "Parallax";
+
+"Off" = "Off";
+
+"Some settings require restarting the stream to take effect." = "Some settings require restarting the stream to take effect.";
+"Restarting keeps this window open and reconnects to the host." = "Restarting keeps this window open and reconnects to the host.";
+"Not Now" = "Not Now";
+"Stream settings" = "Stream settings";

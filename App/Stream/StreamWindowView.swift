@@ -19,6 +19,9 @@ struct StreamWindowView: View {
 
     @State private var keyboardHintVisible = false
     @State private var keyboardHintTask: Task<Void, Never>?
+    @State private var showStreamSettings = false
+    @State private var restartBaseline: StreamRestartSettings?
+    @State private var showRestartPrompt = false
 
     init(model: StreamSessionModel, onExit: @escaping () -> Void) {
         self.model = model
@@ -54,6 +57,7 @@ struct StreamWindowView: View {
                     videoMode: model.videoMode,
                     streamWidth: model.streamWidth,
                     streamHeight: model.streamHeight,
+                    packedSBS: model.isSBSStream,
                     localConversion: !model.isSBSStream,
                     showSBSConfirm: model.showSBSConfirm,
                     onEnableSBS: {
@@ -100,7 +104,14 @@ struct StreamWindowView: View {
                     .transition(.opacity)
                 }
                 if !model.hidesStreamChrome {
-                    StreamControlsView(model: model, onExit: onExit)
+                    StreamControlsView(
+                        model: model,
+                        onExit: onExit,
+                        onOpenSettings: {
+                            restartBaseline = StreamRestartSettings()
+                            showStreamSettings = true
+                        }
+                    )
                 }
             }
             .padding(.top, ornamentGap)
@@ -120,6 +131,30 @@ struct StreamWindowView: View {
                 }
             }
             .padding(.bottom, ornamentGap)
+        }
+        .sheet(isPresented: $showStreamSettings, onDismiss: {
+            guard let baseline = restartBaseline else { return }
+            restartBaseline = nil
+            guard StreamRestartSettings() != baseline else { return }
+            // Let the sheet's dismissal finish before presenting the dialog.
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(250))
+                showRestartPrompt = true
+            }
+        }) {
+            SettingsView()
+                .frame(minWidth: 720, minHeight: 760)
+        }
+        .alert(
+            "Some settings require restarting the stream to take effect.",
+            isPresented: $showRestartPrompt
+        ) {
+            Button("Restart") {
+                Task { await model.restart() }
+            }
+            Button("Not Now", role: .cancel) {}
+        } message: {
+            Text("Restarting keeps this window open and reconnects to the host.")
         }
         .task { await model.startWhenReady() }
         .onAppear {
@@ -142,6 +177,12 @@ struct StreamWindowView: View {
         }
         .onChange(of: settings.suppressRestoreTap) { _, _ in
             model.refreshChromeVisibility()
+        }
+        .onChange(of: settings.stereoSBS) { _, enabled in
+            model.setStereoSBS(enabled)
+        }
+        .onChange(of: settings.packedSBSInput) { _, _ in
+            model.refreshSBSLayout()
         }
         .onChange(of: settings.mouseMode) { _, mode in
             model.setMouseMode(mode)
@@ -182,6 +223,7 @@ private struct StreamControlsView: View {
 
     let model: StreamSessionModel
     let onExit: () -> Void
+    let onOpenSettings: () -> Void
 
     @Bindable private var settings = StreamSettingsStore.shared
     @Bindable private var keyboardWindow = StreamKeyboardWindowState.shared
@@ -245,9 +287,7 @@ private struct StreamControlsView: View {
             onShow3DSettings: {
                 openWindow(id: "stream-3d-settings")
             },
-            onRestartStream: {
-                Task { await model.restart() }
-            },
+            onOpenSettings: onOpenSettings,
             onToggleMute: {
                 model.toggleMute()
             }

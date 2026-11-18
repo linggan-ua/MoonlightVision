@@ -76,6 +76,10 @@ struct StreamWindowRootView: View {
             // 3D shows one eye's half of a 32:9 frame, so the window becomes 16:9.
             windowScene?.lockStreamAspect(streamAspect, preferredSize: nil)
         }
+        .onChange(of: settings.packedSBSInput) { _, _ in
+            // The packed assertion changes whether a wide frame is one eye.
+            windowScene?.lockStreamAspect(streamAspect, preferredSize: nil)
+        }
         .onDisappear {
             rememberWindowSize()
             StreamKeyboardWindowState.shared.wantsKeyboard = false

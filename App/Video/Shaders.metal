@@ -901,13 +901,34 @@ fragment half4 chromaHaloBlurVFragment(
 
 // MARK: - Real-time 3D depth preview
 
+/// Compact polynomial fit of Google's Turbo colormap (Anton Mikhailov's
+/// approximation). Used by the optional colorized depth preview.
+inline half3 realtimeTurboColor(float x) {
+    x = clamp(x, 0.0f, 1.0f);
+    float4 v4 = float4(1.0, x, x * x, x * x * x);
+    float2 v2 = v4.zw * v4.z;
+    float3 c = float3(
+        dot(v4, float4(0.13572138, 4.61539260, -42.66032258, 132.13108234))
+            + dot(v2, float2(-152.94239396, 59.28637943)),
+        dot(v4, float4(0.09140261, 2.19418839, 4.84296658, -14.18503333))
+            + dot(v2, float2(4.27729857, 2.82956604)),
+        dot(v4, float4(0.10667330, 12.64194608, -60.58204836, 110.36276771))
+            + dot(v2, float2(-89.90310912, 27.34824973))
+    );
+    return half3(clamp(c, 0.0f, 1.0f));
+}
+
 /// Draws the renderer's normalized depth field. Used by the real-time 2D→3D
 /// debug view; the stereo synthesis itself lives in RealtimeStereo.metal.
 fragment half4 realtimeDepthPreviewFragment(
     CopyVertexOut in [[stage_in]],
-    texture2d<float> depthTex [[texture(0)]]
+    texture2d<float> depthTex [[texture(0)]],
+    constant uint &colorDepth [[buffer(0)]]
 ) {
     constexpr sampler s(coord::normalized, address::clamp_to_edge, filter::nearest);
     float d = depthTex.sample(s, in.uv).r;
+    if (colorDepth != 0) {
+        return half4(realtimeTurboColor(d), 1.0h);
+    }
     return half4(half3(d), 1.0h);
 }

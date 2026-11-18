@@ -688,6 +688,12 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             if let pipeline = depthPreviewPipeline {
                 renderEncoder.setRenderPipelineState(pipeline)
                 renderEncoder.setFragmentTexture(depthPreviewTexture, index: 0)
+                var depthColorMode: UInt32 = realtimeSettings.colorDepth ? 1 : 0
+                renderEncoder.setFragmentBytes(
+                    &depthColorMode,
+                    length: MemoryLayout<UInt32>.size,
+                    index: 0
+                )
                 for originX in stride(from: 0, to: outputWidth, by: max(eyeWidth, 1)) {
                     renderEncoder.setViewport(MTLViewport(
                         originX: Double(originX),
@@ -997,9 +1003,13 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
                 width: outputWidth,
                 height: outputHeight,
                 usage: [.renderTarget, .shaderRead],
-                // Stereo has no bloom sampling, so skip the mip chain: the
-                // double-width 4K HDR case is the largest allocation in the app.
-                mipmapsMode: stereoOutputMultiplier == 2 ? .none : .allocateAll
+                // The picture material samples level 0: this chain only fed the
+                // dormant bloom pass (which reads mip 0 anyway), and letting
+                // RealityKit pick a mip level made the mono plane visibly
+                // softer than the stereo path, which has never had mipmaps.
+                // Dropping it matches the two modes and saves the per-frame
+                // mip generation on 4K HDR textures.
+                mipmapsMode: .none
             )
             let queue = try TextureResource.DrawableQueue(descriptor)
             queue.allowsNextDrawableTimeout = true

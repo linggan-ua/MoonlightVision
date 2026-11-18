@@ -13,7 +13,8 @@ nonisolated struct LSRealtime3DSettings: Equatable, Sendable {
         depthStrength: 0.65,
         convergence: 0,
         swapsEyes: false,
-        showsDepth: false
+        showsDepth: false,
+        colorDepth: false
     )
 
     let isEnabled: Bool
@@ -22,6 +23,8 @@ nonisolated struct LSRealtime3DSettings: Equatable, Sendable {
     let swapsEyes: Bool
     /// Debug: draw the normalized depth map instead of the stereo image.
     let showsDepth: Bool
+    /// Debug: colorize the depth preview (turbo colormap) instead of grayscale.
+    let colorDepth: Bool
     /// 3D 方案（预设）：决定链路的算法组合，并给出默认深度模型。
     let scheme: LSRealtimeStereoScheme
     /// 深度模型覆盖（nil = 用方案默认）。管线测试与后续方案的模型对比用；
@@ -45,6 +48,7 @@ nonisolated struct LSRealtime3DSettings: Equatable, Sendable {
         convergence: Float,
         swapsEyes: Bool,
         showsDepth: Bool = false,
+        colorDepth: Bool = false,
         scheme: LSRealtimeStereoScheme = .default,
         model: LSRealtimeDepthModel? = nil,
         depthRate: Double? = nil
@@ -54,6 +58,7 @@ nonisolated struct LSRealtime3DSettings: Equatable, Sendable {
         self.convergence = min(max(convergence, -1), 1)
         self.swapsEyes = swapsEyes
         self.showsDepth = showsDepth
+        self.colorDepth = colorDepth
         self.scheme = scheme
         self.modelOverride = model
         self.depthRateOverride = depthRate.map { max($0, 0) }

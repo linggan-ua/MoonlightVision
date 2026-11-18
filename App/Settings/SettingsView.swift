@@ -327,6 +327,18 @@ struct SettingsView: View {
                     Label("3D", systemImage: "cube.transparent")
                 }
 
+                Section {
+                    LabeledContent(
+                        "Window Corner Radius",
+                        value: String(format: "%.1f%%", settings.windowCornerRadius)
+                    )
+                    Slider(value: $settings.windowCornerRadius, in: 0...3, step: 0.1)
+                } header: {
+                    Label("Window", systemImage: "rectangle.roundedtop")
+                } footer: {
+                    Text("0% gives the picture square corners; the default matches the rounded window.")
+                }
+
                 Section("Host") {
                     Toggle("Optimize Game Settings", isOn: $settings.optimizeGameSettings)
                     Toggle("Play Audio on PC", isOn: $settings.playAudioOnPC)

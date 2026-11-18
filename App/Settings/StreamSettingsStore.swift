@@ -122,6 +122,7 @@ final class StreamSettingsStore {
     private static let suppressRestoreTapKey = "mv.suppressRestoreTap"
     private static let stereoSBSKey = "mv.stereoSBS"
     private static let packedSBSInputKey = "mv.packedSBSInput"
+    private static let windowCornerRadiusKey = "mv.windowCornerRadius"
 
     private let dataManager = DataManager()
 
@@ -205,6 +206,13 @@ final class StreamSettingsStore {
             UserDefaults.standard.set(packedSBSInput, forKey: Self.packedSBSInputKey)
         }
     }
+    /// Corner radius of the video plane, as a percentage of its width. 0 gives
+    /// the picture square corners; 1.2 matches the window's rounded shape.
+    var windowCornerRadius: Double = 1.2 {
+        didSet {
+            UserDefaults.standard.set(windowCornerRadius, forKey: Self.windowCornerRadiusKey)
+        }
+    }
 
     /// Only used for the one-time migration away from the old UserDefaults blob.
     private struct LegacyStored: Codable {
@@ -255,6 +263,9 @@ final class StreamSettingsStore {
         suppressRestoreTap = UserDefaults.standard.bool(forKey: Self.suppressRestoreTapKey)
         stereoSBS = UserDefaults.standard.bool(forKey: Self.stereoSBSKey)
         packedSBSInput = UserDefaults.standard.bool(forKey: Self.packedSBSInputKey)
+        if UserDefaults.standard.object(forKey: Self.windowCornerRadiusKey) != nil {
+            windowCornerRadius = UserDefaults.standard.double(forKey: Self.windowCornerRadiusKey)
+        }
     }
 
     func reset() {
@@ -291,6 +302,7 @@ final class StreamSettingsStore {
         spatialAudio = false
         stereoSBS = false
         packedSBSInput = false
+        windowCornerRadius = 1.2
     }
 
     private func apply(_ legacy: LegacyStored) {

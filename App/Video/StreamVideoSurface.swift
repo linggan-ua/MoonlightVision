@@ -31,6 +31,9 @@ struct StreamVideoSurface: View {
     /// The host frame is already packed side-by-side (32:9 automatically, or
     /// any 3:1 frame when "Packed SBS Input" is on).
     let packedSBS: Bool
+    /// Corner radius of the plane as a fraction of its width. 0 gives the
+    /// picture square corners.
+    let cornerRadiusFraction: Float
     /// True when enabling 3D will run the on-device 2D→3D conversion instead of
     /// showing a frame-packed host stream.
     let localConversion: Bool
@@ -123,7 +126,7 @@ struct StreamVideoSurface: View {
                 width: baseWidth,
                 aspectRatio: aspect,
                 resolution: (256, 256),
-                cornerRadiusFraction: 0.012
+                cornerRadiusFraction: cornerRadiusFraction
             )
         } catch {
             NSLog("%@", "[Video] Plane mesh failed, using a flat plane: \(error)")
@@ -135,6 +138,7 @@ struct StreamVideoSurface: View {
         content.add(entity)
         runtime.screen = entity
         runtime.meshAspect = aspect
+        runtime.meshCornerRadius = cornerRadiusFraction
 
         if let ruler = attachments.entity(for: "calibrationRuler") {
             ruler.components.set(OpacityComponent(opacity: 0))
@@ -159,6 +163,7 @@ struct StreamVideoSurface: View {
         runtime.updateScene(
             size: size,
             screenAspect: screenAspect,
+            cornerRadius: cornerRadiusFraction,
             showConfirmCard: showSBSConfirm,
             attachments: attachments
         )
@@ -288,7 +293,14 @@ enum StreamVideoSurfaceMesh {
                         let dx = max(sx, 0.0)
                         let dy = max(sy, 0.0)
                         let len = simd_length(SIMD2<Float>(dx, dy))
-                        if len > cornerRadius {
+                        // A vertex on a straight edge is exactly one radius from
+                        // the corner centre, so this comparison is decided by
+                        // Float rounding noise. Without a tolerance, certain
+                        // radii round the distance slightly above the radius
+                        // and the whole outer row/column snaps onto the corner,
+                        // which smears the outermost picture band into a visibly
+                        // wrong border. The tolerance is far below one mesh cell.
+                        if len > cornerRadius + width * 1e-5 {
                             let norm = simd_normalize(SIMD2<Float>(dx, dy))
                             let clamped = norm * cornerRadius
                             let signX: Float = (px >= 0) ? 1.0 : -1.0
@@ -370,6 +382,7 @@ final class StreamVideoSurfaceRuntime {
     var ruler: Entity?
     var confirmCard: Entity?
     var meshAspect: Float = 0
+    var meshCornerRadius: Float = 0
 
     private var lastUpdateSize: CGSize = .zero
     private var appliedMode: VideoMode?
@@ -403,6 +416,7 @@ final class StreamVideoSurfaceRuntime {
     func updateScene(
         size: CGSize,
         screenAspect: Float,
+        cornerRadius: Float,
         showConfirmCard: Bool,
         attachments: RealityViewAttachments
     ) {
@@ -420,14 +434,15 @@ final class StreamVideoSurfaceRuntime {
         guard size.width > 10, size.height > 10 else { return }
 
         let aspectChanged = abs(screenAspect - meshAspect) > 0.0001
+        let cornerChanged = abs(cornerRadius - meshCornerRadius) > 0.00005
         let sizeChanged =
             abs(size.width - lastUpdateSize.width) >= 1.0 ||
             abs(size.height - lastUpdateSize.height) >= 1.0
-        guard aspectChanged || sizeChanged || lastUpdateSize == .zero else { return }
+        guard aspectChanged || cornerChanged || sizeChanged || lastUpdateSize == .zero else { return }
         lastUpdateSize = size
 
-        if aspectChanged {
-            rebuildMesh(aspect: screenAspect)
+        if aspectChanged || cornerChanged {
+            rebuildMesh(aspect: screenAspect, cornerRadius: cornerRadius)
         }
 
         // Dynamic calibration: the ruler is 100 points wide, so its physical
@@ -496,7 +511,7 @@ final class StreamVideoSurfaceRuntime {
         lastCardScale = scale
     }
 
-    private func rebuildMesh(aspect: Float) {
+    private func rebuildMesh(aspect: Float, cornerRadius: Float) {
         guard let screen else { return }
         let mesh: MeshResource
         do {
@@ -504,13 +519,14 @@ final class StreamVideoSurfaceRuntime {
                 width: 1,
                 aspectRatio: aspect,
                 resolution: (256, 256),
-                cornerRadiusFraction: 0.012
+                cornerRadiusFraction: cornerRadius
             )
         } catch {
             mesh = .generatePlane(width: 1, height: aspect)
         }
         screen.model?.mesh = mesh
         meshAspect = aspect
+        meshCornerRadius = cornerRadius
     }
 }
 

@@ -220,6 +220,7 @@
 "Scheme Default" = "方案默认";
 "Depth Model" = "深度模型";
 "Show Depth" = "显示深度图";
+"Color Depth Map" = "彩色深度图";
 "Packed SBS Input" = "并排 SBS 输入";
 "Reset Tuning" = "重置调校";
 "Parallax" = "视差";
@@ -230,3 +231,7 @@
 "Restarting keeps this window open and reconnects to the host." = "重启会保留当前窗口并重新连接主机。";
 "Not Now" = "暂不";
 "Stream settings" = "串流设置";
+
+"Window" = "窗口";
+"Window Corner Radius" = "窗口圆角";
+"0% gives the picture square corners; the default matches the rounded window." = "0% 时画面四角为直角；默认值与窗口圆角一致。";

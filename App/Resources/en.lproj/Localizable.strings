@@ -220,6 +220,7 @@
 "Scheme Default" = "Scheme Default";
 "Depth Model" = "Depth Model";
 "Show Depth" = "Show Depth";
+"Color Depth Map" = "Color Depth Map";
 "Packed SBS Input" = "Packed SBS Input";
 "Reset Tuning" = "Reset Tuning";
 "Parallax" = "Parallax";
@@ -230,3 +231,7 @@
 "Restarting keeps this window open and reconnects to the host." = "Restarting keeps this window open and reconnects to the host.";
 "Not Now" = "Not Now";
 "Stream settings" = "Stream settings";
+
+"Window" = "Window";
+"Window Corner Radius" = "Window Corner Radius";
+"0% gives the picture square corners; the default matches the rounded window." = "0% gives the picture square corners; the default matches the rounded window.";

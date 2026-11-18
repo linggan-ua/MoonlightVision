@@ -44,6 +44,9 @@ struct Stereo3DSettingsView: View {
 
                 Toggle("Swap Eyes", isOn: $realtime3D.swapsEyes)
                 Toggle("Show Depth", isOn: $realtime3D.showsDepth)
+                if realtime3D.showsDepth {
+                    Toggle("Color Depth Map", isOn: $realtime3D.colorDepth)
+                }
                 Toggle("Packed SBS Input", isOn: $settings.packedSBSInput)
             } header: {
                 Label("Synthesis", systemImage: "cube.transparent")

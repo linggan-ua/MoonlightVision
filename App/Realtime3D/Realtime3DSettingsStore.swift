@@ -26,6 +26,8 @@ final class Realtime3DSettingsStore: ObservableObject {
     @Published var swapsEyes: Bool { didSet { save() } }
     /// Debug: show the normalized depth map instead of the stereoscopic image.
     @Published var showsDepth: Bool { didSet { save() } }
+    /// Debug: colorize the depth preview instead of drawing it in grayscale.
+    @Published var colorDepth: Bool { didSet { save() } }
 
     /// Called after any persisted value changes (the stream view applies it).
     var onChange: (() -> Void)?
@@ -39,6 +41,7 @@ final class Realtime3DSettingsStore: ObservableObject {
         static let rate = "realtime3D.depthRate"
         static let swapsEyes = "realtime3D.swapsEyes"
         static let showsDepth = "realtime3D.showsDepth"
+        static let colorDepth = "realtime3D.colorDepth"
     }
 
     private init() {
@@ -59,6 +62,7 @@ final class Realtime3DSettingsStore: ObservableObject {
         }
         swapsEyes = defaults.bool(forKey: Key.swapsEyes)
         showsDepth = defaults.bool(forKey: Key.showsDepth)
+        colorDepth = defaults.bool(forKey: Key.colorDepth)
     }
 
     /// Current configuration handed to the renderer/decoder.
@@ -69,6 +73,7 @@ final class Realtime3DSettingsStore: ObservableObject {
             convergence: convergence,
             swapsEyes: swapsEyes,
             showsDepth: showsDepth,
+            colorDepth: colorDepth,
             scheme: scheme,
             model: model,
             depthRate: depthRate
@@ -115,6 +120,7 @@ final class Realtime3DSettingsStore: ObservableObject {
         }
         defaults.set(swapsEyes, forKey: Key.swapsEyes)
         defaults.set(showsDepth, forKey: Key.showsDepth)
+        defaults.set(colorDepth, forKey: Key.colorDepth)
         onChange?()
     }
 }
@@ -165,6 +171,7 @@ extension Realtime3DSettingsStore {
             convergence: convergence,
             swapsEyes: swapsEyes,
             showsDepth: showsDepth,
+            colorDepth: colorDepth,
             scheme: scheme,
             model: model,
             depthRate: depthRate

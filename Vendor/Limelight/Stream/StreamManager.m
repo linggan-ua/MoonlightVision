@@ -11,7 +11,6 @@
 #import "HttpManager.h"
 #import "Utils.h"
 
-#import "StreamView.h"
 #import "ServerInfoResponse.h"
 #import "HttpResponse.h"
 #import "HttpRequest.h"
@@ -22,17 +21,17 @@
 @implementation StreamManager {
     StreamConfiguration* _config;
 
-    UIView* _renderView;
     id<ConnectionCallbacks> _callbacks;
+    id<AnyVideoDecoderRenderer> __strong (^_rendererProvider)(void);
     Connection* _connection;
     BOOL _stopRequested;
 }
 
-- (id) initWithConfig:(StreamConfiguration*)config renderView:(UIView*)view connectionCallbacks:(id<ConnectionCallbacks>)callbacks {
+- (id) initWithConfig:(StreamConfiguration*)config rendererProvider:(id<AnyVideoDecoderRenderer> __strong (^)(void))rendererProvider connectionCallbacks:(id<ConnectionCallbacks>)callbacks {
     self = [super init];
     _config = config;
-    _renderView = view;
     _callbacks = callbacks;
+    _rendererProvider = rendererProvider;
     _config.riKey = [Utils randomBytes:16];
     _config.riKeyId = arc4random();
     return self;
@@ -103,8 +102,7 @@
         if (self->_stopRequested) {
             return;
         }
-        VideoDecoderRenderer* renderer = [[VideoDecoderRenderer alloc] initWithView:self->_renderView callbacks:self->_callbacks streamAspectRatio:(float)self->_config.width / (float)self->_config.height useFramePacing:self->_config.useFramePacing];
-        renderer.externalVideoRenderer = self->_config.externalVideoRenderer;
+        id<AnyVideoDecoderRenderer> __strong renderer = self->_rendererProvider();
         self->_connection = [[Connection alloc] initWithConfig:self->_config renderer:renderer connectionCallbacks:self->_callbacks];
         NSOperationQueue* opQueue = [[NSOperationQueue alloc] init];
         [opQueue addOperation:self->_connection];

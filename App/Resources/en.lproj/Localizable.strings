@@ -168,3 +168,10 @@
 "Pairing is required to stream from this host." = "Pairing is required to stream from this host.";
 "HDR uses HEVC on visionOS; AV1 HDR is not offered." = "HDR uses HEVC on visionOS; AV1 HDR is not offered.";
 "HDR requires HEVC or AV1." = "HDR requires HEVC or AV1.";
+
+"Standard" = "Standard";
+"3D" = "3D";
+"SBS 3D" = "SBS 3D";
+"Enable SBS 3D" = "Enable SBS 3D";
+"Use software such as ReShade + Depth3D on your host PC to utilize SBS mode." = "Use software such as ReShade + Depth3D on your host PC to utilize SBS mode.";
+"Show the stream as side-by-side 3D. The host must send a 32:9 SBS frame." = "Show the stream as side-by-side 3D. The host must send a 32:9 SBS frame.";

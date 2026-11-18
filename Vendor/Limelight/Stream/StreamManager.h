@@ -8,10 +8,14 @@
 
 #import "StreamConfiguration.h"
 #import "Connection.h"
+#import "AnyVideoDecoderRenderer.h"
 
 @interface StreamManager : NSOperation
 
-- (id) initWithConfig:(StreamConfiguration*)config renderView:(UIView*)view connectionCallbacks:(id<ConnectionCallbacks>)callback;
+/// The caller supplies the video renderer. It is created on the main thread
+/// after the host accepts the session, so the app can size its texture from
+/// the negotiated stream.
+- (id) initWithConfig:(StreamConfiguration*)config rendererProvider:(id<AnyVideoDecoderRenderer> __strong (^)(void))rendererProvider connectionCallbacks:(id<ConnectionCallbacks>)callback;
 
 - (void) stopStream;
 - (void) stopStreamWithCompletion:(void (^)(void))completion;

@@ -5,14 +5,12 @@
 //  Created by Linggan-ua.
 //
 
-import AVFoundation
 import SwiftUI
 import UIKit
 
-/// The stream window's UIView. It hosts the core
-/// `AVSampleBufferDisplayLayer` and forwards physical keyboard presses,
-/// mouse/indirect-pointer events, and gaze/pinch touches to the active
-/// strategies. Video and input are the same view.
+/// The stream window's input surface. It sits above the RealityKit video
+/// plane and forwards physical keyboard presses, mouse/indirect-pointer
+/// events, and gaze/pinch touches to the active strategies.
 final class StreamWindowInputView: UIView {
     /// The active mouse strategy. Replaced on every stream start.
     weak var mouseSurfaceDelegate: StreamMouseSurfaceDelegate?
@@ -32,10 +30,10 @@ final class StreamWindowInputView: UIView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        // The video surface is a separate RealityKit layer in front of this
-        // view. An opaque black input view would sit on the window plane and
-        // block it, so the input layer is transparent.
-        backgroundColor = .clear
+        // The video is a RealityKit plane behind this view. Match the
+        // core client's nearly transparent input layer so the window
+        // still composites as a non-empty surface without covering the plane.
+        backgroundColor = UIColor.black.withAlphaComponent(0.01)
         isOpaque = false
         isUserInteractionEnabled = true
 
@@ -124,21 +122,6 @@ final class StreamWindowInputView: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        // Keep the decoder's display layer tied to the window view. The
-        // decoder observes bounds too, but resizing a hosted window can move
-        // the view before that observer runs; this makes the picture fill the
-        // new size in the same layout pass.
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        let scale = max(
-            window?.traitCollection.displayScale ?? traitCollection.displayScale,
-            2.0
-        )
-        for case let display as AVSampleBufferDisplayLayer in layer.sublayers ?? [] {
-            display.frame = bounds
-            display.contentsScale = scale
-        }
-        CATransaction.commit()
         mouseSurfaceDelegate?.mouseSurfaceDidLayout()
     }
 

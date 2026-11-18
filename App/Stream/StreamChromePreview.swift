@@ -60,10 +60,13 @@ struct StreamChromePreview: View {
             VStack(spacing: 12) {
                 StreamControlBar(
                     isEnded: false,
+                    is3DEnabled: false,
+                    canToggle3D: true,
                     volume: $volume,
                     showStats: $showStats,
                     showKeyboard: $showKeyboard,
                     onDisconnect: {},
+                    onToggle3D: {},
                     onToggleMute: {
                         volume = volume > 0 ? 0 : 0.72
                     }

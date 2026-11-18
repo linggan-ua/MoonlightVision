@@ -9,7 +9,9 @@ import AVFoundation
 import CoreMedia
 import Foundation
 import GameController
+import Metal
 import Observation
+import RealityKit
 import UIKit
 import VideoToolbox
 
@@ -31,6 +33,24 @@ final class StreamSessionModel {
     let app: TemporaryApp
     let inputView = StreamWindowInputView()
     let keyboardInput = StreamKeyboardInput()
+
+    /// The window plane's texture. Created for each stream with the requested
+    /// resolution and pixel format; the decoder renders frames into it.
+    private(set) var videoTexture: TextureResource?
+    let frameMailbox = StreamFrameMailbox()
+
+    /// 2D or side-by-side 3D presentation. Runtime-only, like the mature
+    /// clients: each stream starts in 2D.
+    var videoMode: VideoMode = .standard2D {
+        didSet {
+            if videoMode != .sideBySide3D {
+                showSBSConfirm = false
+            }
+            refreshInputSize()
+        }
+    }
+    /// The SBS confirmation card is showing in the stream window.
+    var showSBSConfirm = false
 
     private(set) var phase: Phase = .idle
     private(set) var statsText = ""
@@ -89,6 +109,68 @@ final class StreamSessionModel {
         phase == .streaming
     }
 
+    /// True once the session has ended. Connection callbacks arrive through
+    /// `Task { @MainActor }`, so one queued before teardown can still run after
+    /// it; they must not revive the session.
+    private var hasEnded: Bool {
+        if case .ended = phase { return true }
+        return false
+    }
+
+    /// Width ÷ height of the picture the window shows. SBS streams carry both
+    /// eyes side by side, so each eye's picture is half as wide; the window
+    /// locks to that per-eye aspect in 3D.
+    var streamAspect: Double {
+        StreamPictureGeometry.aspectRatio(
+            width: streamWidth,
+            height: streamHeight,
+            mode: videoMode
+        )
+    }
+
+    /// Host frame size for the active stream.
+    var streamWidth: Int {
+        Int(activeConfig?.width ?? StreamSettingsStore.shared.resolution.width)
+    }
+
+    var streamHeight: Int {
+        Int(activeConfig?.height ?? StreamSettingsStore.shared.resolution.height)
+    }
+
+    /// Maps the host frame onto what the window actually shows. In side-by-side
+    /// 3D the picture is one eye's half, so absolute pointer and touch input
+    /// must be compressed into that half instead of stretched over the frame.
+    private func makeInputSize(width: Int32, height: Int32) -> StreamInputSize {
+        let hostWidth = max(width, 1)
+        let hostHeight = max(height, 1)
+        let isSBS = videoMode == .sideBySide3D
+            && StreamPictureGeometry.isSideBySideFrame(
+                width: Int(hostWidth),
+                height: Int(hostHeight)
+            )
+        return StreamInputSize(
+            hostWidth: hostWidth,
+            hostHeight: hostHeight,
+            displayedWidth: isSBS ? max(hostWidth / 2, 1) : hostWidth,
+            displayedHeight: hostHeight
+        )
+    }
+
+    private var inputSize: StreamInputSize {
+        let settings = StreamSettingsStore.shared
+        return makeInputSize(
+            width: activeConfig?.width ?? settings.resolution.width,
+            height: activeConfig?.height ?? settings.resolution.height
+        )
+    }
+
+    private func refreshInputSize() {
+        guard inputActive else { return }
+        let size = inputSize
+        touchInput.updateStreamSize(size)
+        mouseStrategy?.updateStreamSize(size)
+    }
+
     func toggleMute() {
         if volume > 0 {
             volumeBeforeMute = volume
@@ -98,12 +180,11 @@ final class StreamSessionModel {
         }
     }
 
-    /// The renderer sizes its layer from the view bounds, so wait until SwiftUI has laid it out.
+    /// The renderer sizes its texture from the requested stream resolution, so
+    /// wait until the window exists before connecting.
     func startWhenReady() async {
         guard !started else { return }
         started = true
-        // The original client starts immediately; VideoDecoderRenderer owns
-        // late layout through its bounds KVO and stays hidden until the first IDR.
         await start()
     }
 
@@ -166,6 +247,7 @@ final class StreamSessionModel {
         connectionPoor = false
         let config = makeConfiguration()
         activeConfig = config
+        prepareVideoTexture(for: config)
         setupInput(config: config)
         MVSetStreamVolume(Float(volume))
         MVSetStreamSpatialAudio(StreamSettingsStore.shared.spatialAudio)
@@ -173,20 +255,22 @@ final class StreamSessionModel {
         let delegate = StreamConnectionDelegate()
         delegate.onStage = { [weak self] stage in
             Task { @MainActor in
-                guard let self, case .streaming = self.phase else {
-                    self?.phase = .connecting(stage: stage)
+                guard let self, !self.hasEnded else { return }
+                if case .streaming = self.phase {
                     return
                 }
+                self.phase = .connecting(stage: stage)
             }
         }
         delegate.onConnectionStatus = { [weak self] status in
             Task { @MainActor in
-                self?.connectionPoor = (status == Int32(CONN_STATUS_POOR))
+                guard let self, !self.hasEnded else { return }
+                self.connectionPoor = (status == Int32(CONN_STATUS_POOR))
             }
         }
         delegate.onConnected = { [weak self] in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self, !self.hasEnded else { return }
                 self.controllerSupport?.connectionEstablished()
                 if case .connecting = self.phase {
                     self.phase = .connecting(stage: String(localized: "Connected"))
@@ -195,7 +279,7 @@ final class StreamSessionModel {
         }
         delegate.onFirstFrame = { [weak self] in
             Task { @MainActor in
-                guard let self else { return }
+                guard let self, !self.hasEnded, self.streamManager != nil else { return }
                 self.phase = .streaming
                 self.refreshChromeVisibility()
                 self.startStatsTimer()
@@ -238,7 +322,30 @@ final class StreamSessionModel {
         }
 
         connectionDelegate = delegate
-        guard let manager = StreamManager(config: config, renderView: inputView, connectionCallbacks: delegate) else {
+        guard let texture = videoTexture else {
+            finish(message: String(localized: "Could not start the stream."))
+            return
+        }
+        let hdr = StreamSettingsStore.shared.hdrEnabled
+        let useFramePacing = config.useFramePacing
+        guard let manager = StreamManager(
+            config: config,
+            rendererProvider: { [weak self] in
+                DrawableVideoDecoder(
+                    texture: texture,
+                    callbacks: delegate,
+                    aspectRatio: Float(self?.streamAspect ?? (16.0 / 9.0)),
+                    useFramePacing: useFramePacing,
+                    enableHDR: hdr,
+                    hdrSettingsProvider: nil,
+                    enhancementsProvider: nil,
+                    callbackToRender: { [weak self] queue, _, _ in
+                        self?.frameMailbox.deposit(queue)
+                    }
+                )
+            },
+            connectionCallbacks: delegate
+        ) else {
             finish(message: String(localized: "Could not start the stream."))
             return
         }
@@ -295,6 +402,35 @@ final class StreamSessionModel {
         return config
     }
 
+    private func prepareVideoTexture(for config: StreamConfiguration) {
+        let width = max(1, Int(config.width))
+        let height = max(1, Int(config.height))
+        let hdr = StreamSettingsStore.shared.hdrEnabled
+        let bytesPerPixel = hdr ? 8 : 4
+        let pixelFormat: MTLPixelFormat = hdr ? .rgba16Float : .bgra8Unorm_srgb
+        do {
+            videoTexture = try TextureResource(
+                dimensions: .dimensions(width: width, height: height),
+                format: .raw(pixelFormat: pixelFormat),
+                contents: .init(
+                    mipmapLevels: [
+                        .mip(
+                            data: Data(count: bytesPerPixel * width * height),
+                            bytesPerRow: bytesPerPixel * width
+                        )
+                    ]
+                )
+            )
+        } catch {
+            NSLog("%@", "[Stream] Failed to create video texture \(width)x\(height): \(error)")
+            videoTexture = try? TextureResource(
+                dimensions: .dimensions(width: 1, height: 1),
+                format: .raw(pixelFormat: .bgra8Unorm_srgb),
+                contents: .init(mipmapLevels: [.mip(data: Data(count: 4), bytesPerRow: 4)])
+            )
+        }
+    }
+
     private func preferredVideoFormats(settings: StreamSettingsStore) -> Int32 {
         let hevcSupported = VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC)
         let av1Supported = VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1)
@@ -308,7 +444,10 @@ final class StreamSessionModel {
         let hostHEVCMain10 = (hostMask & UInt32(SCM_HEVC_MAIN10)) != 0
         let hdrRequested = settings.hdrEnabled && settings.codec.supportsHDR
 
-        var formats = Int32(VIDEO_FORMAT_H264)
+        // H.264 has no 10-bit profile. When HDR is requested the decoder sizes
+        // its pixel buffers and texture for 10-bit, so never let the host pick
+        // an 8-bit H.264 stream in that case.
+        var formats: Int32 = hdrRequested ? 0 : Int32(VIDEO_FORMAT_H264)
 
         switch settings.codec {
         case .auto:
@@ -393,7 +532,8 @@ final class StreamSessionModel {
         inputView.addInteraction(gameController)
         gameControllerInteraction = gameController
 
-        touchInput.updateStreamSize(width: config.width, height: config.height)
+        let size = makeInputSize(width: config.width, height: config.height)
+        touchInput.updateStreamSize(size)
         inputView.directTouchDelegate = touchInput
 
         let settings = StreamSettingsStore.shared
@@ -403,8 +543,7 @@ final class StreamSessionModel {
         strategy.start(
             view: inputView,
             mode: settings.mouseMode,
-            streamWidth: config.width,
-            streamHeight: config.height,
+            size: size,
             active: !isBackgrounded
         )
         strategy.onMouseActivity = { [weak self] in
@@ -524,6 +663,9 @@ final class StreamSessionModel {
         connectionDelegate = nil
         statsText = ""
         connectionPoor = false
+        showSBSConfirm = false
+        frameMailbox.clear()
+        videoTexture = nil
         if case .ended = phase { return }
         phase = .ended(message)
     }

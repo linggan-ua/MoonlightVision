@@ -21,7 +21,10 @@ struct StreamWindowRootView: View {
     @State private var lastWindowSize: CGSize?
 
     private var streamAspect: Double {
-        Double(settings.resolution.width) / Double(settings.resolution.height)
+        if let session = presentation.session {
+            return session.streamAspect
+        }
+        return Double(settings.resolution.width) / Double(settings.resolution.height)
     }
 
     var body: some View {
@@ -67,6 +70,10 @@ struct StreamWindowRootView: View {
         }
         .onChange(of: settings.resolution) { _, _ in
             // Preserve the current width when the stream aspect changes.
+            windowScene?.lockStreamAspect(streamAspect, preferredSize: nil)
+        }
+        .onChange(of: presentation.session?.videoMode) { _, _ in
+            // 3D shows one eye's half of a 32:9 frame, so the window becomes 16:9.
             windowScene?.lockStreamAspect(streamAspect, preferredSize: nil)
         }
         .onDisappear {

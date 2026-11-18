@@ -38,6 +38,8 @@ struct StreamResolution: Hashable, Identifiable {
         StreamResolution(width: 1920, height: 1200),
         StreamResolution(width: 2560, height: 1600),
         StreamResolution(width: 3440, height: 1440),
+        // 32:9 is the side-by-side 3D frame shape (two 16:9 eyes).
+        StreamResolution(width: 3840, height: 1080),
         StreamResolution(width: 3840, height: 1600),
         StreamResolution(width: 5120, height: 1440)
     ]

@@ -29,8 +29,12 @@ final class StreamTouchInput: StreamDirectTouchDelegate {
     private var chromeHidden = false
     private var suppressRestoreTap = false
     private var suppressedTouches = Set<ObjectIdentifier>()
-    private var streamWidth: Int32 = 1920
-    private var streamHeight: Int32 = 1080
+    private var size = StreamInputSize(
+        hostWidth: 1920,
+        hostHeight: 1080,
+        displayedWidth: 1920,
+        displayedHeight: 1080
+    )
 
     private struct TouchpadContact {
         var last: CGPoint
@@ -50,9 +54,8 @@ final class StreamTouchInput: StreamDirectTouchDelegate {
     private weak var fallbackTouch: UITouch?
     private var fallbackPressed = false
 
-    func updateStreamSize(width: Int32, height: Int32) {
-        streamWidth = max(width, 1)
-        streamHeight = max(height, 1)
+    func updateStreamSize(_ size: StreamInputSize) {
+        self.size = size
     }
 
     func setChromeHidden(_ hidden: Bool) {
@@ -275,10 +278,14 @@ final class StreamTouchInput: StreamDirectTouchDelegate {
         guard let normalized = normalizedLocation(of: touch, in: view) else { return }
 
         if hostSupportsTouch {
+            // Touch coordinates are normalized over the whole host frame; in
+            // side-by-side 3D the picture shows one eye's half, so compress
+            // the horizontal axis into that half.
+            let hostX = normalized.x * size.displayedFractionX
             _ = LiSendTouchEvent(
                 event,
                 id,
-                Float(normalized.x),
+                Float(hostX),
                 Float(normalized.y),
                 1.0,
                 0,
@@ -313,13 +320,13 @@ final class StreamTouchInput: StreamDirectTouchDelegate {
     }
 
     private func sendFallbackPosition(_ normalized: CGPoint, in view: UIView) {
-        let x = Int32((normalized.x * CGFloat(streamWidth)).rounded(.down))
-        let y = Int32((normalized.y * CGFloat(streamHeight)).rounded(.down))
+        let x = Int32((normalized.x * CGFloat(size.displayedWidth)).rounded(.down))
+        let y = Int32((normalized.y * CGFloat(size.displayedHeight)).rounded(.down))
         LiSendMousePositionEvent(
             Int16(clamping: x),
             Int16(clamping: y),
-            Int16(clamping: streamWidth),
-            Int16(clamping: streamHeight)
+            Int16(clamping: size.hostWidth),
+            Int16(clamping: size.hostHeight)
         )
     }
 
@@ -333,8 +340,8 @@ final class StreamTouchInput: StreamDirectTouchDelegate {
     private func normalizedLocation(of touch: UITouch, in view: UIView) -> CGPoint? {
         let geometry = MouseInputGeometry(
             viewSize: view.bounds.size,
-            streamWidth: streamWidth,
-            streamHeight: streamHeight
+            streamWidth: size.displayedWidth,
+            streamHeight: size.displayedHeight
         )
         return geometry.normalizedPoint(for: touch.location(in: view))
     }

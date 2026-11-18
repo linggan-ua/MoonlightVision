@@ -11,10 +11,13 @@ import SwiftUI
 /// never covers the picture.
 struct StreamControlBar: View {
     let isEnded: Bool
+    let is3DEnabled: Bool
+    let canToggle3D: Bool
     @Binding var volume: Double
     @Binding var showStats: Bool
     @Binding var showKeyboard: Bool
     let onDisconnect: () -> Void
+    let onToggle3D: () -> Void
     let onToggleMute: () -> Void
 
     @Bindable private var settings = StreamSettingsStore.shared
@@ -94,6 +97,14 @@ struct StreamControlBar: View {
                 Label("Stats", systemImage: "chart.bar.xaxis")
             }
             .toggleStyle(.button)
+
+            Button(action: onToggle3D) {
+                Label(is3DEnabled ? "3D" : "Standard", systemImage: "view.3d")
+            }
+            .disabled(!canToggle3D)
+            .accessibilityLabel("SBS 3D")
+            .accessibilityValue(is3DEnabled ? "On" : "Off")
+            .help("Show the stream as side-by-side 3D. The host must send a 32:9 SBS frame.")
 
             Button {
                 settings.mouseInputMode = settings.mouseInputMode == .touchpad

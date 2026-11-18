@@ -25,7 +25,9 @@
 #import "WakeOnLanManager.h"
 #import "StreamConfiguration.h"
 #import "StreamManager.h"
+#import "Connection.h"
 #import "ConnectionCallbacks.h"
+#import "HDRParsingUtils.h"
 #import "ControllerSupport.h"
 #import "KeyboardSupport.h"
 

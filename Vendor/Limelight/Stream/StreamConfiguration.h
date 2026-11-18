@@ -33,8 +33,5 @@
 @property BOOL multiController;
 @property BOOL useFramePacing;
 @property NSData* serverCert;
-/// Renderer for the window video surface. Decoded frames are enqueued here;
-/// the window presents it through VideoPlayerComponent.
-@property (nonatomic, strong, nullable) AVSampleBufferVideoRenderer* externalVideoRenderer;
 
 @end

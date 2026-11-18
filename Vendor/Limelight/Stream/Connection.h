@@ -6,7 +6,7 @@
 //  Copyright (c) 2014 Moonlight Stream. All rights reserved.
 //
 
-#import "VideoDecoderRenderer.h"
+#import "AnyVideoDecoderRenderer.h"
 #import "StreamConfiguration.h"
 
 #define CONN_TEST_SERVER "ios.conntest.moonlight-stream.org"
@@ -26,7 +26,7 @@ typedef struct {
 
 @interface Connection : NSOperation <NSStreamDelegate>
 
--(id) initWithConfig:(StreamConfiguration*)config renderer:(VideoDecoderRenderer*)myRenderer connectionCallbacks:(id<ConnectionCallbacks>)callbacks;
+-(id) initWithConfig:(StreamConfiguration*)config renderer:(id<AnyVideoDecoderRenderer>)myRenderer connectionCallbacks:(id<ConnectionCallbacks>)callbacks;
 -(void) terminate;
 -(void) terminateWithCompletion:(void (^)(void))completion;
 -(void) main;
@@ -35,3 +35,7 @@ typedef struct {
 -(NSString*) getVideoColorDescription;
 
 @end
+
+/// Hands one decode unit to the current renderer. Declared here so Swift can
+/// call it from the renderer's display-link loop.
+int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);

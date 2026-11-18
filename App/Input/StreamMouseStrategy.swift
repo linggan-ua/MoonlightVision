@@ -59,6 +59,28 @@ protocol StreamMouseSurfaceDelegate: AnyObject {
     func mouseSurfaceDidMoveToWindow()
 }
 
+/// The two coordinate spaces input has to bridge. The host frame is what the
+/// PC renders (for example 3840×1080 in side-by-side 3D); the displayed
+/// picture is what the window actually shows (one eye's 1920×1080 half).
+struct StreamInputSize: Equatable {
+    var hostWidth: Int32
+    var hostHeight: Int32
+    var displayedWidth: Int32
+    var displayedHeight: Int32
+
+    init(hostWidth: Int32, hostHeight: Int32, displayedWidth: Int32, displayedHeight: Int32) {
+        self.hostWidth = max(hostWidth, 1)
+        self.hostHeight = max(hostHeight, 1)
+        self.displayedWidth = max(displayedWidth, 1)
+        self.displayedHeight = max(displayedHeight, 1)
+    }
+
+    /// Fraction of the host frame that the displayed picture covers.
+    var displayedFractionX: CGFloat {
+        CGFloat(min(displayedWidth, hostWidth)) / CGFloat(hostWidth)
+    }
+}
+
 /// A complete mouse-input implementation. One instance is owned by a stream
 /// session and replaced on every start, so changing the setting is applied on
 /// the next stream.
@@ -67,14 +89,13 @@ protocol StreamMouseStrategy: AnyObject, StreamMouseSurfaceDelegate {
     func start(
         view: StreamWindowInputView,
         mode: MouseTrackingMode,
-        streamWidth: Int32,
-        streamHeight: Int32,
+        size: StreamInputSize,
         active: Bool
     )
     func stop()
     func setTrackingMode(_ mode: MouseTrackingMode)
     func setActive(_ active: Bool)
-    func updateStreamSize(width: Int32, height: Int32)
+    func updateStreamSize(_ size: StreamInputSize)
     /// Hides the system pointer over the whole stream window and its margins.
     /// Used while the mouse has taken over so it cannot wander onto system chrome.
     func setSystemCursorHidden(_ hidden: Bool)

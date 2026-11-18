@@ -7,11 +7,6 @@
 
 import Foundation
 import UIKit
-
-// Behavior modeled on the vendored official moonlight-ios StreamView.m
-// (GPL-3.0 with the App Store Distribution Exception).
-/// The official moonlight-ios `StreamView.m` dual path, adapted to visionOS
-/// windows and combined with an earlier client's click/focus gating:
 /// - GCMouse raw deltas while available (relative mode).
 /// - `UIPointerInteraction` over the aspect-fit video rect for absolute mode,
 ///   and as the fallback when no GCMouse is present.
@@ -30,8 +25,12 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
 
     private var pointerInteraction: UIPointerInteraction?
     private var mode: MouseTrackingMode = .relative
-    private var streamWidth: Int32 = 1920
-    private var streamHeight: Int32 = 1080
+    private var size = StreamInputSize(
+        hostWidth: 1920,
+        hostHeight: 1080,
+        displayedWidth: 1920,
+        displayedHeight: 1080
+    )
     private var active = false
     private var pointerOverContent = true
     private var systemCursorHidden = false
@@ -48,15 +47,13 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
     func start(
         view: StreamWindowInputView,
         mode: MouseTrackingMode,
-        streamWidth: Int32,
-        streamHeight: Int32,
+        size: StreamInputSize,
         active: Bool
     ) {
         stop()
         self.view = view
         self.mode = mode
-        self.streamWidth = max(streamWidth, 1)
-        self.streamHeight = max(streamHeight, 1)
+        self.size = size
         self.active = active
         self.pointerOverContent = true
         running = true
@@ -114,7 +111,7 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         ))
 
         sender.setForwarding(active)
-        NSLog("[Mouse] Touchscreen+GCMouse start mode=%@ size=%dx%d", mode.rawValue, streamWidth, streamHeight)
+        NSLog("[Mouse] Touchscreen+GCMouse start mode=%@ host=%dx%d displayed=%dx%d", mode.rawValue, size.hostWidth, size.hostHeight, size.displayedWidth, size.displayedHeight)
     }
 
     func stop() {
@@ -158,9 +155,8 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         pointerInteraction?.invalidate()
     }
 
-    func updateStreamSize(width: Int32, height: Int32) {
-        streamWidth = max(width, 1)
-        streamHeight = max(height, 1)
+    func updateStreamSize(_ size: StreamInputSize) {
+        self.size = size
         pointerInteraction?.invalidate()
     }
 
@@ -252,8 +248,8 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         if isActive {
             let geometry = MouseInputGeometry(
                 viewSize: view.bounds.size,
-                streamWidth: streamWidth,
-                streamHeight: streamHeight
+                streamWidth: size.displayedWidth,
+                streamHeight: size.displayedHeight
             )
             pointerOverContent = geometry.contains(point)
             if pointerOverContent {
@@ -280,16 +276,16 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         guard running, let view else { return }
         let geometry = MouseInputGeometry(
             viewSize: view.bounds.size,
-            streamWidth: streamWidth,
-            streamHeight: streamHeight
+            streamWidth: size.displayedWidth,
+            streamHeight: size.displayedHeight
         )
         pointerOverContent = geometry.contains(point)
         guard let position = geometry.streamPoint(for: point) else { return }
         sender.position(
             x: position.x,
             y: position.y,
-            referenceWidth: streamWidth,
-            referenceHeight: streamHeight
+            referenceWidth: size.hostWidth,
+            referenceHeight: size.hostHeight
         )
     }
 
@@ -304,8 +300,8 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
 
         let geometry = MouseInputGeometry(
             viewSize: view.bounds.size,
-            streamWidth: streamWidth,
-            streamHeight: streamHeight
+            streamWidth: size.displayedWidth,
+            streamHeight: size.displayedHeight
         )
 
         if systemCursorHidden {

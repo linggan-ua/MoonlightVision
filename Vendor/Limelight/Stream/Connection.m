@@ -52,7 +52,7 @@ void MVSetStreamSpatialAudio(bool enabled)
     [audioRenderer setSpatialAudio:enabled];
 }
 
-static VideoDecoderRenderer* renderer;
+static id<AnyVideoDecoderRenderer> __strong renderer;
 
 int DrDecoderSetup(int videoFormat, int width, int height, int redrawRate, void* context, int drFlags)
 {
@@ -140,7 +140,10 @@ void DrStop(void)
 
 -(NSString*) getVideoColorDescription
 {
-    return [renderer getColorDescription];
+    if ([renderer respondsToSelector:@selector(getColorDescription)]) {
+        return [renderer getColorDescription];
+    }
+    return nil;
 }
 
 int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
@@ -338,6 +341,11 @@ void ClSetControllerLED(uint16_t controllerNumber, uint8_t r, uint8_t g, uint8_t
         LiStopConnection();
         [initLock unlock];
 
+        // The renderer retains its decode session, texture and drawable
+        // queues. Release them with the connection instead of keeping the
+        // last stream alive until the next one replaces it.
+        renderer = nil;
+
         Log(LOG_I, @"[Connection] LiStopConnection() completed and initLock released.");
 
         if (completion != nil) {
@@ -348,7 +356,7 @@ void ClSetControllerLED(uint16_t controllerNumber, uint8_t r, uint8_t g, uint8_t
     });
 }
 
--(id) initWithConfig:(StreamConfiguration*)config renderer:(VideoDecoderRenderer*)myRenderer connectionCallbacks:(id<ConnectionCallbacks>)callbacks
+-(id) initWithConfig:(StreamConfiguration*)config renderer:(id<AnyVideoDecoderRenderer>)myRenderer connectionCallbacks:(id<ConnectionCallbacks>)callbacks
 {
     self = [super init];
 

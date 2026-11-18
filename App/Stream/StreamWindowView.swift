@@ -37,9 +37,7 @@ struct StreamWindowView: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            if model.isStreaming {
-                Color.black.ignoresSafeArea()
-            } else {
+            if !model.isStreaming {
                 // Before the first frame, show a native glass window instead
                 // of a black rectangle; the loading panel floats in it.
                 Color.clear
@@ -47,21 +45,28 @@ struct StreamWindowView: View {
                     .ignoresSafeArea()
             }
 
-            // One UIView for the window: it hosts the stream's display layer
-            // and receives keyboard, mouse, trackpad, and direct touches.
+            // The picture is a RealityKit plane. With no opaque SwiftUI layer
+            // behind it, the window's own background cannot fight with it.
+            if let texture = model.videoTexture, model.isStreaming {
+                StreamVideoSurface(
+                    texture: texture,
+                    mailbox: model.frameMailbox,
+                    videoMode: model.videoMode,
+                    streamWidth: model.streamWidth,
+                    streamHeight: model.streamHeight,
+                    showSBSConfirm: model.showSBSConfirm,
+                    onEnableSBS: {
+                        model.showSBSConfirm = false
+                        model.videoMode = .sideBySide3D
+                    },
+                    onCancelSBS: {
+                        model.showSBSConfirm = false
+                    }
+                )
+            }
+
             StreamWindowInputViewRepresentable(view: model.inputView)
                 .ignoresSafeArea()
-
-            if model.connectionPoor, model.isStreaming {
-                Label("Poor Connection", systemImage: "wifi.exclamationmark")
-                    .font(.callout.weight(.medium))
-                    .foregroundStyle(.yellow)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(.black.opacity(0.6), in: Capsule())
-                    .frame(maxWidth: .infinity, alignment: .top)
-                    .padding(.top, 20)
-            }
 
             if !model.isStreaming {
                 StreamGlassOverlay {
@@ -75,43 +80,58 @@ struct StreamWindowView: View {
                     }
                 }
             }
-
-            if keyboardHintVisible {
-                StreamGlassOverlay(padding: 18) {
-                    VStack(spacing: 6) {
-                        Label("Keyboard Active", systemImage: "keyboard")
-                            .font(.headline)
-                        Text("Use the on-screen keyboard to type.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .transition(.opacity)
-            }
         }
-        // Do not wrap the video layer in a SwiftUI clip/mask. A masked
-        // subtree is rendered offscreen; with an EDR video layer that
-        // offscreen pass is what turns the HDR picture soft. The window
-        // itself still has the system's rounded shape.
+        // Do not wrap the scene content in a SwiftUI clip/mask: a masked
+        // subtree is rendered offscreen, which softens video.
         .persistentSystemOverlays(model.hidesStreamChrome ? .hidden : .automatic)
         .ornament(attachmentAnchor: .scene(.bottom), contentAlignment: .top) {
-            if !model.hidesStreamChrome {
-                StreamControlsView(model: model, onExit: onExit)
-                    .padding(.top, ornamentGap)
+            VStack(spacing: 10) {
+                if keyboardHintVisible {
+                    StreamHintPanel {
+                        VStack(spacing: 6) {
+                            Label("Keyboard Active", systemImage: "keyboard")
+                                .font(.headline)
+                            Text("Use the on-screen keyboard to type.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .transition(.opacity)
+                }
+                if !model.hidesStreamChrome {
+                    StreamControlsView(model: model, onExit: onExit)
+                }
             }
+            .padding(.top, ornamentGap)
         }
         .ornament(attachmentAnchor: .scene(.top), contentAlignment: .bottom) {
-            if settings.showStats, model.isStreaming, !model.statsText.isEmpty {
-                StreamStatsPanel(text: model.statsText)
-                    .padding(.bottom, ornamentGap)
+            VStack(spacing: 8) {
+                if model.connectionPoor, model.isStreaming {
+                    Label("Poor Connection", systemImage: "wifi.exclamationmark")
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(.yellow)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .glassBackgroundEffect(in: Capsule())
+                }
+                if settings.showStats, model.isStreaming, !model.statsText.isEmpty {
+                    StreamStatsPanel(text: model.statsText)
+                }
             }
+            .padding(.bottom, ornamentGap)
         }
         .task { await model.startWhenReady() }
         .onAppear {
             model.inputView.onDirectTap = { [weak model] in
                 model?.revealStreamControls()
             }
+            model.inputView.isUserInteractionEnabled = !model.showSBSConfirm
             model.setBackgrounded(scenePhase != .active)
+        }
+        .onChange(of: model.showSBSConfirm) { _, showing in
+            // While the confirmation card floats over the picture, let its
+            // buttons receive the pinch instead of forwarding it to the host.
+            model.inputView.isUserInteractionEnabled = !showing
         }
         .onChange(of: scenePhase) { _, newPhase in
             model.setBackgrounded(newPhase != .active)
@@ -198,6 +218,8 @@ private struct StreamControlsView: View {
     var body: some View {
         StreamControlBar(
             isEnded: isEnded,
+            is3DEnabled: model.videoMode == .sideBySide3D,
+            canToggle3D: model.isStreaming,
             volume: Binding(
                 get: { model.volume },
                 set: { model.volume = $0 }
@@ -207,6 +229,14 @@ private struct StreamControlsView: View {
             onDisconnect: {
                 model.stop()
                 onExit()
+            },
+            onToggle3D: {
+                guard model.isStreaming else { return }
+                if model.videoMode == .sideBySide3D {
+                    model.videoMode = .standard2D
+                } else {
+                    model.showSBSConfirm = true
+                }
             },
             onToggleMute: {
                 model.toggleMute()
@@ -250,8 +280,7 @@ private struct StreamStatsPanel: View {
     }
 }
 
-/// The shared centered glass panel used by the startup status and keyboard
-/// hint overlays.
+/// The centered glass panel used by the startup status overlay.
 private struct StreamGlassOverlay<Content: View>: View {
     let padding: CGFloat
     @ViewBuilder let content: Content
@@ -269,6 +298,19 @@ private struct StreamGlassOverlay<Content: View>: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             .allowsHitTesting(false)
+    }
+}
+
+/// A compact glass panel for transient hints in the ornament layer.
+private struct StreamHintPanel<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        content
+            .padding(.horizontal, 18)
+            .padding(.vertical, 12)
+            .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .fixedSize()
     }
 }
 

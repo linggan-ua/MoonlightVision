@@ -168,3 +168,10 @@
 "Pairing is required to stream from this host." = "需要与此主机配对后才能串流。";
 "HDR uses HEVC on visionOS; AV1 HDR is not offered." = "visionOS 上 HDR 使用 HEVC；不提供 AV1 HDR。";
 "HDR requires HEVC or AV1." = "HDR 需要 HEVC 或 AV1 编码。";
+
+"Standard" = "标准";
+"3D" = "3D";
+"SBS 3D" = "SBS 3D";
+"Enable SBS 3D" = "启用 SBS 3D";
+"Use software such as ReShade + Depth3D on your host PC to utilize SBS mode." = "请在主机上使用 ReShade + Depth3D 等软件以启用 SBS 模式。";
+"Show the stream as side-by-side 3D. The host must send a 32:9 SBS frame." = "以左右分屏 3D 显示串流。主机需要输出 32:9 的 SBS 画面。";

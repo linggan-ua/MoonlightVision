@@ -268,6 +268,8 @@ final class StreamSessionModel {
         }
 
         phase = .stopping
+        // Stop GPU submission before the asynchronous connection teardown.
+        activeDecoder?.setRenderingPaused(true)
         teardownInput()
 
         guard let manager = streamManager else {
@@ -330,15 +332,21 @@ final class StreamSessionModel {
         isBackgrounded = backgrounded
 
         if backgrounded {
+            // Metal rejects command buffers submitted from the background, so
+            // stop GPU work immediately even if the connection is still up.
+            activeDecoder?.setRenderingPaused(true)
             teardownInput()
             return
         }
 
+        activeDecoder?.setRenderingPaused(false)
         switch phase {
         case .streaming, .connecting:
             if let config = activeConfig {
                 setupInput(config: config)
             }
+            // Frames were dropped while paused; the next one must be a keyframe.
+            LiRequestIdrFrame()
         default:
             break
         }
@@ -435,6 +443,7 @@ final class StreamSessionModel {
         }
         let hdr = StreamSettingsStore.shared.hdrEnabled
         let mipmappedOutput = StreamSettingsStore.shared.antiShimmerMipmaps
+        let renderingPaused = isBackgrounded
         let useFramePacing = config.useFramePacing
         let activation = realtime3DActivation
         let initialAspect = Float(streamAspect)
@@ -459,6 +468,7 @@ final class StreamSessionModel {
                 )
                 // Must be set before setup(): it decides the initial queue width.
                 decoder.setStereoOutputEnabled(self?.isRealtime3DActive ?? false)
+                decoder.setRenderingPaused(renderingPaused)
                 self?.activeDecoder = decoder
                 return decoder
             },

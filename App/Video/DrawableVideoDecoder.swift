@@ -253,6 +253,10 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
     private var depthPreviewPipeline: MTLRenderPipelineState?
     private var lastPresentationTimeSeconds: Double?
     private let renderFrameLock = NSLock()
+    /// GPU submission is forbidden once the app is in the background. The
+    /// decoder keeps its VideoToolbox session but drops frames until resumed.
+    private let renderStateLock = NSLock()
+    private var renderingPaused = false
 
     private var copyPipelineState: MTLRenderPipelineState?
     private var copyPipelineFormat: MTLPixelFormat?
@@ -336,6 +340,21 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         decoderCallback.decompressionOutputRefCon = Unmanaged.passUnretained(self).toOpaque()
     }
 
+    /// Pauses or resumes Metal submission without tearing down the decoder.
+    /// Call with true when the app/window leaves the foreground; VideoToolbox
+    /// may keep delivering frames, which are dropped instead of submitted.
+    func setRenderingPaused(_ paused: Bool) {
+        renderStateLock.lock()
+        renderingPaused = paused
+        renderStateLock.unlock()
+    }
+
+    private var isRenderingPaused: Bool {
+        renderStateLock.lock()
+        defer { renderStateLock.unlock() }
+        return renderingPaused
+    }
+
     func decompressionOutputCallback(
         decompressionOutputRefCon _: UnsafeMutableRawPointer?,
         sourceFrameRefCon _: UnsafeMutableRawPointer?,
@@ -346,6 +365,8 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         presentationDuration: CMTime?
     ) {
         guard let imageBuffer = imageBuffer else { return }
+        // Never submit GPU work from the background; drop the frame.
+        guard !isRenderingPaused else { return }
 
         // Back-pressure: drop the frame silently if 3 frames are already queued on the GPU.
         if inflightSemaphore.wait(timeout: .now()) != .success { return }
@@ -368,6 +389,10 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         // texture cache are queue-confined, so serialize frame conversion.
         renderFrameLock.lock()
         defer { renderFrameLock.unlock() }
+        if isRenderingPaused {
+            inflightSemaphore.signal()
+            return
+        }
 
         let realtimeSettings = realtime3DSettingsProvider?() ?? .disabled
         let wantStereo = realtimeSettings.isEnabled && stereoOutputMultiplier == 2

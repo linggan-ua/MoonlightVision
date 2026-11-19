@@ -68,6 +68,11 @@
 "HEVC" = "HEVC";
 "HDR (HDR10)" = "HDR (HDR10)";
 "HDR SDR Brightness" = "HDR SDR Brightness";
+"HDR SDR White" = "HDR SDR White";
+"Match the host's SDR content brightness; raise if the HDR desktop looks brighter than SDR, lower if darker." = "Match the host's SDR content brightness; raise if the HDR desktop looks brighter than SDR, lower if darker.";
+"Calibrate from White Screen" = "Calibrate from White Screen";
+"During an HDR stream, show a full-screen SDR white image on the host, then calibrate. The measured value replaces the slider value." = "During an HDR stream, show a full-screen SDR white image on the host, then calibrate. The measured value replaces the slider value.";
+"Waiting for a PQ white frame…" = "Waiting for a PQ white frame…";
 "HDR Highlight Brightness" = "HDR Highlight Brightness";
 "HDR Highlight Level" = "HDR Highlight Level";
 "Frame Pacing" = "Frame Pacing";

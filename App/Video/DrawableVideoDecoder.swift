@@ -39,6 +39,9 @@ struct HDRParams {
     /// Tone-map peak in EDR units (1.0 = SDR white). 2.0 matches the old
     /// visionOS hardcode; higher values let HDR highlights go brighter.
     var edrHeadroom: Float = 2.0
+    /// Host SDR white point in nits. PQ is normalised by this so the host's
+    /// desktop white maps to EDR 1.0 (the window's SDR white), not 1.48x/2.36x.
+    var sdrWhiteNits: Float = 203.0
 }
 
 /// ChromaHalo / Chromosphere: halo drawable / RealityKit texture size is full frame `>> mipShift`.
@@ -150,6 +153,7 @@ private struct ShaderFullHDRParams {
     var mode:        Int32
     var hdrGradeFlags: UInt32
     var sdrBrightness: Float
+    var sdrWhiteNits: Float
 }
 
 /// Buffer 0 for TestFlight SDR fragments (`copyFragmentShaderHDR_EDR` / `_HEVC_EDR`) — matches `LegacySDRFrameParams` in Shaders.metal.
@@ -261,6 +265,11 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
     private let renderFrameLock = NSLock()
     private let hdrReportLock = NSLock()
     private var hdrReport = ""
+    private let whiteSampleLock = NSLock()
+    private var whiteSampleRequested = false
+    /// Called on the main queue with the host SDR white point measured from a
+    /// full-screen SDR white frame.
+    var onHDRWhiteSample: ((Float) -> Void)?
     /// GPU submission is forbidden once the app is in the background. The
     /// decoder keeps its VideoToolbox session but drops frames until resumed.
     private let renderStateLock = NSLock()
@@ -312,7 +321,7 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         mipmappedOutput: Bool = false,
         callbackToRender: @MainActor @escaping (TextureResource.DrawableQueue, TextureResource.DrawableQueue?, (Int, Int)?) -> Void
     ) {
-        metalFormat = enableHDR ? .rgba16Float : .bgra8Unorm_srgb
+        metalFormat = .rgba16Float
 
         // Format setup based on HDR
         decodingFormat = enableHDR ?
@@ -469,49 +478,39 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         }
 
         // --- Primaries Detection ---
-        var primariesFromAttachment = false
         var primariesType: UInt32 = 0  // 0=709, 1=2020, 2=SMPTE-C
         if let primVal = CVBufferGetAttachment(imageBuffer, kCVImageBufferColorPrimariesKey, nil)?.takeUnretainedValue(),
            CFGetTypeID(primVal) == CFStringGetTypeID() {
-            primariesFromAttachment = true
             let prim = primVal as! CFString
             if      CFEqual(prim, kCVImageBufferColorPrimaries_ITU_R_2020)  { primariesType = 1 }
             else if CFEqual(prim, "SMPTE_C" as CFString)                    { primariesType = 2 }
             // else stays 0 (BT.709)
         } else {
-            // Infer BT.2020 only for PQ HDR without tags; 10‑bit SDR without primaries stays 709 (avoids green cast).
-            primariesType = (hdrEnabled && pixelFormatIs10Bit(pf) && isPQ) ? 1 : 0
+            // PQ implies BT.2020; a 10-bit SDR 709 stream stays 709 so it is
+            // not mistaken for an extended HDR signal.
+            primariesType = isPQ ? 1 : 0
         }
 
         // --- Matrix Detection ---
-        var matrixFromAttachment = false
         var matrixType: UInt32 = 0  // 0=709, 1=2020, 2=601
         if let mtxVal = CVBufferGetAttachment(imageBuffer, kCVImageBufferYCbCrMatrixKey, nil)?.takeUnretainedValue(),
            CFGetTypeID(mtxVal) == CFStringGetTypeID() {
-            matrixFromAttachment = true
             let mtx = mtxVal as! CFString
             if      CFEqual(mtx, kCVImageBufferYCbCrMatrix_ITU_R_2020)  { matrixType = 1 }
             else if CFEqual(mtx, "ITU_R_601_4" as CFString)             { matrixType = 2 }
             // else stays 0 (BT.709)
         } else {
-            matrixType = (hdrEnabled && pixelFormatIs10Bit(pf) && isPQ) ? 1 : 0
-        }
-
-        // PQ tag but no colorimetry attachments is common for Windows HDR desktop in the stream — treat as non-PQ.
-        if isPQ && hdrEnabled && !matrixFromAttachment && !primariesFromAttachment {
-            isPQ = false
-            matrixType = 0
-            primariesType = 0
-        }
-        // PQ with explicit BT.709 primaries + 709 matrix is usually SDR-in-HDR container, not PQ code values.
-        if isPQ && primariesFromAttachment && matrixFromAttachment && primariesType == 0 && matrixType == 0 {
-            isPQ = false
+            matrixType = isPQ ? 1 : 0
         }
 
         let is10Bit    = pixelFormatIs10Bit(pf)    ? UInt32(1) : 0
         let isFullRange = pixelFormatIsFullRange(pf) ? UInt32(1) : 0
+        // The render path follows the stream, not the client's host-request
+        // setting. A PQ stream is HDR even when the toggle was off; an SDR
+        // stream is SDR even when the toggle was on.
+        let streamIsHDR = isPQ || (hdrEnabled && is10Bit == 1 && primariesType == 1)
 
-        let hdrKind = !hdrEnabled ? "SDR" : (isPQ ? "PQ" : "extended/non-PQ")
+        let hdrKind = !streamIsHDR ? "SDR" : (isPQ ? "PQ" : "extended/non-PQ")
         let primariesName = primariesType == 1 ? "BT.2020" : (primariesType == 2 ? "SMPTE-C" : "BT.709")
         let bitsName = is10Bit == 1 ? "10-bit" : "8-bit"
         let rangeName = isFullRange == 1 ? "full" : "limited"
@@ -533,7 +532,13 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             NSLog("[DrawableVideoDecoder] %@", report)
         }
 
-        if hdrEnabled { updateHDRMetadata() }
+        if streamIsHDR { updateHDRMetadata() }
+
+        // One-shot white-point calibration: sample the next PQ frame while the
+        // host shows a full-screen SDR white image.
+        if isPQ, is10Bit == 1 {
+            sampleHDRWhiteIfRequested(imageBuffer: imageBuffer, fullRange: isFullRange == 1)
+        }
 
         // --- Texture Format Selection ---
         // When HDR is off, 10-bit SDR stays on r16/rg16 (or packed YCbCr), not r8/rg8.
@@ -547,7 +552,7 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             if srcMetalFormats.count > 1 { cbcrFormat = srcMetalFormats[1] }
             isBiPlanar = (cbcrFormat != .invalid)
 
-            if hdrEnabled {
+            if is10Bit == 1 {
                 yFormat = .r16Unorm
                 cbcrFormat = .rg16Unorm
                 isBiPlanar = true
@@ -564,8 +569,8 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
                 if CFGetTypeID(tfAny) == CFStringGetTypeID() { return (tfAny as! CFString) as String }
                 return "-"
             }()
-            let cllLog = hdrEnabled ? " maxCLL=\(hdrMetadata.maxContentLightLevel) maxFALL=\(hdrMetadata.maxFrameAverageLightLevel)" : ""
-            print("[DrawableVideoDecoder] PF=\(fmtStr), planes=\(planeCount), hdr=\(hdrEnabled), isPQ=\(isPQ), tfDesc=\(tfDesc), fullRange=\(isFullRange==1), 10bit=\(is10Bit==1), matrix=\(matrixType), primaries=\(primariesType)\(cllLog)")
+            let cllLog = streamIsHDR ? " maxCLL=\(hdrMetadata.maxContentLightLevel) maxFALL=\(hdrMetadata.maxFrameAverageLightLevel)" : ""
+            print("[DrawableVideoDecoder] PF=\(fmtStr), planes=\(planeCount), hdr=\(streamIsHDR), isPQ=\(isPQ), tfDesc=\(tfDesc), fullRange=\(isFullRange==1), 10bit=\(is10Bit==1), matrix=\(matrixType), primaries=\(primariesType)\(cllLog)")
         }
 
         guard let drawable = try? drawableQueue?.nextDrawable() else {
@@ -588,13 +593,11 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             return textures.normalized ?? textures.working
         }()
 
-        // SDR uses default TestFlight entry points; HDR uses separate Metal symbols (never shares SDR shader body).
-        let fragment: String = {
-            if hdrEnabled {
-                return isBiPlanar ? "copyFragmentShaderHDR_HDRUnified" : "copyFragmentShaderHEVC_HDRUnified"
-            }
-            return isBiPlanar ? "copyFragmentShaderHDR_EDR" : "copyFragmentShaderHEVC_EDR"
-        }()
+        // One EDR-capable fragment path handles both PQ HDR and SDR: the
+        // shader linearises SDR and gamut-maps it to the float drawable.
+        let fragment = isBiPlanar
+            ? "copyFragmentShaderHDR_HDRUnified"
+            : "copyFragmentShaderHEVC_HDRUnified"
 
         if isBiPlanar {
             if copyPipelineStateYUV == nil || lastCopyFragment != fragment {
@@ -630,77 +633,59 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
 
         renderEncoder.setRenderPipelineState(isBiPlanar ? copyPipelineStateYUV! : copyPipelineState!)
 
-        // Buffer 0: ShaderHDRParams — frame signal description
-        // visionOS has fixed EDR headroom (Vision Pro's micro-OLED peak capability).
-        // On other platforms, query UIScreen dynamically.
-        // Only use HDR slider values when HDR is actually enabled.
-        let userParams: HDRParams = hdrEnabled
-            ? (hdrSettingsProvider?() ?? HDRParams(boost: 1.0, contrast: 1.0, saturation: 1.0, brightness: 0.0, pqExposure: 1.0, mode: 0))
-            : HDRParams(boost: 1.0, contrast: 1.0, saturation: 1.0, brightness: 0.0, pqExposure: 1.0, mode: 0)
+        // Buffer 0: ShaderHDRParams — frame signal description.
+        // The stream's actual format, not the client toggle, decides whether
+        // the HDR trims apply; SDR always uses neutral trims and 1.0 SDR white.
+        let neutralParams = HDRParams(
+            boost: 1.0, contrast: 1.0, saturation: 1.0, brightness: 0.0,
+            pqExposure: 1.0, mode: 0, sdrBrightness: 1.0, edrHeadroom: 2.0,
+            sdrWhiteNits: 203.0
+        )
+        let userParams: HDRParams = streamIsHDR
+            ? (hdrSettingsProvider?() ?? neutralParams)
+            : neutralParams
 
-        // Always compute once so first-frame logging (and HDR shader params) share the same binding.
+        // visionOS has no public numeric EDR headroom; default to 2.0 the way
+        // Steam Link's SDL3 backend does, and let the user trim within it.
         let edrHeadroom: Float = {
-            if let params = hdrSettingsProvider?(), params.edrHeadroom > 0 {
-                return params.edrHeadroom
+            guard streamIsHDR, let params = hdrSettingsProvider?(), params.edrHeadroom > 0 else {
+                return 2.0
             }
-            #if os(visionOS)
-            return 2.0
-            #else
-            let raw = UIScreen.main.currentEDRHeadroom
-            return Float(raw > 1.0 ? raw : UIScreen.main.potentialEDRHeadroom)
-            #endif
+            return params.edrHeadroom
         }()
 
-        if hdrEnabled {
-            let is10BitBool = is10Bit == 1
-            let isFullRangeBool = isFullRange == 1
-            let (yuvMatrix, yuvOffset) = buildYUVMatrix(matrixType: matrixType, isFullRange: isFullRangeBool, is10Bit: is10BitBool)
-            let extendedScene: UInt32 = (hdrEnabled && !isPQ) ? 1 : 0
-            var shaderHDR = ShaderHDRParams(
-                isPQ:              isPQ ? 1 : 0,
-                primariesType:     primariesType,
-                extendedScene:     extendedScene,
-                reserved0:         0,
-                edrHeadroom:       edrHeadroom,
-                pad:               0,
-                alignPad:          .zero,
-                maxContentNits:    Float(hdrMetadata.maxContentLightLevel),
-                maxFrameAvgNits:   Float(hdrMetadata.maxFrameAverageLightLevel),
-                padHdrMeta:        .zero,
-                yuvMatrix:         yuvMatrix,
-                yuvOffset:         yuvOffset
-            )
-            renderEncoder.setFragmentBytes(&shaderHDR, length: MemoryLayout<ShaderHDRParams>.size, index: 0)
+        let is10BitBool = is10Bit == 1
+        let isFullRangeBool = isFullRange == 1
+        let (yuvMatrix, yuvOffset) = buildYUVMatrix(matrixType: matrixType, isFullRange: isFullRangeBool, is10Bit: is10BitBool)
+        let extendedScene: UInt32 = (streamIsHDR && !isPQ) ? 1 : 0
+        var shaderHDR = ShaderHDRParams(
+            isPQ:              isPQ ? 1 : 0,
+            primariesType:     primariesType,
+            extendedScene:     extendedScene,
+            reserved0:         0,
+            edrHeadroom:       edrHeadroom,
+            pad:               0,
+            alignPad:          .zero,
+            maxContentNits:    streamIsHDR ? Float(hdrMetadata.maxContentLightLevel) : 0,
+            maxFrameAvgNits:   streamIsHDR ? Float(hdrMetadata.maxFrameAverageLightLevel) : 0,
+            padHdrMeta:        .zero,
+            yuvMatrix:         yuvMatrix,
+            yuvOffset:         yuvOffset
+        )
+        renderEncoder.setFragmentBytes(&shaderHDR, length: MemoryLayout<ShaderHDRParams>.size, index: 0)
 
-            var fullParams = ShaderFullHDRParams(
-                boost:      userParams.boost,
-                contrast:   userParams.contrast,
-                saturation: userParams.saturation,
-                brightness: userParams.brightness,
-                pqExposure: userParams.pqExposure,
-                mode:       userParams.mode,
-                hdrGradeFlags: userParams.hdrGradeFlags,
-                sdrBrightness: userParams.sdrBrightness
-            )
-            renderEncoder.setFragmentBytes(&fullParams, length: MemoryLayout<ShaderFullHDRParams>.size, index: 1)
-        } else {
-            var legacyFrame = LegacySDRFrameParams(
-                presetIndex: 0,
-                isPQ: isPQ ? 1 : 0,
-                isBT2020Matrix: matrixType == 1 ? 1 : 0,
-                isBT2020Primaries: primariesType == 1 ? 1 : 0
-            )
-            renderEncoder.setFragmentBytes(&legacyFrame, length: MemoryLayout<LegacySDRFrameParams>.size, index: 0)
-
-            var legacyFull = LegacySDRFullParams(
-                boost: userParams.boost,
-                contrast: userParams.contrast,
-                saturation: userParams.saturation,
-                brightness: userParams.brightness,
-                mode: userParams.mode
-            )
-            renderEncoder.setFragmentBytes(&legacyFull, length: MemoryLayout<LegacySDRFullParams>.size, index: 1)
-        }
+        var fullParams = ShaderFullHDRParams(
+            boost:      userParams.boost,
+            contrast:   userParams.contrast,
+            saturation: userParams.saturation,
+            brightness: userParams.brightness,
+            pqExposure: userParams.pqExposure,
+            mode:       userParams.mode,
+            hdrGradeFlags: userParams.hdrGradeFlags,
+            sdrBrightness: streamIsHDR ? userParams.sdrBrightness : 1.0,
+            sdrWhiteNits: max(userParams.sdrWhiteNits, 80.0)
+        )
+        renderEncoder.setFragmentBytes(&fullParams, length: MemoryLayout<ShaderFullHDRParams>.size, index: 1)
 
         // Buffer 2: ColorEnhancementUniforms — warmth / per-renderer adjustments
         let satConWarm = enhancementsProvider?() ?? (1.0, 1.0, 0.0)
@@ -1132,6 +1117,81 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         return hdrReport
     }
 
+    /// Requests a one-shot measurement of the host's SDR white point from the
+    /// next PQ frame. The caller should display a full-screen SDR white image.
+    func requestHDRWhiteSample() {
+        whiteSampleLock.lock()
+        whiteSampleRequested = true
+        whiteSampleLock.unlock()
+        NSLog("[DrawableVideoDecoder] HDR white sample requested; waiting for a PQ frame")
+        LiRequestIdrFrame()
+    }
+
+    private func sampleHDRWhiteIfRequested(imageBuffer: CVImageBuffer, fullRange: Bool) {
+        guard pixelFormatIs10Bit(CVPixelBufferGetPixelFormatType(imageBuffer)) else {
+            NSLog("[DrawableVideoDecoder] HDR white sample skipped: not a 10-bit frame")
+            return
+        }
+        whiteSampleLock.lock()
+        let requested = whiteSampleRequested
+        if requested { whiteSampleRequested = false }
+        whiteSampleLock.unlock()
+        guard requested else { return }
+        let lockStatus = CVPixelBufferLockBaseAddress(imageBuffer, .readOnly)
+        guard lockStatus == kCVReturnSuccess else {
+            NSLog("[DrawableVideoDecoder] HDR white sample failed: lock status \(lockStatus)")
+            return
+        }
+        defer { CVPixelBufferUnlockBaseAddress(imageBuffer, .readOnly) }
+        guard CVPixelBufferGetPlaneCount(imageBuffer) > 0,
+              let base = CVPixelBufferGetBaseAddressOfPlane(imageBuffer, 0) else {
+            NSLog("[DrawableVideoDecoder] HDR white sample failed: no Y plane after lock")
+            return
+        }
+        let width = CVPixelBufferGetWidthOfPlane(imageBuffer, 0)
+        let height = CVPixelBufferGetHeightOfPlane(imageBuffer, 0)
+        let bytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(imageBuffer, 0)
+        let x0 = width / 4, x1 = width * 3 / 4
+        let y0 = height / 4, y1 = height * 3 / 4
+        var sum: Double = 0
+        var count = 0
+        for y in stride(from: y0, to: y1, by: 2) {
+            let row = base.advanced(by: y * bytesPerRow).assumingMemoryBound(to: UInt16.self)
+            for x in stride(from: x0, to: x1, by: 2) {
+                sum += Double(row[x])
+                count += 1
+            }
+        }
+        guard count > 0 else { return }
+        let rawAverage = sum / Double(count)
+        // 10-bit bi-planar stores the 10-bit sample in the high bits of each
+        // 16-bit word (P010/xf20 style): 37632 == 588 << 6.
+        let average = rawAverage / 64.0
+        let code = fullRange ? average / 1023.0 : (average - 64.0) / (940.0 - 64.0)
+        let nits = Self.pqCodeToNits(code)
+        let clamped = min(max(Float(nits), 80.0), 500.0)
+        NSLog(
+            "[DrawableVideoDecoder] HDR white sample: rawAvg=%.1f avgY=%.1f code=%.4f nits=%.1f clamped=%.1f",
+            rawAverage, average, code, nits, clamped
+        )
+        DispatchQueue.main.async { [weak self] in
+            self?.onHDRWhiteSample?(clamped)
+        }
+    }
+
+    private static func pqCodeToNits(_ code: Double) -> Double {
+        let m1 = 0.1593017578125
+        let m2 = 78.84375
+        let c1 = 0.8359375
+        let c2 = 18.8515625
+        let c3 = 18.6875
+        let p = min(max(code, 0), 1)
+        let n = pow(p, 1.0 / m2)
+        let num = max(n - c1, 0)
+        let den = max(c2 - c3 * n, 1e-4)
+        return pow(num / den, 1.0 / m1) * 10000.0
+    }
+
     /// Latest real-time 3D depth report (nil when 3D is off or no frame yet).
     func realtime3DReport() -> LSRealtimeStereoRenderer.Report? {
         realtime3DConverter?.lastReport
@@ -1145,24 +1205,15 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         self.videoHeight = Int(videoHeight)
         print("DrawableVideoDecoder: setup format=\(videoFormat) \(videoWidth)x\(videoHeight)@\(frameRate)")
 
-        // Configure cache attributes with HDR support if enabled
+        // The cache itself only needs Metal compatibility; the per-frame
+        // CVMetalTextureCacheCreateTextureFromImage call supplies the actual
+        // plane format, which changes with the stream's colorspace.
         let cacheAttributes: [String: Any] = [
             kCVMetalTextureCacheMaximumTextureAgeKey as String: 1,
         ]
-
-        let textureAttributes: [String: Any] = {
-            var attrs: [String: Any] = [
-                kCVPixelBufferMetalCompatibilityKey as String: true,
-                kCVPixelBufferWidthKey as String: videoWidth,
-                kCVPixelBufferHeightKey as String: videoHeight,
-            ]
-            if hdrEnabled {
-                attrs[kCVPixelBufferPixelFormatTypeKey as String] = kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
-            } else {
-                attrs[kCVPixelBufferPixelFormatTypeKey as String] = decodingFormat
-            }
-            return attrs
-        }()
+        let textureAttributes: [String: Any] = [
+            kCVPixelBufferMetalCompatibilityKey as String: true,
+        ]
 
         let res = CVMetalTextureCacheCreate(
             kCFAllocatorDefault,
@@ -1364,12 +1415,31 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
                     kVTVideoDecoderSpecification_EnableHardwareAcceleratedVideoDecoder as String: true,
                 ]
 
-                // HDR: request 10-bit bi-planar YUV. AV1 HDR: also tag the decoder pixel pool (original fork parity).
+                // Choose the decode target from the stream's actual format,
+                // not only from the client's HDR setting. A host HDR toggle
+                // changes the format description; the next IDR re-keys the VT
+                // session in place with the matching pixel format.
+                let transfer = Self.stringExtension(
+                    formatDesc,
+                    key: kCMFormatDescriptionExtension_TransferFunction
+                )
+                let formatIsPQ = transfer == (kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ as String)
+                let formatBits = (CMFormatDescriptionGetExtension(
+                    formatDesc,
+                    extensionKey: kCMFormatDescriptionExtension_BitsPerComponent
+                ) as? NSNumber)?.intValue ?? 0
+                let formatPrimaries = Self.stringExtension(
+                    formatDesc,
+                    key: kCMFormatDescriptionExtension_ColorPrimaries
+                )
+                let formatIs2020 = formatPrimaries == (kCMFormatDescriptionColorPrimaries_ITU_R_2020 as String)
+                let formatIsHDR = formatIsPQ || (hdrEnabled && formatBits > 8 && formatIs2020)
+
                 var attributes: [CFString: Any] = [
                     kCVPixelBufferMetalCompatibilityKey: true,
                     kCVPixelBufferPoolMinimumBufferCountKey: 3
                 ]
-                if hdrEnabled {
+                if formatIsHDR {
                     attributes[kCVPixelBufferPixelFormatTypeKey] = kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
                 } else {
                     if (self.videoFormat & VIDEO_FORMAT_MASK_AV1) != 0 {
@@ -1377,6 +1447,9 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
                     } else {
                         attributes[kCVPixelBufferPixelFormatTypeKey] = decodingFormat
                     }
+                }
+                if formatIsHDR != hdrEnabled {
+                    print("[DrawableVideoDecoder] Stream HDR state changed: format=\(formatIsHDR ? "HDR" : "SDR") (client setting=\(hdrEnabled))")
                 }
 
                 // Drain and retire the previous session before overwriting it;

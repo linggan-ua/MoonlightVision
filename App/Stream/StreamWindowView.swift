@@ -155,7 +155,7 @@ struct StreamWindowView: View {
                 showRestartPrompt = true
             }
         }) {
-            SettingsView()
+            SettingsView(onCalibrateHDRWhite: { model.calibrateHDRWhite() })
                 .frame(minWidth: 720, minHeight: 760)
         }
         .alert(
@@ -393,6 +393,7 @@ private struct StreamVideoSettingsObserver: ViewModifier {
             .onChange(of: settings.packedSBSInput) { _, _ in model.refreshSBSLayout() }
             .onChange(of: settings.antiShimmerMipmaps) { _, enabled in model.setAntiShimmerMipmaps(enabled) }
             .onChange(of: settings.hdrSdrBrightness) { _, value in model.setHDRSdrBrightness(Float(value)) }
+            .onChange(of: settings.hdrSdrWhiteNits) { _, value in model.setHDRSdrWhiteNits(Float(value)) }
             .onChange(of: settings.hdrHighlightHeadroom) { _, value in model.setHDRHighlightHeadroom(Float(value)) }
     }
 }

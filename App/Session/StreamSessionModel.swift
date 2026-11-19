@@ -112,6 +112,7 @@ final class StreamSessionModel {
             : .standard2D
         hdrTrim.setSDRBrightness(Float(StreamSettingsStore.shared.hdrSdrBrightness))
         hdrTrim.setHighlightHeadroom(Float(StreamSettingsStore.shared.hdrHighlightHeadroom))
+        hdrTrim.setSDRWhiteNits(Float(StreamSettingsStore.shared.hdrSdrWhiteNits))
     }
 
     var statusText: String {
@@ -230,6 +231,18 @@ final class StreamSessionModel {
     /// Feeds the live HDR highlight headroom (tone-map peak) to the decoder.
     func setHDRHighlightHeadroom(_ value: Float) {
         hdrTrim.setHighlightHeadroom(value)
+    }
+
+    /// Feeds the host SDR white point (nits) used to normalise PQ content.
+    func setHDRSdrWhiteNits(_ value: Float) {
+        hdrTrim.setSDRWhiteNits(value)
+    }
+
+    /// Measures the host SDR white point from the next PQ frame. Show a
+    /// full-screen SDR white image on the host before calling this.
+    func calibrateHDRWhite() {
+        NSLog("[Stream] HDR white calibration requested")
+        activeDecoder?.requestHDRWhiteSample()
     }
 
     /// Reconciles the stream with the current display mode: local 2D→3D needs
@@ -507,7 +520,8 @@ final class StreamSessionModel {
                             pqExposure: 1.0,
                             mode: 0,
                             sdrBrightness: trim.sdrSnapshot,
-                            edrHeadroom: trim.headroomSnapshot
+                            edrHeadroom: trim.headroomSnapshot,
+                            sdrWhiteNits: trim.sdrWhiteSnapshot
                         )
                     },
                     enhancementsProvider: nil,
@@ -522,6 +536,13 @@ final class StreamSessionModel {
                 // Must be set before setup(): it decides the initial queue width.
                 decoder.setStereoOutputEnabled(self?.isRealtime3DActive ?? false)
                 decoder.setRenderingPaused(renderingPaused)
+                decoder.onHDRWhiteSample = { [weak self] nits in
+                    Task { @MainActor in
+                        NSLog("[Stream] HDR white measured: %.1f nit", nits)
+                        StreamSettingsStore.shared.hdrSdrWhiteNits = Double(nits)
+                        self?.setHDRSdrWhiteNits(nits)
+                    }
+                }
                 self?.activeDecoder = decoder
                 return decoder
             },
@@ -589,9 +610,11 @@ final class StreamSessionModel {
         let width = max(1, Int(config.width) * multiplier)
         let height = max(1, Int(config.height))
         videoTextureWidth = width
-        let hdr = StreamSettingsStore.shared.hdrEnabled
-        let bytesPerPixel = hdr ? 8 : 4
-        let pixelFormat: MTLPixelFormat = hdr ? .rgba16Float : .bgra8Unorm_srgb
+        // The drawable is always EDR-capable: the render path follows the
+        // stream's actual colorspace, so a host HDR toggle must not require a
+        // new texture. SDR is linearised and gamut-mapped by the shader.
+        let bytesPerPixel = 8
+        let pixelFormat: MTLPixelFormat = .rgba16Float
         do {
             videoTexture = try TextureResource(
                 dimensions: .dimensions(width: width, height: height),
@@ -609,8 +632,8 @@ final class StreamSessionModel {
             NSLog("%@", "[Stream] Failed to create video texture \(width)x\(height): \(error)")
             videoTexture = try? TextureResource(
                 dimensions: .dimensions(width: 1, height: 1),
-                format: .raw(pixelFormat: .bgra8Unorm_srgb),
-                contents: .init(mipmapLevels: [.mip(data: Data(count: 4), bytesPerRow: 4)])
+                format: .raw(pixelFormat: .rgba16Float),
+                contents: .init(mipmapLevels: [.mip(data: Data(count: 8), bytesPerRow: 8)])
             )
         }
     }
@@ -619,32 +642,30 @@ final class StreamSessionModel {
         let hevcSupported = VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC)
         let av1Supported = VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1)
 
-        // Match the mature clients' policy: HDR is requested only when the user
-        // enabled it, the selected codec can carry 10-bit, and the host reports
-        // the matching Main10 capability. Do not gate this on
-        // AVPlayer.availableHDRModes; it is not a reliable HDR capability signal
-        // on visionOS, and gating on it silently disables HDR entirely.
+        // Advertise HDR-capable Main10 whenever the hardware and host support
+        // it, regardless of the client toggle. The host's HDR mode decides what
+        // it actually sends; the renderer follows the stream's format. This is
+        // what makes a host-side HDR toggle work without a client restart.
         let hostMask = UInt32(truncatingIfNeeded: host.serverCodecModeSupport)
         let hostHEVCMain10 = (hostMask & UInt32(SCM_HEVC_MAIN10)) != 0
-        let hdrRequested = settings.hdrEnabled && settings.codec.supportsHDR
+        let hdrCapable = settings.codec.supportsHDR && hostHEVCMain10
 
-        // H.264 has no 10-bit profile. When HDR is requested the decoder sizes
-        // its pixel buffers and texture for 10-bit, so never let the host pick
-        // an 8-bit H.264 stream in that case.
-        var formats: Int32 = hdrRequested ? 0 : Int32(VIDEO_FORMAT_H264)
+        // H.264 has no 10-bit profile. Keep it as an SDR fallback; HDR-capable
+        // clients advertise Main10 alongside it and let the host choose.
+        var formats: Int32 = Int32(VIDEO_FORMAT_H264)
 
         switch settings.codec {
         case .auto:
             if hevcSupported {
                 formats |= Int32(VIDEO_FORMAT_H265)
-                if hdrRequested && hostHEVCMain10 {
+                if hdrCapable {
                     formats |= Int32(VIDEO_FORMAT_H265_MAIN10)
                 }
             }
             // AV1 Main10 is not advertised on visionOS: VTIsHardwareDecodeSupported
             // is per-codec, not per-profile, and the Vision Pro AV1 decoder was
             // observed freezing on an HDR Main10 stream. Keep AV1 for SDR only.
-            if av1Supported && !hdrRequested {
+            if av1Supported {
                 formats |= Int32(VIDEO_FORMAT_AV1_MAIN8)
             }
         case .h264:
@@ -652,7 +673,7 @@ final class StreamSessionModel {
         case .hevc:
             if hevcSupported {
                 formats |= Int32(VIDEO_FORMAT_H265)
-                if hdrRequested && hostHEVCMain10 {
+                if hdrCapable {
                     formats |= Int32(VIDEO_FORMAT_H265_MAIN10)
                 }
             }
@@ -660,20 +681,21 @@ final class StreamSessionModel {
             // AV1 Main10 is not advertised on visionOS: VTIsHardwareDecodeSupported
             // is per-codec, not per-profile, and the Vision Pro AV1 decoder was
             // observed freezing on an HDR Main10 stream. Keep AV1 for SDR only.
-            if av1Supported && !hdrRequested {
+            if av1Supported {
                 formats |= Int32(VIDEO_FORMAT_AV1_MAIN8)
             }
             // HEVC is a fallback when the host or client cannot do AV1.
             if hevcSupported {
                 formats |= Int32(VIDEO_FORMAT_H265)
-                if hdrRequested && hostHEVCMain10 {
+                if hdrCapable {
                     formats |= Int32(VIDEO_FORMAT_H265_MAIN10)
                 }
             }
         }
 
-        NSLog("[Stream] HDR requested=%d codec=%@ hostMask=0x%x formats=0x%x",
-              hdrRequested ? 1 : 0,
+        NSLog("[Stream] HDR toggle=%d capable=%d codec=%@ hostMask=0x%x formats=0x%x",
+              settings.hdrEnabled ? 1 : 0,
+              hdrCapable ? 1 : 0,
               settings.codec.rawValue,
               hostMask,
               formats)

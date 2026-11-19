@@ -60,6 +60,7 @@ struct FullHDRParams {
     int   mode;         // UIKit / preset mode (unchanged)
     uint  hdrGradeFlags;// bit0 = Reference HDR: PQ + gamut + tone map only (no client grade / trims)
     float sdrBrightness;// HDR-mode SDR white level; 1.0 = neutral, lower dims SDR below the reference white
+    float sdrWhiteNits; // Host SDR white point in nits; PQ is normalised by this
 };
 
 struct CopyVertexOut {
@@ -147,9 +148,9 @@ constant float3x3 BT709_TO_DISPLAYP3 = float3x3(
 
 // BT.2020 linear → Display P3 linear
 constant float3x3 BT2020_TO_DISPLAYP3 = float3x3(
-    float3( 1.22494, -0.04206, -0.01964),
-    float3(-0.22494,  1.04206, -0.07864),
-    float3( 0.00000,  0.00000,  1.09827)
+    float3( 1.343578, -0.065297,  0.002822),
+    float3(-0.282180,  1.075788, -0.019598),
+    float3(-0.061399, -0.010490,  1.016777)
 );
 
 // SMPTE-C (BT.601) linear → BT.709 linear
@@ -239,13 +240,14 @@ inline float uchimura(float x, float P, float a, float m, float l, float c, floa
 
 // Widen Uchimura shoulder P when Sunshine reports modest maxCLL / low maxFALL (typical Windows HDR desktop)
 // so mids/highlights are not flattened; 0 maxContentNits leaves base P unchanged.
-inline float hdrUchimuraShoulderP(float baseP, float maxContentNits, float maxFrameAvgNits) {
+inline float hdrUchimuraShoulderP(float baseP, float maxContentNits, float maxFrameAvgNits, float sdrWhiteNits) {
     float P = clamp(baseP, 1.2, 40.0);
+    float white = max(sdrWhiteNits, 80.0);
     if (maxContentNits > 1.0) {
-        float peakEdr = clamp(maxContentNits / PQ_REFERENCE_WHITE_NITS, 1.05, 40.0);
+        float peakEdr = clamp(maxContentNits / white, 1.05, 40.0);
         float target = peakEdr * 1.08;
         if (maxFrameAvgNits > 1.0) {
-            float fallEdr = clamp(maxFrameAvgNits / PQ_REFERENCE_WHITE_NITS, 0.15, peakEdr);
+            float fallEdr = clamp(maxFrameAvgNits / white, 0.15, peakEdr);
             target = max(target, fallEdr * 2.2);
         }
         P = clamp(max(P, target), 1.2, 40.0);
@@ -255,8 +257,8 @@ inline float hdrUchimuraShoulderP(float baseP, float maxContentNits, float maxFr
 
 // Apply Uchimura per luma channel to preserve chromaticity (avoids hue twist).
 // edrCeiling is the live display EDR headroom passed from Swift each frame.
-inline float3 uchimuraToneMap(float3 colorP3, float edrCeiling, float maxContentNits, float maxFrameAvgNits) {
-    float P = hdrUchimuraShoulderP(clamp(edrCeiling, 1.2, 8.0), maxContentNits, maxFrameAvgNits);
+inline float3 uchimuraToneMap(float3 colorP3, float edrCeiling, float maxContentNits, float maxFrameAvgNits, float sdrWhiteNits) {
+    float P = hdrUchimuraShoulderP(clamp(edrCeiling, 1.2, 8.0), maxContentNits, maxFrameAvgNits, sdrWhiteNits);
     // Tuned for Vision Pro's ~100-nit effective eye output with micro-OLED infinite black.
     float a = 1.0;   // Linear section contrast
     float m = 0.22;  // Linear section start (matches Reinhard mid-gray)
@@ -272,9 +274,9 @@ inline float3 uchimuraToneMap(float3 colorP3, float edrCeiling, float maxContent
 /// Reference HDR: same Uchimura family but slightly **higher shoulder P** and gentler **toe** so
 /// mids/highlights are not rolled off as aggressively (Enhanced path used to add boost/sat *before* TM).
 /// A small **chroma recovery** after TM offsets perceived desaturation from luma-only scaling.
-inline float3 uchimuraToneMapReference(float3 colorP3, float edrCeiling, float maxContentNits, float maxFrameAvgNits) {
+inline float3 uchimuraToneMapReference(float3 colorP3, float edrCeiling, float maxContentNits, float maxFrameAvgNits, float sdrWhiteNits) {
     float baseP = clamp(max(edrCeiling * 1.18, 2.55), 1.35, 8.0);
-    float P = hdrUchimuraShoulderP(baseP, maxContentNits, maxFrameAvgNits);
+    float P = hdrUchimuraShoulderP(baseP, maxContentNits, maxFrameAvgNits, sdrWhiteNits);
     float a = 1.0;
     float m = 0.22;
     float l = 0.42;
@@ -378,8 +380,10 @@ inline float3 processFrame(
         // 1. PQ decode → absolute nits
         float3 nits = pqToNits(clamp(rgb_raw, 0.0, 1.0));
 
-        // 2. Scale to EDR units relative to 203-nit reference white (BT.2408)
-        float3 edr = nits / PQ_REFERENCE_WHITE_NITS;
+        // 2. Scale to EDR units relative to the host's SDR white point. With
+        // the correct white (default 203 nits, BT.2408), the host's desktop
+        // white lands at 1.0 and matches the window's SDR white.
+        float3 edr = nits / max(full.sdrWhiteNits, 80.0);
 
         // 2b. Dim SDR content inside an HDR signal without touching highlights
         // above the reference white. Compress luminance and scale RGB by the
@@ -402,7 +406,7 @@ inline float3 processFrame(
         if (referenceHdr) {
             // Reference: PQ + gamut + dedicated tone map (no panel sliders). TM tuned slightly
             // punchier than the Enhanced default map + mild chroma recovery (see uchimuraToneMapReference).
-            finalColor = uchimuraToneMapReference(colorP3, p.edrHeadroom, p.maxContentNits, p.maxFrameAvgNits);
+            finalColor = uchimuraToneMapReference(colorP3, p.edrHeadroom, p.maxContentNits, p.maxFrameAvgNits, full.sdrWhiteNits);
         } else {
             // 4. User grading (luma-preserved, no hard clamp — preserves HDR headroom)
             float3 lumaW = use2020 ? kRec2020Luma : kDisplayP3Luma;
@@ -416,7 +420,7 @@ inline float3 processFrame(
             colorP3 *= max(full.pqExposure, 0.0);
 
             // 6. Uchimura tone map against live EDR headroom (no display-specific black lift afterward).
-            colorP3 = uchimuraToneMap(colorP3, p.edrHeadroom, p.maxContentNits, p.maxFrameAvgNits);
+            colorP3 = uchimuraToneMap(colorP3, p.edrHeadroom, p.maxContentNits, p.maxFrameAvgNits, full.sdrWhiteNits);
 
             finalColor = colorP3;
         }
@@ -431,7 +435,7 @@ inline float3 processFrame(
             float peak = max(max(colorSDR.r, colorSDR.g), colorSDR.b);
             peak = max(peak, 1e-5);
             float3 chromaDir = colorSDR / peak;
-            float P = hdrUchimuraShoulderP(clamp(p.edrHeadroom, 1.25, 8.0), p.maxContentNits, p.maxFrameAvgNits);
+            float P = hdrUchimuraShoulderP(clamp(p.edrHeadroom, 1.25, 8.0), p.maxContentNits, p.maxFrameAvgNits, full.sdrWhiteNits);
             float mappedPeak = uchimura(peak, P, 1.0, 0.22, 0.42, 1.18, 0.0);
             colorSDR = chromaDir * mappedPeak;
             colorSDR = min(colorSDR, float3(1.0));
@@ -458,11 +462,14 @@ inline float3 processFrame(
     }
 
     // The HDR drawable is a linear rgba16Float texture. A true SDR stream
-    // carried through the HDR path arrives gamma-encoded; writing it straight
-    // into the linear texture makes the display encode it a second time, which
-    // looks overexposed. Linearise that branch before it reaches the texture.
+    // carried through the HDR path arrives gamma-encoded; linearise it and map
+    // BT.709 primaries into the drawable's Display P3 working space before it
+    // reaches the texture.
     if (p.isPQ == 0u && p.extendedScene == 0u) {
-        finalColor = pow(clamp(finalColor, 0.0, 1.0), float3(2.2));
+        finalColor = sdrPrimariesToDisplayP3(
+            pow(clamp(finalColor, 0.0, 1.0), float3(2.2)),
+            p
+        );
     }
 
     // Safety ceiling — prevents any runaway value from blowing out the display.

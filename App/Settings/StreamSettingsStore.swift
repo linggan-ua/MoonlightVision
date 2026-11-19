@@ -125,6 +125,7 @@ final class StreamSettingsStore {
     private static let showLocalCursorKey = "mv.showLocalCursor"
     private static let hdrSdrBrightnessKey = "mv.hdrSdrBrightness"
     private static let hdrHighlightHeadroomKey = "mv.hdrHighlightHeadroom"
+    private static let hdrSdrWhiteNitsKey = "mv.hdrSdrWhiteNits"
     private static let stereoSBSKey = "mv.stereoSBS"
     private static let packedSBSInputKey = "mv.packedSBSInput"
     private static let windowCornerRadiusKey = "mv.windowCornerRadius"
@@ -205,6 +206,13 @@ final class StreamSettingsStore {
     var hdrHighlightHeadroom: Double = 2.0 {
         didSet {
             UserDefaults.standard.set(hdrHighlightHeadroom, forKey: Self.hdrHighlightHeadroomKey)
+        }
+    }
+    /// Host SDR white point in nits. PQ content is normalised by this so the
+    /// host's desktop white maps to EDR 1.0 instead of 1.48x/2.36x.
+    var hdrSdrWhiteNits: Double = 203.0 {
+        didSet {
+            UserDefaults.standard.set(hdrSdrWhiteNits, forKey: Self.hdrSdrWhiteNitsKey)
         }
     }
     var showStats: Bool = true {
@@ -325,7 +333,16 @@ final class StreamSettingsStore {
             hdrSdrBrightness = UserDefaults.standard.double(forKey: Self.hdrSdrBrightnessKey)
         }
         if UserDefaults.standard.object(forKey: Self.hdrHighlightHeadroomKey) != nil {
-            hdrHighlightHeadroom = UserDefaults.standard.double(forKey: Self.hdrHighlightHeadroomKey)
+            hdrHighlightHeadroom = min(
+                max(UserDefaults.standard.double(forKey: Self.hdrHighlightHeadroomKey), 1.1),
+                4.0
+            )
+        }
+        if UserDefaults.standard.object(forKey: Self.hdrSdrWhiteNitsKey) != nil {
+            hdrSdrWhiteNits = min(
+                max(UserDefaults.standard.double(forKey: Self.hdrSdrWhiteNitsKey), 80.0),
+                500.0
+            )
         }
         stereoSBS = UserDefaults.standard.bool(forKey: Self.stereoSBSKey)
         packedSBSInput = UserDefaults.standard.bool(forKey: Self.packedSBSInputKey)
@@ -366,6 +383,7 @@ final class StreamSettingsStore {
         showLocalCursor = false
         hdrSdrBrightness = 1.0
         hdrHighlightHeadroom = 2.0
+        hdrSdrWhiteNits = 203.0
         showStats = true
         framePacing = true
         optimizeGameSettings = true

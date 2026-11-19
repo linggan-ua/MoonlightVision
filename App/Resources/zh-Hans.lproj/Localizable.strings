@@ -68,6 +68,11 @@
 "HEVC" = "HEVC";
 "HDR (HDR10)" = "HDR (HDR10)";
 "HDR SDR Brightness" = "HDR 下 SDR 亮度";
+"HDR SDR White" = "HDR SDR 白点";
+"Match the host's SDR content brightness; raise if the HDR desktop looks brighter than SDR, lower if darker." = "与主机的 SDR 内容亮度对齐；如果 HDR 桌面比 SDR 亮就调高，偏暗就调低。";
+"Calibrate from White Screen" = "从白屏校准";
+"During an HDR stream, show a full-screen SDR white image on the host, then calibrate. The measured value replaces the slider value." = "在 HDR 串流中，先在主机上显示一张全屏纯白（SDR 白）图，再点校准；测量值会替换滑条值。";
+"Waiting for a PQ white frame…" = "正在等待 PQ 白帧…";
 "HDR Highlight Brightness" = "HDR 高光亮度";
 "HDR Highlight Level" = "HDR 高光级别";
 "Frame Pacing" = "帧节奏";

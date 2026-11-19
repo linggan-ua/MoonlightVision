@@ -12,6 +12,7 @@ struct SettingsView: View {
     @Bindable private var settings = StreamSettingsStore.shared
     @ObservedObject private var realtime3D = Realtime3DSettingsStore.shared
     @State private var showResetConfirm = false
+    @State private var isCalibrating = false
 
     @State private var selectedAspectRatio: String?
     @State private var isCustomFrameRate = false
@@ -20,6 +21,7 @@ struct SettingsView: View {
     @State private var customBitrate = 10
 
     var showsDoneButton = true
+    var onCalibrateHDRWhite: (() -> Void)? = nil
 
     private static let frameRatePresets = [24, 30, 60, 90, 100, 120]
     private static let bitratePresets = [5, 10, 30, 50, 75, 100, 120, 150, 200, 300, 400, 500, 600]
@@ -308,10 +310,35 @@ struct SettingsView: View {
                     )
                     Slider(value: $settings.hdrSdrBrightness, in: 0.25...1.5, step: 0.05)
                     LabeledContent(
+                        "HDR SDR White",
+                        value: "\(Int(settings.hdrSdrWhiteNits)) nit"
+                    )
+                    Slider(value: $settings.hdrSdrWhiteNits, in: 80...500, step: 5)
+                    Text("Match the host's SDR content brightness; raise if the HDR desktop looks brighter than SDR, lower if darker.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if let onCalibrateHDRWhite {
+                        Button("Calibrate from White Screen") {
+                            isCalibrating = true
+                            onCalibrateHDRWhite()
+                        }
+                        if isCalibrating {
+                            HStack(spacing: 6) {
+                                ProgressView().controlSize(.small)
+                                Text("Waiting for a PQ white frame…")
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                        Text("During an HDR stream, show a full-screen SDR white image on the host, then calibrate. The measured value replaces the slider value.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    LabeledContent(
                         "HDR Highlight Brightness",
                         value: String(format: "%.1f×", settings.hdrHighlightHeadroom)
                     )
-                    Slider(value: $settings.hdrHighlightHeadroom, in: 1.0...8.0, step: 0.1)
+                    Slider(value: $settings.hdrHighlightHeadroom, in: 1.1...4.0, step: 0.1)
                     Toggle("Frame Pacing", isOn: $settings.framePacing)
                     Toggle("Anti-Shimmer (Mipmaps)", isOn: $settings.antiShimmerMipmaps)
                 } header: {
@@ -416,6 +443,11 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .onAppear {
                 configureCustomState()
+            }
+            .task(id: isCalibrating) {
+                guard isCalibrating else { return }
+                try? await Task.sleep(for: .seconds(6))
+                if !Task.isCancelled { isCalibrating = false }
             }
             .onChange(of: settings.resolution) { _, resolution in
                 selectedAspectRatio = Self.aspectRatios.contains(resolution.aspectDescription)

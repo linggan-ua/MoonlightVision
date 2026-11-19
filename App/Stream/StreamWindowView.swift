@@ -60,6 +60,8 @@ struct StreamWindowView: View {
                     packedSBS: model.isSBSStream,
                     cornerRadiusFraction: Float(settings.windowCornerRadius / 100),
                     curvatureFraction: Float(settings.screenCurvature / 100),
+                    localCursor: model.localCursor,
+                    showLocalCursor: settings.showLocalCursor,
                     localConversion: !model.isSBSStream,
                     showSBSConfirm: model.showSBSConfirm,
                     onEnableSBS: {
@@ -84,6 +86,15 @@ struct StreamWindowView: View {
                         Text(model.statusText)
                             .font(.headline)
                             .multilineTextAlignment(.center)
+                        if isEnded {
+                            Button {
+                                Task { await model.restart() }
+                            } label: {
+                                Label("Reconnect", systemImage: "arrow.clockwise")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(model.isRestarting)
+                        }
                     }
                 }
             }
@@ -169,7 +180,11 @@ struct StreamWindowView: View {
             model.inputView.isUserInteractionEnabled = !showing
         }
         .onChange(of: scenePhase) { _, newPhase in
+            let wasBackgrounded = model.isBackgrounded
             model.setBackgrounded(newPhase != .active)
+            if newPhase == .active {
+                model.scheduleReconnectAfterBackground(force: wasBackgrounded)
+            }
         }
         .onChange(of: settings.hideChromeDuringMouseInput) { _, _ in
             model.refreshChromeVisibility()

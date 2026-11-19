@@ -67,6 +67,9 @@ final class StreamSessionModel {
     private(set) var phase: Phase = .idle
     private(set) var statsText = ""
     private(set) var isBackgrounded = false
+    /// When the app went to the background, used to decide whether a silent
+    /// connection loss needs an automatic reconnect on return.
+    private var backgroundedAt: Date?
     private(set) var isMuted = false
     private(set) var connectionPoor = false
     var volume: Double = 1.0 {
@@ -85,6 +88,9 @@ final class StreamSessionModel {
     private var appListInFlight = false
     private var userInitiatedStop = false
     private var activeConfig: StreamConfiguration?
+
+    /// Local cursor overlay shared by the input strategy and the video surface.
+    let localCursor = StreamLocalCursor()
 
     private var mouseStrategy: (any StreamMouseStrategy)?
     private let touchInput = StreamTouchInput()
@@ -334,6 +340,7 @@ final class StreamSessionModel {
         if backgrounded {
             // Metal rejects command buffers submitted from the background, so
             // stop GPU work immediately even if the connection is still up.
+            if backgroundedAt == nil { backgroundedAt = Date() }
             activeDecoder?.setRenderingPaused(true)
             teardownInput()
             return
@@ -347,6 +354,39 @@ final class StreamSessionModel {
             }
             // Frames were dropped while paused; the next one must be a keyframe.
             LiRequestIdrFrame()
+        default:
+            break
+        }
+    }
+
+    /// Re-establishes the stream after the app returns from the background.
+    /// visionOS suspends the process while another immersive app is running,
+    /// so the host usually drops the session; the window stays open and the
+    /// connection is rebuilt in place.
+    /// Waits for the host's termination callback to settle, then reconnects
+    /// if the session did not survive the background.
+    func scheduleReconnectAfterBackground(force: Bool) {
+        Task {
+            try? await Task.sleep(for: .milliseconds(700))
+            reconnectAfterBackgroundIfNeeded(force: force)
+        }
+    }
+
+    func reconnectAfterBackgroundIfNeeded(force: Bool = false) {
+        guard !isBackgrounded else { return }
+        let away = backgroundedAt.map { Date().timeIntervalSince($0) } ?? 0
+        backgroundedAt = nil
+        guard !userInitiatedStop, !isRestarting else { return }
+
+        switch phase {
+        case .ended:
+            Task { await restart() }
+        case .streaming, .connecting:
+            // visionOS suspends us while another immersive app runs, so even
+            // without an explicit termination the connection is usually gone.
+            if force || away > 3 {
+                Task { await restart() }
+            }
         default:
             break
         }
@@ -672,7 +712,7 @@ final class StreamSessionModel {
 
         let settings = StreamSettingsStore.shared
         inputView.setTouchpadMode(settings.mouseInputMode == .touchpad)
-        let strategy: any StreamMouseStrategy = TouchscreenGCMouseStrategy()
+        let strategy: any StreamMouseStrategy = TouchscreenGCMouseStrategy(localCursor: localCursor)
         mouseStrategy = strategy
         strategy.start(
             view: inputView,

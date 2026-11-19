@@ -45,10 +45,14 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
     private var running = false
     private var moveRemainderX: Float = 0
     private var moveRemainderY: Float = 0
-
-    private static let speedDivisor: Float = 1.25
+    private let localCursor: StreamLocalCursor
 
     var isCaptured: Bool { captured }
+
+    init(localCursor: StreamLocalCursor) {
+        self.localCursor = localCursor
+        super.init()
+    }
 
     func start(
         view: StreamWindowInputView,
@@ -63,6 +67,7 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         self.active = active
         self.pointerOverContent = false
         self.captured = false
+        self.localCursor.visible = false
         running = true
         lastGCMouseActivity = Date.timeIntervalSinceReferenceDate
         pointerFallbackArmed = false
@@ -77,11 +82,13 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
 
         scroll.onHighResScroll = { [weak self] x, y in
             guard let self, self.captured else { return }
-            self.sender.highResScroll(y: y, x: x)
+            let sign: Int32 = StreamSettingsStore.shared.invertScroll ? -1 : 1
+            self.sender.highResScroll(y: y * sign, x: x)
         }
         scroll.onDiscreteScroll = { [weak self] x, y in
             guard let self, self.captured else { return }
-            self.sender.scroll(y: y, x: x)
+            let sign: Int32 = StreamSettingsStore.shared.invertScroll ? -1 : 1
+            self.sender.scroll(y: y * sign, x: x)
         }
         scroll.install(on: view)
 
@@ -109,8 +116,15 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
             button: { [weak self] button, pressed in
                 self?.handleButton(button, pressed: pressed)
             },
-            scroll: { _, _ in
-                // Scroll comes from the pan recognizers, as in StreamView.m.
+            scroll: { [weak self] horizontal, vertical in
+                guard let self, self.running, self.captured else { return }
+                // Steam Link's SDL path forwards the physical wheel through
+                // GCMouse.scroll; the pan recognizers only cover trackpads.
+                let sign: Float = StreamSettingsStore.shared.invertScroll ? -1 : 1
+                let y = Int32(clamping: Int((vertical * 120 * sign).rounded()))
+                let x = Int32(clamping: Int((horizontal * 120).rounded()))
+                guard x != 0 || y != 0 else { return }
+                self.sender.highResScroll(y: y, x: x)
             },
             presence: { [weak self] present in
                 self?.handlePresence(present)
@@ -125,6 +139,7 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         guard running || view != nil else { return }
         running = false
         captured = false
+        localCursor.visible = false
         hover.onHover = nil
         hover.remove()
         scroll.onHighResScroll = nil
@@ -160,6 +175,7 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         if !active {
             setCaptured(false)
             pointerOverContent = false
+            localCursor.visible = false
             resetAccumulators()
         }
         pointerInteraction?.invalidate()
@@ -173,6 +189,7 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
     func setCaptured(_ value: Bool) {
         guard captured != value else { return }
         captured = value
+        localCursor.visible = value
         if !value {
             sender.releaseAll()
             resetAccumulators()
@@ -216,13 +233,25 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         pointerFallbackArmed = false
         guard captured else { return }
 
-        moveRemainderX += dx / Self.speedDivisor
-        moveRemainderY -= dy / Self.speedDivisor
+        let pointerSpeed = Float(StreamSettingsStore.shared.mousePointerSpeed)
+        moveRemainderX += dx * pointerSpeed
+        moveRemainderY -= dy * pointerSpeed
         let wholeX = moveRemainderX.rounded(.towardZero)
         let wholeY = moveRemainderY.rounded(.towardZero)
         guard wholeX != 0 || wholeY != 0 else { return }
         moveRemainderX -= wholeX
         moveRemainderY -= wholeY
+
+        let hostWidth = CGFloat(max(size.hostWidth, 1))
+        let hostHeight = CGFloat(max(size.hostHeight, 1))
+        localCursor.position.x = min(
+            max(localCursor.position.x + CGFloat(wholeX) / hostWidth, 0),
+            1
+        )
+        localCursor.position.y = min(
+            max(localCursor.position.y + CGFloat(wholeY) / hostHeight, 0),
+            1
+        )
 
         // In absolute mode the pointer interaction supplies position. While a
         // button is held hover/region updates pause, so use deltas to keep the
@@ -287,6 +316,7 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         if isActive {
             lastHoverPoint = point
             updatePointerOverContent(point)
+            updateLocalCursorPosition(point)
             if captured, mode == .relative, hasGCMouse, pointerFallbackAvailable,
                pointerOverContent, sender.heldButtons.isEmpty {
                 // A trackpad may only report hover while a mouse GCMouse is
@@ -303,6 +333,18 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
             pointerOverContent = false
         }
         _ = view
+    }
+
+    private func updateLocalCursorPosition(_ point: CGPoint) {
+        guard let view else { return }
+        let geometry = MouseInputGeometry(
+            viewSize: view.bounds.size,
+            streamWidth: size.displayedWidth,
+            streamHeight: size.displayedHeight
+        )
+        if let normalized = geometry.normalizedPoint(for: point) {
+            localCursor.position = normalized
+        }
     }
 
     private func updatePointerOverContent(_ point: CGPoint) {
@@ -326,6 +368,9 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
             streamHeight: size.displayedHeight
         )
         pointerOverContent = geometry.contains(point)
+        if let normalized = geometry.normalizedPoint(for: point) {
+            localCursor.position = normalized
+        }
         guard let position = geometry.streamPoint(for: point) else { return }
         sender.position(
             x: position.x,
@@ -350,6 +395,7 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
             streamHeight: size.displayedHeight
         )
         lastHoverPoint = request.location
+        updateLocalCursorPosition(request.location)
         let insideVideo = geometry.contains(request.location)
         pointerOverContent = insideVideo
 

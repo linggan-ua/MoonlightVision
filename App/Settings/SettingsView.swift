@@ -374,11 +374,18 @@ struct SettingsView: View {
                     Toggle("Hide Controls While Captured", isOn: $settings.hideChromeDuringMouseInput)
                     Toggle("Gaze Tap Only Releases Capture", isOn: $settings.suppressRestoreTap)
                         .disabled(!settings.hideChromeDuringMouseInput)
+                    Toggle("Invert Scroll Direction", isOn: $settings.invertScroll)
+                    Toggle("Show Local Cursor", isOn: $settings.showLocalCursor)
                     Picker("Mouse Mode", selection: $settings.mouseMode) {
                         ForEach(MouseTrackingMode.allCases) { mode in
                             Text(mode.title).tag(mode)
                         }
                     }
+                    LabeledContent(
+                        "Pointer Speed",
+                        value: String(format: "%.2f×", settings.mousePointerSpeed)
+                    )
+                    Slider(value: $settings.mousePointerSpeed, in: 0.25...3.0, step: 0.05)
                     Toggle("Swap A/B and X/Y", isOn: $settings.swapABXY)
                     Toggle("Multiple Controllers", isOn: $settings.multiController)
                 }

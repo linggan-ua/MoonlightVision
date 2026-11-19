@@ -36,6 +36,9 @@ struct StreamVideoSurface: View {
     let cornerRadiusFraction: Float
     /// Cylinder wrap as a fraction of 90°. 0 keeps the picture flat.
     let curvatureFraction: Float
+    /// Local cursor overlay shared with the input strategy.
+    let localCursor: StreamLocalCursor
+    let showLocalCursor: Bool
     /// True when enabling 3D will run the on-device 2D→3D conversion instead of
     /// showing a frame-packed host stream.
     let localConversion: Bool
@@ -82,11 +85,19 @@ struct StreamVideoSurface: View {
                         }
                     }
                 } update: { _, attachments in
-                    updateRealityView(attachments: attachments, size: fitSize)
+                    updateRealityView(
+                        attachments: attachments,
+                        size: fitSize,
+                        cursorPosition: localCursor.position,
+                        cursorVisible: localCursor.visible && showLocalCursor
+                    )
                 } attachments: {
                     // The invisible ruler gives the window's points-to-meters factor.
                     Attachment(id: "calibrationRuler") {
                         Color.clear.frame(width: 100, height: 100)
+                    }
+                    Attachment(id: "localCursor") {
+                        LocalCursorView()
                     }
                     Attachment(id: "sbsConfirm") {
                         if showSBSConfirm {
@@ -154,6 +165,12 @@ struct StreamVideoSurface: View {
             runtime.confirmCard = card
         }
 
+        if let cursor = attachments.entity(for: "localCursor") {
+            entity.addChild(cursor)
+            cursor.isEnabled = false
+            runtime.localCursor = cursor
+        }
+
         runtime.updateScreenMaterial(
             videoMode: videoMode,
             material: surfaceMaterial,
@@ -161,12 +178,19 @@ struct StreamVideoSurface: View {
         )
     }
 
-    private func updateRealityView(attachments: RealityViewAttachments, size: CGSize) {
+    private func updateRealityView(
+        attachments: RealityViewAttachments,
+        size: CGSize,
+        cursorPosition: CGPoint,
+        cursorVisible: Bool
+    ) {
         runtime.updateScene(
             size: size,
             screenAspect: screenAspect,
             cornerRadius: cornerRadiusFraction,
             curvature: curvatureFraction,
+            cursorPosition: cursorPosition,
+            cursorVisible: cursorVisible,
             showConfirmCard: showSBSConfirm,
             attachments: attachments
         )
@@ -263,6 +287,31 @@ enum StreamVideoPlaneMesh {
         let clamped = min(max(fraction, 0), 1)
         return maximumCurvatureRadius
             + (minimumCurvatureRadius - maximumCurvatureRadius) * clamped
+    }
+
+    /// Local position of one picture point on the curved plane, used by
+    /// overlays such as the local cursor.
+    static func surfacePoint(u: Float, v: Float, geometry: Geometry) -> SIMD3<Float> {
+        let width: Float = 1
+        let height = max(geometry.aspect, 0.001)
+        let x = (u - 0.5) * width
+        let y = (0.5 - v) * height
+        let curvature = min(max(geometry.curvatureFraction, 0), 1)
+        guard curvature > 0.0005, geometry.physicalWidth > 0.01 else {
+            return SIMD3(x, y, 0)
+        }
+        let physicalRadius = curvatureRadius(for: curvature)
+        let arcAngle = min(maximumArcAngle, geometry.physicalWidth / physicalRadius)
+        guard arcAngle > 0.001 else { return SIMD3(x, y, 0) }
+        let halfAngle = arcAngle / 2
+        let radius = 1 / arcAngle
+        let theta = x * arcAngle
+        let chordScale = 0.5 / (radius * sin(halfAngle))
+        return SIMD3(
+            radius * sin(theta) * chordScale,
+            y,
+            radius * (cos(halfAngle) - cos(theta)) * chordScale
+        )
     }
 
     static func makeMesh(_ geometry: Geometry) throws -> MeshResource {
@@ -411,6 +460,10 @@ final class StreamVideoSurfaceRuntime {
     var ruler: Entity?
     var confirmCard: Entity?
     var planeGeometry: StreamVideoPlaneMesh.Geometry?
+    var localCursor: Entity?
+    private var lastCursorPosition = CGPoint(x: -1, y: -1)
+    private var lastCursorVisible = false
+    private var lastCursorScale: Float = 0
 
     private var lastUpdateSize: CGSize = .zero
     private var appliedMode: VideoMode?
@@ -446,6 +499,8 @@ final class StreamVideoSurfaceRuntime {
         screenAspect: Float,
         cornerRadius: Float,
         curvature: Float,
+        cursorPosition: CGPoint,
+        cursorVisible: Bool,
         showConfirmCard: Bool,
         attachments: RealityViewAttachments
     ) {
@@ -466,10 +521,11 @@ final class StreamVideoSurfaceRuntime {
         // width gives meters-per-point. The plane's physical width feeds the
         // fixed-radius curvature, so resizing the window changes the arc.
         var physicalWidth = screen?.scale.x ?? 0
+        var metersPerPoint: Float = 0
         if let screen, let ruler = self.ruler {
             let rulerWidth = ruler.visualBounds(relativeTo: nil).extents.x
             if rulerWidth > 0 {
-                let metersPerPoint = rulerWidth / 100
+                metersPerPoint = rulerWidth / 100
                 let targetWidth = Float(size.width) * metersPerPoint
                 physicalWidth = targetWidth
                 if abs(targetWidth - screen.scale.x) > 0.0001 {
@@ -500,8 +556,37 @@ final class StreamVideoSurfaceRuntime {
         let sizeChanged =
             abs(size.width - lastUpdateSize.width) >= 1.0 ||
             abs(size.height - lastUpdateSize.height) >= 1.0
-        guard geometryChanged || sizeChanged || lastUpdateSize == .zero else { return }
+        let cursorChanged =
+            cursorVisible != lastCursorVisible ||
+            abs(cursorPosition.x - lastCursorPosition.x) > 0.0005 ||
+            abs(cursorPosition.y - lastCursorPosition.y) > 0.0005
+        guard geometryChanged || sizeChanged || cursorChanged || lastUpdateSize == .zero else { return }
         lastUpdateSize = size
+        lastCursorVisible = cursorVisible
+        lastCursorPosition = cursorPosition
+
+        if let cursor = localCursor {
+            cursor.isEnabled = cursorVisible
+            if cursorVisible, let geometry = planeGeometry {
+                let point = StreamVideoPlaneMesh.surfacePoint(
+                    u: Float(cursorPosition.x),
+                    v: Float(cursorPosition.y),
+                    geometry: geometry
+                )
+                cursor.position = [point.x, point.y, point.z + 0.02]
+                if metersPerPoint > 0 {
+                    let bounds = cursor.visualBounds(relativeTo: nil)
+                    if bounds.extents.x > 0 {
+                        let unscaled = bounds.extents.x / max(cursor.scale.x, 0.0001)
+                        let scale = 22 * metersPerPoint / unscaled
+                        if abs(scale - lastCursorScale) > 0.0005 {
+                            cursor.scale = [scale, scale, scale]
+                            lastCursorScale = scale
+                        }
+                    }
+                }
+            }
+        }
 
         updateConfirmCard()
     }
@@ -609,5 +694,17 @@ struct SBSConfirmCard: View {
         .padding(26)
         .frame(width: 400)
         .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+}
+
+/// The local cursor drawn as a RealityKit attachment so it renders in front of
+/// the video plane (the window's 2D layer sits behind scene content).
+private struct LocalCursorView: View {
+    var body: some View {
+        Image(systemName: "cursorarrow")
+            .font(.system(size: 22, weight: .semibold))
+            .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.9), radius: 1.5)
+            .frame(width: 28, height: 28)
     }
 }

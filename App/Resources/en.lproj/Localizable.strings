@@ -89,6 +89,9 @@
 "Touchscreen + GCMouse" = "Touchscreen + GCMouse";
 "Touchpad Mode" = "Touchpad Mode";
 "Gaze Tap Only Releases Capture" = "Gaze Tap Only Releases Capture";
+"Invert Scroll Direction" = "Invert Scroll Direction";
+"Show Local Cursor" = "Show Local Cursor";
+"Pointer Speed" = "Pointer Speed";
 "While the mouse is captured, the first gaze tap releases capture without sending a touch to the host. Later taps are sent normally." = "While the mouse is captured, the first gaze tap releases capture without sending a touch to the host. Later taps are sent normally.";
 "Hide Controls While Captured" = "Hide Controls While Captured";
 "Hides the control bar, system cursor, and window resizing while the mouse is captured." = "Hides the control bar, system cursor, and window resizing while the mouse is captured.";
@@ -230,6 +233,7 @@
 "Off" = "Off";
 
 "Some settings require restarting the stream to take effect." = "Some settings require restarting the stream to take effect.";
+"Reconnect" = "Reconnect";
 "Restarting keeps this window open and reconnects to the host." = "Restarting keeps this window open and reconnects to the host.";
 "Not Now" = "Not Now";
 "Stream settings" = "Stream settings";

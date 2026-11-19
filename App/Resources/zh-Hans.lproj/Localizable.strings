@@ -89,6 +89,9 @@
 "Touchscreen + GCMouse" = "触摸屏 + GCMouse";
 "Touchpad Mode" = "触控板模式";
 "Gaze Tap Only Releases Capture" = "注视点击仅退出捕获";
+"Invert Scroll Direction" = "反转滚轮方向";
+"Show Local Cursor" = "显示本地光标";
+"Pointer Speed" = "指针速度";
 "While the mouse is captured, the first gaze tap releases capture without sending a touch to the host. Later taps are sent normally." = "鼠标被捕获时，第一次注视点击只退出捕获，不会把这次触摸发送到主机；之后的点击才正常发送。";
 "Hide Controls While Captured" = "捕获鼠标时隐藏控制条";
 "Hides the control bar, system cursor, and window resizing while the mouse is captured." = "鼠标被捕获时隐藏控制条、系统光标，并禁用窗口缩放。";
@@ -230,6 +233,7 @@
 "Off" = "关闭";
 
 "Some settings require restarting the stream to take effect." = "部分设置需要重新启动串流才能生效。";
+"Reconnect" = "重新连接";
 "Restarting keeps this window open and reconnects to the host." = "重启会保留当前窗口并重新连接主机。";
 "Not Now" = "暂不";
 "Stream settings" = "串流设置";

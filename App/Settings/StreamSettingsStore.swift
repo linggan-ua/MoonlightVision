@@ -120,6 +120,9 @@ final class StreamSettingsStore {
     private static let legacyTouchpadModeKey = "mv.touchpadMode"
     private static let hideChromeDuringMouseKey = "mv.hideChromeDuringMouseInput"
     private static let suppressRestoreTapKey = "mv.suppressRestoreTap"
+    private static let invertScrollKey = "mv.invertScroll"
+    private static let mousePointerSpeedKey = "mv.mousePointerSpeed"
+    private static let showLocalCursorKey = "mv.showLocalCursor"
     private static let stereoSBSKey = "mv.stereoSBS"
     private static let packedSBSInputKey = "mv.packedSBSInput"
     private static let windowCornerRadiusKey = "mv.windowCornerRadius"
@@ -167,6 +170,26 @@ final class StreamSettingsStore {
     var suppressRestoreTap: Bool = false {
         didSet {
             UserDefaults.standard.set(suppressRestoreTap, forKey: Self.suppressRestoreTapKey)
+        }
+    }
+    /// Flip the vertical wheel direction for mouse/trackpad scrolling.
+    var invertScroll: Bool = false {
+        didSet {
+            UserDefaults.standard.set(invertScroll, forKey: Self.invertScrollKey)
+        }
+    }
+    /// Multiplier for physical-mouse relative movement. 1.0 forwards the
+    /// deltas unchanged, like Steam Link's SDL path.
+    var mousePointerSpeed: Double = 1.0 {
+        didSet {
+            UserDefaults.standard.set(mousePointerSpeed, forKey: Self.mousePointerSpeedKey)
+        }
+    }
+    /// Draw a local cursor over the picture while the mouse is captured.
+    /// Off by default: the host normally draws its own cursor in the video.
+    var showLocalCursor: Bool = false {
+        didSet {
+            UserDefaults.standard.set(showLocalCursor, forKey: Self.showLocalCursorKey)
         }
     }
     var showStats: Bool = true {
@@ -278,6 +301,11 @@ final class StreamSettingsStore {
         }
         hideChromeDuringMouseInput = UserDefaults.standard.object(forKey: Self.hideChromeDuringMouseKey) as? Bool ?? true
         suppressRestoreTap = UserDefaults.standard.bool(forKey: Self.suppressRestoreTapKey)
+        invertScroll = UserDefaults.standard.bool(forKey: Self.invertScrollKey)
+        if UserDefaults.standard.object(forKey: Self.mousePointerSpeedKey) != nil {
+            mousePointerSpeed = UserDefaults.standard.double(forKey: Self.mousePointerSpeedKey)
+        }
+        showLocalCursor = UserDefaults.standard.bool(forKey: Self.showLocalCursorKey)
         stereoSBS = UserDefaults.standard.bool(forKey: Self.stereoSBSKey)
         packedSBSInput = UserDefaults.standard.bool(forKey: Self.packedSBSInputKey)
         if UserDefaults.standard.object(forKey: Self.windowCornerRadiusKey) != nil {
@@ -312,6 +340,9 @@ final class StreamSettingsStore {
         mouseInputMode = .touchscreenGCMouse
         hideChromeDuringMouseInput = true
         suppressRestoreTap = false
+        invertScroll = false
+        mousePointerSpeed = 1.0
+        showLocalCursor = false
         showStats = true
         framePacing = true
         optimizeGameSettings = true

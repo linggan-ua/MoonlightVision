@@ -140,12 +140,26 @@ struct StreamVideoSurface: View {
             physicalWidth: 1.4
         )
         let mesh: MeshResource
-        if let resource = try? StreamVideoPlaneMesh.makeMesh(geometry) {
+        do {
+            let host = try StreamVideoPlaneMesh.Host(geometry: geometry)
+            runtime.planeHost = host
             runtime.planeGeometry = geometry
-            mesh = resource
-        } else {
-            NSLog("%@", "[Video] Curved plane mesh failed, using a flat plane")
-            mesh = .generatePlane(width: 1, height: aspect)
+            mesh = host.resource
+            NSLog(
+                "[Video] LowLevelMesh plane active (%d x %d), bounds=%@",
+                StreamVideoPlaneMesh.columns + 1,
+                StreamVideoPlaneMesh.rows + 1,
+                "\(host.resource.bounds)"
+            )
+        } catch {
+            NSLog("[Video] LowLevelMesh plane failed: %@", "\(error)")
+            if let resource = try? StreamVideoPlaneMesh.makeMesh(geometry) {
+                runtime.planeGeometry = geometry
+                mesh = resource
+            } else {
+                NSLog("%@", "[Video] Curved plane mesh failed, using a flat plane")
+                mesh = .generatePlane(width: 1, height: aspect)
+            }
         }
 
         let entity = ModelEntity(mesh: mesh, materials: [StreamVideoMaterialFactory.unlit(texture: texture)])
@@ -314,7 +328,134 @@ enum StreamVideoPlaneMesh {
         )
     }
 
-    static func makeMesh(_ geometry: Geometry) throws -> MeshResource {
+    /// Interleaved vertex layout shared by the MeshDescriptor fallback and the
+    /// LowLevelMesh path: position @0, normal @16, uv @32, stride 48.
+    struct PlaneVertex {
+        var position: SIMD3<Float>
+        var normal: SIMD3<Float>
+        var uv: SIMD2<Float>
+
+        static func validateLayout() {
+            assert(MemoryLayout<PlaneVertex>.offset(of: \.position) == 0)
+            assert(MemoryLayout<PlaneVertex>.offset(of: \.normal) == 16)
+            assert(MemoryLayout<PlaneVertex>.offset(of: \.uv) == 32)
+            assert(MemoryLayout<PlaneVertex>.stride == 48)
+        }
+    }
+
+    /// The shipped Steam Link design: the topology and the MeshResource are
+    /// built once; curvature and window changes only rewrite buffer 0. The
+    /// Part uses infinite bounds so RealityKit never culls it while the
+    /// vertices move.
+    @MainActor
+    final class Host {
+        let mesh: LowLevelMesh
+        let resource: MeshResource
+        private(set) var geometry: Geometry
+
+        init(geometry: Geometry) throws {
+            PlaneVertex.validateLayout()
+            let vertexCount = (columns + 1) * (rows + 1)
+            let descriptor = LowLevelMesh.Descriptor(
+                vertexCapacity: vertexCount,
+                vertexAttributes: [
+                    .init(semantic: .position, format: .float3, layoutIndex: 0, offset: 0),
+                    .init(semantic: .normal, format: .float3, layoutIndex: 0, offset: 16),
+                    .init(semantic: .uv0, format: .float2, layoutIndex: 0, offset: 32)
+                ],
+                vertexLayouts: [
+                    .init(bufferIndex: 0, bufferStride: MemoryLayout<PlaneVertex>.stride)
+                ],
+                indexCapacity: columns * rows * 6,
+                indexType: .uint32
+            )
+            let mesh = try LowLevelMesh(descriptor: descriptor)
+            let indices = StreamVideoPlaneMesh.makeTopologyIndices()
+            mesh.replaceUnsafeMutableIndices { destination in
+                indices.withUnsafeBytes { source in
+                    guard let sourceAddress = source.baseAddress else { return }
+                    destination.baseAddress?.copyMemory(
+                        from: sourceAddress,
+                        byteCount: min(source.count, destination.count)
+                    )
+                }
+            }
+            // Write the first cook before creating the MeshResource: the
+            // resource snapshots the current buffer, so an empty vertex buffer
+            // would make the whole plane invisible.
+            let bounds = Self.writeVertices(mesh, geometry)
+            Self.setPart(on: mesh, bounds: bounds)
+            self.mesh = mesh
+            self.geometry = geometry
+            self.resource = try MeshResource(from: mesh)
+        }
+
+        /// Rewrites the vertex buffer when the shape actually changed.
+        @discardableResult
+        func update(_ geometry: Geometry) -> Bool {
+            guard geometry != self.geometry else { return false }
+            self.geometry = geometry
+            let bounds = Self.writeVertices(mesh, geometry)
+            Self.setPart(on: mesh, bounds: bounds)
+            return true
+        }
+
+        private static func setPart(on mesh: LowLevelMesh, bounds: BoundingBox) {
+            mesh.parts.replaceAll([
+                .init(
+                    indexOffset: 0,
+                    indexCount: StreamVideoPlaneMesh.columns * StreamVideoPlaneMesh.rows * 6,
+                    topology: .triangle,
+                    materialIndex: 0,
+                    bounds: bounds
+                )
+            ])
+        }
+
+        private static func writeVertices(
+            _ mesh: LowLevelMesh,
+            _ geometry: Geometry
+        ) -> BoundingBox {
+            var boundsMin = SIMD3<Float>(repeating: .infinity)
+            var boundsMax = SIMD3<Float>(repeating: -.infinity)
+            mesh.withUnsafeMutableBytes(bufferIndex: 0) { destination in
+                guard let base = destination.baseAddress else { return }
+                let vertices = base.assumingMemoryBound(to: PlaneVertex.self)
+                var index = 0
+                StreamVideoPlaneMesh.forEachVertex(geometry) { vertex in
+                    vertices[index] = vertex
+                    boundsMin = simd_min(boundsMin, vertex.position)
+                    boundsMax = simd_max(boundsMax, vertex.position)
+                    index += 1
+                }
+            }
+            return BoundingBox(min: boundsMin, max: boundsMax)
+        }
+    }
+
+    static func makeTopologyIndices() -> [UInt32] {
+        var indices = [UInt32]()
+        indices.reserveCapacity(columns * rows * 6)
+        let stride = UInt32(columns + 1)
+        for row in 0..<rows {
+            for column in 0..<columns {
+                let topLeft = UInt32(row) * stride + UInt32(column)
+                let topRight = topLeft + 1
+                let bottomLeft = topLeft + stride
+                let bottomRight = bottomLeft + 1
+                indices.append(contentsOf: [
+                    topLeft, bottomLeft, bottomRight,
+                    topLeft, bottomRight, topRight
+                ])
+            }
+        }
+        return indices
+    }
+
+    /// Walks the flat grid once, applying the rounded-corner clamp and then
+    /// bending each vertex onto the cylinder. Row-major order matches
+    /// `makeTopologyIndices`.
+    static func forEachVertex(_ geometry: Geometry, _ body: (PlaneVertex) -> Void) {
         let width: Float = 1
         let height = max(geometry.aspect, 0.001)
         let cornerRadius = min(max(geometry.cornerRadiusFraction, 0), 1) * width
@@ -356,14 +497,6 @@ enum StreamVideoPlaneMesh {
         // collapse the outer row onto the corner (a smeared border).
         let cornerTolerance = width * 1e-5
 
-        let vertexCount = (columns + 1) * (rows + 1)
-        var positions = [SIMD3<Float>]()
-        var normals = [SIMD3<Float>]()
-        var uvs = [SIMD2<Float>]()
-        positions.reserveCapacity(vertexCount)
-        normals.reserveCapacity(vertexCount)
-        uvs.reserveCapacity(vertexCount)
-
         for row in 0...rows {
             let v = Float(row) / Float(rows)
             let y = (0.5 - v) * height
@@ -393,48 +526,50 @@ enum StreamVideoPlaneMesh {
                 }
 
                 let uTex = u * (1 - 2 * uvInset) + uvInset
+                let position: SIMD3<Float>
+                let normal: SIMD3<Float>
                 if curved {
                     if movedX {
                         let theta = x / radius
-                        positions.append(SIMD3(
+                        position = SIMD3(
                             radius * sin(theta) * chordScale,
                             py,
                             radius * (cos(halfAngle) - cos(theta)) * chordScale
-                        ))
-                        normals.append(SIMD3(-sin(theta), 0, cos(theta)))
+                        )
+                        normal = SIMD3(-sin(theta), 0, cos(theta))
                     } else {
-                        positions.append(SIMD3(columnX[column], py, columnZ[column]))
-                        normals.append(SIMD3(columnNormalX[column], 0, columnNormalZ[column]))
+                        position = SIMD3(columnX[column], py, columnZ[column])
+                        normal = SIMD3(columnNormalX[column], 0, columnNormalZ[column])
                     }
                 } else {
-                    positions.append(SIMD3(x, py, 0))
-                    normals.append(SIMD3(0, 0, 1))
+                    position = SIMD3(x, py, 0)
+                    normal = SIMD3(0, 0, 1)
                 }
-                uvs.append(SIMD2(uTex, vTex))
+                body(PlaneVertex(position: position, normal: normal, uv: SIMD2(uTex, vTex)))
             }
         }
+    }
 
-        var indices = [UInt32]()
-        indices.reserveCapacity(columns * rows * 6)
-        let stride = UInt32(columns + 1)
-        for row in 0..<rows {
-            for column in 0..<columns {
-                let topLeft = UInt32(row) * stride + UInt32(column)
-                let topRight = topLeft + 1
-                let bottomLeft = topLeft + stride
-                let bottomRight = bottomLeft + 1
-                indices.append(contentsOf: [
-                    topLeft, bottomLeft, bottomRight,
-                    topLeft, bottomRight, topRight
-                ])
-            }
+    /// Fallback used only if LowLevelMesh allocation fails.
+    static func makeMesh(_ geometry: Geometry) throws -> MeshResource {
+        let count = (columns + 1) * (rows + 1)
+        var positions = [SIMD3<Float>]()
+        var normals = [SIMD3<Float>]()
+        var uvs = [SIMD2<Float>]()
+        positions.reserveCapacity(count)
+        normals.reserveCapacity(count)
+        uvs.reserveCapacity(count)
+        forEachVertex(geometry) { vertex in
+            positions.append(vertex.position)
+            normals.append(vertex.normal)
+            uvs.append(vertex.uv)
         }
 
         var descriptor = MeshDescriptor(name: "curved_video_plane")
         descriptor.positions = MeshBuffers.Positions(positions)
         descriptor.normals = MeshBuffers.Normals(normals)
         descriptor.textureCoordinates = MeshBuffers.TextureCoordinates(uvs)
-        descriptor.primitives = .triangles(indices)
+        descriptor.primitives = .triangles(makeTopologyIndices())
         return try MeshResource.generate(from: [descriptor])
     }
 }
@@ -448,6 +583,9 @@ enum StreamVideoMaterialFactory {
     static func unlit(texture: TextureResource) -> UnlitMaterial {
         var material = UnlitMaterial(applyPostProcessToneMap: false)
         material.color.texture = UnlitMaterial.Texture(texture)
+        // The curved plane's winding is authored for its +z face. Render both
+        // sides so a LowLevelMesh index order can never cull the picture.
+        material.faceCulling = .none
         return material
     }
 }
@@ -460,6 +598,7 @@ final class StreamVideoSurfaceRuntime {
     var ruler: Entity?
     var confirmCard: Entity?
     var planeGeometry: StreamVideoPlaneMesh.Geometry?
+    var planeHost: StreamVideoPlaneMesh.Host?
     var localCursor: Entity?
     private var lastCursorPosition = CGPoint(x: -1, y: -1)
     private var lastCursorVisible = false
@@ -545,10 +684,11 @@ final class StreamVideoSurfaceRuntime {
         let geometryChanged = geometry != planeGeometry
         if geometryChanged {
             planeGeometry = geometry
-            if let screen,
-               let mesh = try? StreamVideoPlaneMesh.makeMesh(geometry) {
-                // Re-set the whole component: swapping only `model?.mesh` on a
-                // live entity can leave it without a renderable mesh.
+            if let host = planeHost {
+                _ = host.update(geometry)
+            } else if let screen,
+                      let mesh = try? StreamVideoPlaneMesh.makeMesh(geometry) {
+                // Fallback path only: LowLevelMesh allocation failed.
                 let materials = screen.model?.materials ?? []
                 screen.components.set(ModelComponent(mesh: mesh, materials: materials))
             }

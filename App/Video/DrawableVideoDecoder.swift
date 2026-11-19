@@ -42,6 +42,9 @@ struct HDRParams {
     /// Host SDR white point in nits. PQ is normalised by this so the host's
     /// desktop white maps to EDR 1.0 (the window's SDR white), not 1.48x/2.36x.
     var sdrWhiteNits: Float = 203.0
+    /// 0 = Display P3, 1 = BT.709. Used to A/B the RealityKit working space
+    /// against Steam Link's linear-sRGB SDL output.
+    var outputGamut: UInt32 = 0
 }
 
 /// ChromaHalo / Chromosphere: halo drawable / RealityKit texture size is full frame `>> mipShift`.
@@ -154,6 +157,7 @@ private struct ShaderFullHDRParams {
     var hdrGradeFlags: UInt32
     var sdrBrightness: Float
     var sdrWhiteNits: Float
+    var outputGamut: UInt32
 }
 
 /// Buffer 0 for TestFlight SDR fragments (`copyFragmentShaderHDR_EDR` / `_HEVC_EDR`) — matches `LegacySDRFrameParams` in Shaders.metal.
@@ -639,7 +643,7 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         let neutralParams = HDRParams(
             boost: 1.0, contrast: 1.0, saturation: 1.0, brightness: 0.0,
             pqExposure: 1.0, mode: 0, sdrBrightness: 1.0, edrHeadroom: 2.0,
-            sdrWhiteNits: 203.0
+            sdrWhiteNits: 203.0, outputGamut: 0
         )
         let userParams: HDRParams = streamIsHDR
             ? (hdrSettingsProvider?() ?? neutralParams)
@@ -683,7 +687,8 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             mode:       userParams.mode,
             hdrGradeFlags: userParams.hdrGradeFlags,
             sdrBrightness: streamIsHDR ? userParams.sdrBrightness : 1.0,
-            sdrWhiteNits: max(userParams.sdrWhiteNits, 80.0)
+            sdrWhiteNits: max(userParams.sdrWhiteNits, 80.0),
+            outputGamut: userParams.outputGamut
         )
         renderEncoder.setFragmentBytes(&fullParams, length: MemoryLayout<ShaderFullHDRParams>.size, index: 1)
 

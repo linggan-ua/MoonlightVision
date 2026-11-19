@@ -334,6 +334,23 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                    Picker("HDR Color Target", selection: $settings.hdrColorTarget) {
+                        ForEach(HDRColorTarget.allCases) { target in
+                            Text(target.title).tag(target)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    Text("BT.709 matches Steam Link's SDL output; Display P3 is an alternative wide-gamut target.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    LabeledContent(
+                        "HDR Saturation",
+                        value: String(format: "%.2f×", settings.hdrSaturation)
+                    )
+                    Slider(value: $settings.hdrSaturation, in: 0.85...1.15, step: 0.01)
+                    Text("Lower slightly if HDR colors look more vivid than Steam Link.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     LabeledContent(
                         "HDR Highlight Brightness",
                         value: String(format: "%.1f×", settings.hdrHighlightHeadroom)

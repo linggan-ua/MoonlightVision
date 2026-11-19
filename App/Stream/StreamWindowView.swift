@@ -394,6 +394,8 @@ private struct StreamVideoSettingsObserver: ViewModifier {
             .onChange(of: settings.antiShimmerMipmaps) { _, enabled in model.setAntiShimmerMipmaps(enabled) }
             .onChange(of: settings.hdrSdrBrightness) { _, value in model.setHDRSdrBrightness(Float(value)) }
             .onChange(of: settings.hdrSdrWhiteNits) { _, value in model.setHDRSdrWhiteNits(Float(value)) }
+            .onChange(of: settings.hdrColorTarget) { _, target in model.setHDRColorTarget(target) }
+            .onChange(of: settings.hdrSaturation) { _, value in model.setHDRSaturation(Float(value)) }
             .onChange(of: settings.hdrHighlightHeadroom) { _, value in model.setHDRHighlightHeadroom(Float(value)) }
     }
 }

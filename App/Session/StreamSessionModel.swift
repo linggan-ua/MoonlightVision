@@ -113,6 +113,8 @@ final class StreamSessionModel {
         hdrTrim.setSDRBrightness(Float(StreamSettingsStore.shared.hdrSdrBrightness))
         hdrTrim.setHighlightHeadroom(Float(StreamSettingsStore.shared.hdrHighlightHeadroom))
         hdrTrim.setSDRWhiteNits(Float(StreamSettingsStore.shared.hdrSdrWhiteNits))
+        hdrTrim.setOutputGamut(StreamSettingsStore.shared.hdrColorTarget.shaderValue)
+        hdrTrim.setSaturation(Float(StreamSettingsStore.shared.hdrSaturation))
     }
 
     var statusText: String {
@@ -236,6 +238,16 @@ final class StreamSessionModel {
     /// Feeds the host SDR white point (nits) used to normalise PQ content.
     func setHDRSdrWhiteNits(_ value: Float) {
         hdrTrim.setSDRWhiteNits(value)
+    }
+
+    /// Switches the HDR output gamut between Display P3 and BT.709.
+    func setHDRColorTarget(_ target: HDRColorTarget) {
+        hdrTrim.setOutputGamut(target.shaderValue)
+    }
+
+    /// Fine saturation calibration for the HDR presentation path.
+    func setHDRSaturation(_ value: Float) {
+        hdrTrim.setSaturation(value)
     }
 
     /// Measures the host SDR white point from the next PQ frame. Show a
@@ -515,13 +527,14 @@ final class StreamSessionModel {
                         HDRParams(
                             boost: 1.0,
                             contrast: 1.0,
-                            saturation: 1.0,
+                            saturation: trim.saturationSnapshot,
                             brightness: 0.0,
                             pqExposure: 1.0,
                             mode: 0,
                             sdrBrightness: trim.sdrSnapshot,
                             edrHeadroom: trim.headroomSnapshot,
-                            sdrWhiteNits: trim.sdrWhiteSnapshot
+                            sdrWhiteNits: trim.sdrWhiteSnapshot,
+                            outputGamut: trim.outputGamutSnapshot
                         )
                     },
                     enhancementsProvider: nil,

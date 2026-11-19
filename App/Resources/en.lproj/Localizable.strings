@@ -69,10 +69,15 @@
 "HDR (HDR10)" = "HDR (HDR10)";
 "HDR SDR Brightness" = "HDR SDR Brightness";
 "HDR SDR White" = "HDR SDR White";
+"HDR Color Target" = "HDR Color Target";
+"HDR Saturation" = "HDR Saturation";
+"Lower slightly if HDR colors look more vivid than Steam Link." = "Lower slightly if HDR colors look more vivid than Steam Link.";
 "Match the host's SDR content brightness; raise if the HDR desktop looks brighter than SDR, lower if darker." = "Match the host's SDR content brightness; raise if the HDR desktop looks brighter than SDR, lower if darker.";
 "Calibrate from White Screen" = "Calibrate from White Screen";
 "During an HDR stream, show a full-screen SDR white image on the host, then calibrate. The measured value replaces the slider value." = "During an HDR stream, show a full-screen SDR white image on the host, then calibrate. The measured value replaces the slider value.";
 "Waiting for a PQ white frame…" = "Waiting for a PQ white frame…";
+"Display P3 matches RealityKit's working space; BT.709 matches Steam Link's SDL output." = "Display P3 matches RealityKit's working space; BT.709 matches Steam Link's SDL output.";
+"BT.709 matches Steam Link's SDL output; Display P3 is an alternative wide-gamut target." = "BT.709 matches Steam Link's SDL output; Display P3 is an alternative wide-gamut target.";
 "HDR Highlight Brightness" = "HDR Highlight Brightness";
 "HDR Highlight Level" = "HDR Highlight Level";
 "Frame Pacing" = "Frame Pacing";

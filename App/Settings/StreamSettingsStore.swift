@@ -107,6 +107,26 @@ enum AudioMode: String, CaseIterable, Identifiable {
     }
 }
 
+/// Output gamut for HDR: BT.709 matches Steam Link's linear-sRGB SDL output
+/// (and the window's presentation); Display P3 is an alternative wide-gamut target.
+enum HDRColorTarget: String, CaseIterable, Identifiable {
+    case displayP3
+    case bt709
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .displayP3: return "Display P3"
+        case .bt709: return "BT.709"
+        }
+    }
+
+    var shaderValue: UInt32 {
+        self == .bt709 ? 1 : 0
+    }
+}
+
 @MainActor
 @Observable
 final class StreamSettingsStore {
@@ -126,6 +146,8 @@ final class StreamSettingsStore {
     private static let hdrSdrBrightnessKey = "mv.hdrSdrBrightness"
     private static let hdrHighlightHeadroomKey = "mv.hdrHighlightHeadroom"
     private static let hdrSdrWhiteNitsKey = "mv.hdrSdrWhiteNits"
+    private static let hdrColorTargetKey = "mv.hdrColorTarget"
+    private static let hdrSaturationKey = "mv.hdrSaturation"
     private static let stereoSBSKey = "mv.stereoSBS"
     private static let packedSBSInputKey = "mv.packedSBSInput"
     private static let windowCornerRadiusKey = "mv.windowCornerRadius"
@@ -213,6 +235,18 @@ final class StreamSettingsStore {
     var hdrSdrWhiteNits: Double = 203.0 {
         didSet {
             UserDefaults.standard.set(hdrSdrWhiteNits, forKey: Self.hdrSdrWhiteNitsKey)
+        }
+    }
+    /// HDR output gamut A/B: BT.709 matches Steam Link; P3 is an alternative.
+    var hdrColorTarget: HDRColorTarget = .bt709 {
+        didSet {
+            UserDefaults.standard.set(hdrColorTarget.rawValue, forKey: Self.hdrColorTargetKey)
+        }
+    }
+    /// Fine saturation calibration for the HDR presentation path.
+    var hdrSaturation: Double = 1.0 {
+        didSet {
+            UserDefaults.standard.set(hdrSaturation, forKey: Self.hdrSaturationKey)
         }
     }
     var showStats: Bool = true {
@@ -344,6 +378,16 @@ final class StreamSettingsStore {
                 500.0
             )
         }
+        if let raw = UserDefaults.standard.string(forKey: Self.hdrColorTargetKey),
+           let target = HDRColorTarget(rawValue: raw) {
+            hdrColorTarget = target
+        }
+        if UserDefaults.standard.object(forKey: Self.hdrSaturationKey) != nil {
+            hdrSaturation = min(
+                max(UserDefaults.standard.double(forKey: Self.hdrSaturationKey), 0.85),
+                1.15
+            )
+        }
         stereoSBS = UserDefaults.standard.bool(forKey: Self.stereoSBSKey)
         packedSBSInput = UserDefaults.standard.bool(forKey: Self.packedSBSInputKey)
         if UserDefaults.standard.object(forKey: Self.windowCornerRadiusKey) != nil {
@@ -384,6 +428,8 @@ final class StreamSettingsStore {
         hdrSdrBrightness = 1.0
         hdrHighlightHeadroom = 2.0
         hdrSdrWhiteNits = 203.0
+        hdrColorTarget = .bt709
+        hdrSaturation = 1.0
         showStats = true
         framePacing = true
         optimizeGameSettings = true

@@ -61,6 +61,7 @@ struct FullHDRParams {
     uint  hdrGradeFlags;// bit0 = Reference HDR: PQ + gamut + tone map only (no client grade / trims)
     float sdrBrightness;// HDR-mode SDR white level; 1.0 = neutral, lower dims SDR below the reference white
     float sdrWhiteNits; // Host SDR white point in nits; PQ is normalised by this
+    uint  outputGamut;  // 0 = Display P3, 1 = BT.709 (A/B target)
 };
 
 struct CopyVertexOut {
@@ -151,6 +152,13 @@ constant float3x3 BT2020_TO_DISPLAYP3 = float3x3(
     float3( 1.343578, -0.065297,  0.002822),
     float3(-0.282180,  1.075788, -0.019598),
     float3(-0.061399, -0.010490,  1.016777)
+);
+
+// BT.2020 linear → BT.709 linear (the target Steam Link's SDL uses on visionOS)
+constant float3x3 BT2020_TO_BT709 = float3x3(
+    float3( 1.660491, -0.124550, -0.018151),
+    float3(-0.587641,  1.132900, -0.100579),
+    float3(-0.072850, -0.008349,  1.118730)
 );
 
 // SMPTE-C (BT.601) linear → BT.709 linear
@@ -253,6 +261,16 @@ inline float hdrUchimuraShoulderP(float baseP, float maxContentNits, float maxFr
         P = clamp(max(P, target), 1.2, 40.0);
     }
     return P;
+}
+
+// Headroom-linear HDR mapping: keep everything at or below the display peak
+// untouched, and scale only the above-peak part down with a hue-preserving
+// factor. This matches Steam Link's shipped no-tone-map chain far more closely
+// than a shoulder that starts compressing below the headroom.
+inline float3 hdrToneMapToHeadroom(float3 color, float peak, float3 lumaWeights) {
+    float luma = max(dot(color, lumaWeights), 1e-6);
+    if (luma <= peak) { return color; }
+    return color * (peak / luma);
 }
 
 // Apply Uchimura per luma channel to preserve chromaticity (avoids hue twist).
@@ -397,32 +415,39 @@ inline float3 processFrame(
             edr *= (mapped / luma);
         }
 
-        // 3. Gamut: BT.2020 → Display P3 (or BT.709 → Display P3 if 709 primaries)
+        // 3. Gamut: BT.2020 → the selected output target (Display P3 or BT.709).
+        //    BT.709 is what Steam Link's SDL uses on visionOS; P3 matches
+        //    RealityKit's wider working space if the window is color-managed.
         bool use2020 = (p.primariesType == 1u);
-        float3 colorP3 = use2020
-            ? max(BT2020_TO_DISPLAYP3 * edr, float3(0.0))
-            : max(BT709_TO_DISPLAYP3  * edr, float3(0.0));
+        bool targetP3 = (full.outputGamut == 0u);
+        float3 colorOut = use2020
+            ? (targetP3 ? BT2020_TO_DISPLAYP3 * edr : BT2020_TO_BT709 * edr)
+            : (targetP3 ? BT709_TO_DISPLAYP3  * edr : edr);
+        colorOut = max(colorOut, float3(0.0));
+        float3 targetLuma = targetP3
+            ? (use2020 ? kRec2020Luma : kDisplayP3Luma)
+            : kRec709Luma;
 
         if (referenceHdr) {
             // Reference: PQ + gamut + dedicated tone map (no panel sliders). TM tuned slightly
             // punchier than the Enhanced default map + mild chroma recovery (see uchimuraToneMapReference).
-            finalColor = uchimuraToneMapReference(colorP3, p.edrHeadroom, p.maxContentNits, p.maxFrameAvgNits, full.sdrWhiteNits);
+            finalColor = uchimuraToneMapReference(colorOut, p.edrHeadroom, p.maxContentNits, p.maxFrameAvgNits, full.sdrWhiteNits);
         } else {
             // 4. User grading (luma-preserved, no hard clamp — preserves HDR headroom)
-            float3 lumaW = use2020 ? kRec2020Luma : kDisplayP3Luma;
-            float radialSat = radialSaturationScale(uv);
-            float effectiveSat = enh.saturation * full.saturation * radialSat;
-            colorP3 = lumaPreservedGradingHDR(colorP3, effectiveSat, enh.contrast * full.contrast, enh.warmth, lumaW);
+            // Steam Link has no edge desaturation; the optics compensation was
+            // costing visible saturation toward the edges.
+            float effectiveSat = enh.saturation * full.saturation;
+            colorOut = lumaPreservedGradingHDR(colorOut, effectiveSat, enh.contrast * full.contrast, enh.warmth, targetLuma);
 
             // 5. User level trims (HDR path — applied in linear light before tone mapping)
-            colorP3 *= max(full.boost, 0.0);
-            colorP3 += max(full.brightness, 0.0);
-            colorP3 *= max(full.pqExposure, 0.0);
+            colorOut *= max(full.boost, 0.0);
+            colorOut += max(full.brightness, 0.0);
+            colorOut *= max(full.pqExposure, 0.0);
 
-            // 6. Uchimura tone map against live EDR headroom (no display-specific black lift afterward).
-            colorP3 = uchimuraToneMap(colorP3, p.edrHeadroom, p.maxContentNits, p.maxFrameAvgNits, full.sdrWhiteNits);
+            // 6. Headroom-linear mapping (Steam Link ships no tone map).
+            colorOut = hdrToneMapToHeadroom(colorOut, clamp(p.edrHeadroom, 1.0, 8.0), targetLuma);
 
-            finalColor = colorP3;
+            finalColor = colorOut;
         }
 
     } else {

@@ -236,4 +236,6 @@
 
 "Window" = "Window";
 "Window Corner Radius" = "Window Corner Radius";
+"Screen Curvature" = "Screen Curvature";
+"0% corner radius gives square corners; 0% curvature is flat. Curvature uses a fixed radius, so a larger window wraps further." = "0% corner radius gives square corners; 0% curvature is flat. Curvature uses a fixed radius, so a larger window wraps further.";
 "0% gives the picture square corners; the default matches the rounded window." = "0% gives the picture square corners; the default matches the rounded window.";

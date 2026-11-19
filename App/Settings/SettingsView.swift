@@ -336,10 +336,16 @@ struct SettingsView: View {
                         value: String(format: "%.1f%%", settings.windowCornerRadius)
                     )
                     Slider(value: $settings.windowCornerRadius, in: 0...3, step: 0.1)
+
+                    LabeledContent(
+                        "Screen Curvature",
+                        value: String(format: "%.0f%%", settings.screenCurvature)
+                    )
+                    Slider(value: $settings.screenCurvature, in: 0...100, step: 1)
                 } header: {
                     Label("Window", systemImage: "rectangle.roundedtop")
                 } footer: {
-                    Text("0% gives the picture square corners; the default matches the rounded window.")
+                    Text("0% corner radius gives square corners; 0% curvature is flat. Curvature uses a fixed radius, so a larger window wraps further.")
                 }
 
                 Section("Host") {

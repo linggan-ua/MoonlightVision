@@ -59,6 +59,7 @@ struct StreamWindowView: View {
                     streamHeight: model.streamHeight,
                     packedSBS: model.isSBSStream,
                     cornerRadiusFraction: Float(settings.windowCornerRadius / 100),
+                    curvatureFraction: Float(settings.screenCurvature / 100),
                     localConversion: !model.isSBSStream,
                     showSBSConfirm: model.showSBSConfirm,
                     onEnableSBS: {

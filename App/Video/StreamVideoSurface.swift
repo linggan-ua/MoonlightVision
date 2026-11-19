@@ -34,6 +34,8 @@ struct StreamVideoSurface: View {
     /// Corner radius of the plane as a fraction of its width. 0 gives the
     /// picture square corners.
     let cornerRadiusFraction: Float
+    /// Cylinder wrap as a fraction of 90°. 0 keeps the picture flat.
+    let curvatureFraction: Float
     /// True when enabling 3D will run the on-device 2D→3D conversion instead of
     /// showing a frame-packed host stream.
     let localConversion: Bool
@@ -118,27 +120,27 @@ struct StreamVideoSurface: View {
         content: RealityViewContent,
         attachments: RealityViewAttachments
     ) {
-        let baseWidth: Float = 1.0
         let aspect = screenAspect
+        let geometry = StreamVideoPlaneMesh.Geometry(
+            aspect: aspect,
+            cornerRadiusFraction: cornerRadiusFraction,
+            curvatureFraction: curvatureFraction,
+            // Provisional until the first update measures the window.
+            physicalWidth: 1.4
+        )
         let mesh: MeshResource
-        do {
-            mesh = try StreamVideoSurfaceMesh.roundedPlane(
-                width: baseWidth,
-                aspectRatio: aspect,
-                resolution: (256, 256),
-                cornerRadiusFraction: cornerRadiusFraction
-            )
-        } catch {
-            NSLog("%@", "[Video] Plane mesh failed, using a flat plane: \(error)")
-            mesh = .generatePlane(width: baseWidth, height: baseWidth * aspect)
+        if let resource = try? StreamVideoPlaneMesh.makeMesh(geometry) {
+            runtime.planeGeometry = geometry
+            mesh = resource
+        } else {
+            NSLog("%@", "[Video] Curved plane mesh failed, using a flat plane")
+            mesh = .generatePlane(width: 1, height: aspect)
         }
 
         let entity = ModelEntity(mesh: mesh, materials: [StreamVideoMaterialFactory.unlit(texture: texture)])
         entity.position = .zero
         content.add(entity)
         runtime.screen = entity
-        runtime.meshAspect = aspect
-        runtime.meshCornerRadius = cornerRadiusFraction
 
         if let ruler = attachments.entity(for: "calibrationRuler") {
             ruler.components.set(OpacityComponent(opacity: 0))
@@ -164,6 +166,7 @@ struct StreamVideoSurface: View {
             size: size,
             screenAspect: screenAspect,
             cornerRadius: cornerRadiusFraction,
+            curvature: curvatureFraction,
             showConfirmCard: showSBSConfirm,
             attachments: attachments
         )
@@ -232,131 +235,157 @@ struct StreamVideoSurface: View {
 
 }
 
-/// Flat rounded-corner plane mesh, ported from the core client.
-enum StreamVideoSurfaceMesh {
-    static func roundedPlane(
-        width: Float,
-        aspectRatio: Float,
-        resolution: (UInt32, UInt32),
-        cornerRadiusFraction: Float
-    ) throws -> MeshResource {
-        let curveMagnitude: Float = 0
-        var descriptor = MeshDescriptor(name: "curved_rounded_plane")
-        let height = width * aspectRatio
-        let cornerRadius = max(0.0, min(1.0, cornerRadiusFraction)) * width
+/// Geometry of the window picture plane. Rounded corners are cut in the flat
+/// parameterised grid before the vertex is bent onto the cylinder arc, and the
+/// chord is normalised so the picture keeps filling the fit rect at every
+/// curvature. The math follows the core client's curved-mesh cook.
+enum StreamVideoPlaneMesh {
+    struct Geometry: Equatable {
+        var aspect: Float
+        var cornerRadiusFraction: Float
+        var curvatureFraction: Float
+        /// Physical width of the plane in metres. Curvature is a fixed radius,
+        /// so this decides the actual arc angle.
+        var physicalWidth: Float
+    }
 
-        let resX = max(2, Int(resolution.0))
-        let resY = max(2, Int(resolution.1))
-        let vertexCount = resX * resY
+    static let columns = 256
+    static let rows = 256
+    /// The safe arc limit until we can replicate Steam Link's exact depth
+    /// frame; RealityKit's window scene clips a deeper recess.
+    static let maximumArcAngle: Float = .pi / 4
+    /// Radius range in metres for the curvature control (0 % is flat).
+    static let maximumCurvatureRadius: Float = 8
+    static let minimumCurvatureRadius: Float = 1.5
 
-        let numQuadsX = resX - 1
-        let numQuadsY = resY - 1
-        let triangleCount = numQuadsX * numQuadsY * 2
-        let indexCount = triangleCount * 3
+    /// Fixed radius for a 0…1 curvature fraction.
+    static func curvatureRadius(for fraction: Float) -> Float {
+        let clamped = min(max(fraction, 0), 1)
+        return maximumCurvatureRadius
+            + (minimumCurvatureRadius - maximumCurvatureRadius) * clamped
+    }
 
-        var positions = [SIMD3<Float>](repeating: .zero, count: vertexCount)
-        var uvs = [SIMD2<Float>](repeating: .zero, count: vertexCount)
-        var indices = [UInt32](repeating: 0, count: indexCount)
+    static func makeMesh(_ geometry: Geometry) throws -> MeshResource {
+        let width: Float = 1
+        let height = max(geometry.aspect, 0.001)
+        let cornerRadius = min(max(geometry.cornerRadiusFraction, 0), 1) * width
+        let curvature = min(max(geometry.curvatureFraction, 0), 1)
+        let arcAngle: Float = {
+            guard curvature > 0.0001, geometry.physicalWidth > 0.01 else { return 0 }
+            let physicalRadius = curvatureRadius(for: curvature)
+            return min(maximumArcAngle, geometry.physicalWidth / physicalRadius)
+        }()
+        let curved = arcAngle > 0.001
+        let radius = curved ? width / arcAngle : .infinity
+        let halfAngle = arcAngle / 2
+        let chordScale: Float = curved
+            ? (width / 2) / (radius * sin(halfAngle))
+            : 1
 
-        let maxCurveAngle: Float = (5.5 * .pi / 6.0)
-        let currentAngle = maxCurveAngle * max(0.0, min(curveMagnitude, 1.0))
-        let halfAngle = currentAngle / 2.0
-        let radius: Float = (abs(halfAngle) < 0.0001) ? .infinity : (width / (2.0 * sin(halfAngle)))
-
-        let uvInset: Float = 0.0005
-
-        var vIndex = 0
-        var iIndex = 0
-        for y in 0..<resY {
-            let vGeo = Float(y) / Float(resY - 1)
-            let yPos = (0.5 - vGeo) * height
-            let vTex = (1.0 - vGeo) * (1.0 - 2.0 * uvInset) + uvInset
-
-            for x in 0..<resX {
-                let u = Float(x) / Float(resX - 1)
-
-                var xPlane = (u - 0.5) * width
-                var yPlane = yPos
-                if cornerRadius > 0.0 {
-                    let halfW = width * 0.5
-                    let halfH = height * 0.5
-                    let rx = halfW - cornerRadius
-                    let ry = halfH - cornerRadius
-
-                    var px = xPlane
-                    var py = yPlane
-
-                    let sx = abs(px) - rx
-                    let sy = abs(py) - ry
-
-                    if sx > 0.0 || sy > 0.0 {
-                        let dx = max(sx, 0.0)
-                        let dy = max(sy, 0.0)
-                        let len = simd_length(SIMD2<Float>(dx, dy))
-                        // A vertex on a straight edge is exactly one radius from
-                        // the corner centre, so this comparison is decided by
-                        // Float rounding noise. Without a tolerance, certain
-                        // radii round the distance slightly above the radius
-                        // and the whole outer row/column snaps onto the corner,
-                        // which smears the outermost picture band into a visibly
-                        // wrong border. The tolerance is far below one mesh cell.
-                        if len > cornerRadius + width * 1e-5 {
-                            let norm = simd_normalize(SIMD2<Float>(dx, dy))
-                            let clamped = norm * cornerRadius
-                            let signX: Float = (px >= 0) ? 1.0 : -1.0
-                            let signY: Float = (py >= 0) ? 1.0 : -1.0
-                            px = signX * (rx + clamped.x)
-                            py = signY * (ry + clamped.y)
-                        }
-                    }
-
-                    xPlane = px
-                    yPlane = py
-                }
-
-                let xPos: Float
-                let zPos: Float
-                if radius.isFinite && radius > 0 && currentAngle > 0.0001 {
-                    let theta = (u - 0.5) * currentAngle
-                    xPos = radius * sin(theta)
-                    zPos = radius * (cos(halfAngle) - cos(theta))
-                } else {
-                    xPos = xPlane
-                    zPos = 0.0
-                }
-
-                positions[vIndex] = [xPos, yPlane, zPos]
-                let uTex = u * (1.0 - 2.0 * uvInset) + uvInset
-                uvs[vIndex] = [uTex, vTex]
-
-                if x < numQuadsX && y < numQuadsY {
-                    let current = UInt32(vIndex)
-                    let nextRow = current + UInt32(resX)
-
-                    let topLeft = current
-                    let topRight = topLeft + 1
-                    let bottomLeft = nextRow
-                    let bottomRight = bottomLeft + 1
-
-                    indices[iIndex + 0] = topLeft
-                    indices[iIndex + 1] = bottomLeft
-                    indices[iIndex + 2] = bottomRight
-
-                    indices[iIndex + 3] = topLeft
-                    indices[iIndex + 4] = bottomRight
-                    indices[iIndex + 5] = topRight
-
-                    iIndex += 6
-                }
-
-                vIndex += 1
+        var columnX = [Float](repeating: 0, count: columns + 1)
+        var columnZ = columnX
+        var columnNormalX = columnX
+        var columnNormalZ = columnX
+        if curved {
+            for column in 0...columns {
+                let x = (Float(column) / Float(columns) - 0.5) * width
+                let theta = x / radius
+                columnX[column] = radius * sin(theta) * chordScale
+                columnZ[column] = radius * (cos(halfAngle) - cos(theta)) * chordScale
+                columnNormalX[column] = -sin(theta)
+                columnNormalZ[column] = cos(theta)
             }
         }
 
+        let uvInset: Float = 0.0005
+        let halfWidth = width * 0.5
+        let halfHeight = height * 0.5
+        let cornerX = halfWidth - cornerRadius
+        let cornerY = halfHeight - cornerRadius
+        // A straight-edge vertex is exactly one radius from the corner centre;
+        // without this tolerance Float rounding can treat it as outside and
+        // collapse the outer row onto the corner (a smeared border).
+        let cornerTolerance = width * 1e-5
+
+        let vertexCount = (columns + 1) * (rows + 1)
+        var positions = [SIMD3<Float>]()
+        var normals = [SIMD3<Float>]()
+        var uvs = [SIMD2<Float>]()
+        positions.reserveCapacity(vertexCount)
+        normals.reserveCapacity(vertexCount)
+        uvs.reserveCapacity(vertexCount)
+
+        for row in 0...rows {
+            let v = Float(row) / Float(rows)
+            let y = (0.5 - v) * height
+            let vTex = (1 - v) * (1 - 2 * uvInset) + uvInset
+            for column in 0...columns {
+                let u = Float(column) / Float(columns)
+                var x = (u - 0.5) * width
+                var py = y
+                var movedX = false
+
+                if cornerRadius > 0 {
+                    let sx = abs(x) - cornerX
+                    let sy = abs(py) - cornerY
+                    if sx > 0 || sy > 0 {
+                        let dx = max(sx, 0)
+                        let dy = max(sy, 0)
+                        let length = simd_length(SIMD2<Float>(dx, dy))
+                        if length > cornerRadius + cornerTolerance {
+                            let signX: Float = (x >= 0) ? 1 : -1
+                            let signY: Float = (py >= 0) ? 1 : -1
+                            let clampedX = signX * (cornerX + dx / length * cornerRadius)
+                            movedX = clampedX != x
+                            x = clampedX
+                            py = signY * (cornerY + dy / length * cornerRadius)
+                        }
+                    }
+                }
+
+                let uTex = u * (1 - 2 * uvInset) + uvInset
+                if curved {
+                    if movedX {
+                        let theta = x / radius
+                        positions.append(SIMD3(
+                            radius * sin(theta) * chordScale,
+                            py,
+                            radius * (cos(halfAngle) - cos(theta)) * chordScale
+                        ))
+                        normals.append(SIMD3(-sin(theta), 0, cos(theta)))
+                    } else {
+                        positions.append(SIMD3(columnX[column], py, columnZ[column]))
+                        normals.append(SIMD3(columnNormalX[column], 0, columnNormalZ[column]))
+                    }
+                } else {
+                    positions.append(SIMD3(x, py, 0))
+                    normals.append(SIMD3(0, 0, 1))
+                }
+                uvs.append(SIMD2(uTex, vTex))
+            }
+        }
+
+        var indices = [UInt32]()
+        indices.reserveCapacity(columns * rows * 6)
+        let stride = UInt32(columns + 1)
+        for row in 0..<rows {
+            for column in 0..<columns {
+                let topLeft = UInt32(row) * stride + UInt32(column)
+                let topRight = topLeft + 1
+                let bottomLeft = topLeft + stride
+                let bottomRight = bottomLeft + 1
+                indices.append(contentsOf: [
+                    topLeft, bottomLeft, bottomRight,
+                    topLeft, bottomRight, topRight
+                ])
+            }
+        }
+
+        var descriptor = MeshDescriptor(name: "curved_video_plane")
         descriptor.positions = MeshBuffers.Positions(positions)
+        descriptor.normals = MeshBuffers.Normals(normals)
         descriptor.textureCoordinates = MeshBuffers.TextureCoordinates(uvs)
         descriptor.primitives = .triangles(indices)
-
         return try MeshResource.generate(from: [descriptor])
     }
 }
@@ -381,8 +410,7 @@ final class StreamVideoSurfaceRuntime {
     weak var screen: ModelEntity?
     var ruler: Entity?
     var confirmCard: Entity?
-    var meshAspect: Float = 0
-    var meshCornerRadius: Float = 0
+    var planeGeometry: StreamVideoPlaneMesh.Geometry?
 
     private var lastUpdateSize: CGSize = .zero
     private var appliedMode: VideoMode?
@@ -417,6 +445,7 @@ final class StreamVideoSurfaceRuntime {
         size: CGSize,
         screenAspect: Float,
         cornerRadius: Float,
+        curvature: Float,
         showConfirmCard: Bool,
         attachments: RealityViewAttachments
     ) {
@@ -433,30 +462,46 @@ final class StreamVideoSurfaceRuntime {
 
         guard size.width > 10, size.height > 10 else { return }
 
-        let aspectChanged = abs(screenAspect - meshAspect) > 0.0001
-        let cornerChanged = abs(cornerRadius - meshCornerRadius) > 0.00005
-        let sizeChanged =
-            abs(size.width - lastUpdateSize.width) >= 1.0 ||
-            abs(size.height - lastUpdateSize.height) >= 1.0
-        guard aspectChanged || cornerChanged || sizeChanged || lastUpdateSize == .zero else { return }
-        lastUpdateSize = size
-
-        if aspectChanged || cornerChanged {
-            rebuildMesh(aspect: screenAspect, cornerRadius: cornerRadius)
-        }
-
         // Dynamic calibration: the ruler is 100 points wide, so its physical
-        // width gives meters-per-point.
+        // width gives meters-per-point. The plane's physical width feeds the
+        // fixed-radius curvature, so resizing the window changes the arc.
+        var physicalWidth = screen?.scale.x ?? 0
         if let screen, let ruler = self.ruler {
             let rulerWidth = ruler.visualBounds(relativeTo: nil).extents.x
             if rulerWidth > 0 {
                 let metersPerPoint = rulerWidth / 100
                 let targetWidth = Float(size.width) * metersPerPoint
+                physicalWidth = targetWidth
                 if abs(targetWidth - screen.scale.x) > 0.0001 {
                     screen.scale = [targetWidth, targetWidth, 1]
                 }
             }
         }
+        if physicalWidth <= 0 { physicalWidth = 1.4 }
+
+        // Rewrite the vertex buffer only when the shape actually changed.
+        let geometry = StreamVideoPlaneMesh.Geometry(
+            aspect: screenAspect,
+            cornerRadiusFraction: cornerRadius,
+            curvatureFraction: curvature,
+            physicalWidth: physicalWidth
+        )
+        let geometryChanged = geometry != planeGeometry
+        if geometryChanged {
+            planeGeometry = geometry
+            if let screen,
+               let mesh = try? StreamVideoPlaneMesh.makeMesh(geometry) {
+                // Re-set the whole component: swapping only `model?.mesh` on a
+                // live entity can leave it without a renderable mesh.
+                let materials = screen.model?.materials ?? []
+                screen.components.set(ModelComponent(mesh: mesh, materials: materials))
+            }
+        }
+        let sizeChanged =
+            abs(size.width - lastUpdateSize.width) >= 1.0 ||
+            abs(size.height - lastUpdateSize.height) >= 1.0
+        guard geometryChanged || sizeChanged || lastUpdateSize == .zero else { return }
+        lastUpdateSize = size
 
         updateConfirmCard()
     }
@@ -511,23 +556,6 @@ final class StreamVideoSurfaceRuntime {
         lastCardScale = scale
     }
 
-    private func rebuildMesh(aspect: Float, cornerRadius: Float) {
-        guard let screen else { return }
-        let mesh: MeshResource
-        do {
-            mesh = try StreamVideoSurfaceMesh.roundedPlane(
-                width: 1,
-                aspectRatio: aspect,
-                resolution: (256, 256),
-                cornerRadiusFraction: cornerRadius
-            )
-        } catch {
-            mesh = .generatePlane(width: 1, height: aspect)
-        }
-        screen.model?.mesh = mesh
-        meshAspect = aspect
-        meshCornerRadius = cornerRadius
-    }
 }
 
 /// Asks before switching the window into side-by-side 3D, matching the

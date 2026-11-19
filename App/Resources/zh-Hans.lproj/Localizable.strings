@@ -236,4 +236,6 @@
 
 "Window" = "窗口";
 "Window Corner Radius" = "窗口圆角";
+"Screen Curvature" = "屏幕曲率";
+"0% corner radius gives square corners; 0% curvature is flat and 100% wraps the screen about 90°." = "圆角 0% 为直角；曲率 0% 为平面。曲率按固定半径计算，窗口越大环绕越多。";
 "0% gives the picture square corners; the default matches the rounded window." = "0% 时画面四角为直角；默认值与窗口圆角一致。";

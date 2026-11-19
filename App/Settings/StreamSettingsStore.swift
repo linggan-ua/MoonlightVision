@@ -124,6 +124,7 @@ final class StreamSettingsStore {
     private static let packedSBSInputKey = "mv.packedSBSInput"
     private static let windowCornerRadiusKey = "mv.windowCornerRadius"
     private static let antiShimmerKey = "mv.antiShimmerMipmaps"
+    private static let screenCurvatureKey = "mv.screenCurvature"
 
     private let dataManager = DataManager()
 
@@ -222,6 +223,13 @@ final class StreamSettingsStore {
             UserDefaults.standard.set(antiShimmerMipmaps, forKey: Self.antiShimmerKey)
         }
     }
+    /// Curvature of the video plane as a percentage of a 90° wrap. 0 keeps the
+    /// picture flat; higher values bend it into a concave cylinder arc.
+    var screenCurvature: Double = 0 {
+        didSet {
+            UserDefaults.standard.set(screenCurvature, forKey: Self.screenCurvatureKey)
+        }
+    }
 
     /// Only used for the one-time migration away from the old UserDefaults blob.
     private struct LegacyStored: Codable {
@@ -276,6 +284,7 @@ final class StreamSettingsStore {
             windowCornerRadius = UserDefaults.standard.double(forKey: Self.windowCornerRadiusKey)
         }
         antiShimmerMipmaps = UserDefaults.standard.bool(forKey: Self.antiShimmerKey)
+        screenCurvature = UserDefaults.standard.double(forKey: Self.screenCurvatureKey)
     }
 
     func reset() {
@@ -314,6 +323,7 @@ final class StreamSettingsStore {
         packedSBSInput = false
         windowCornerRadius = 1.2
         antiShimmerMipmaps = false
+        screenCurvature = 0
     }
 
     private func apply(_ legacy: LegacyStored) {

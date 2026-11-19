@@ -67,9 +67,9 @@ final class StreamSessionModel {
     private(set) var phase: Phase = .idle
     private(set) var statsText = ""
     private(set) var isBackgrounded = false
-    /// When the app went to the background, used to decide whether a silent
-    /// connection loss needs an automatic reconnect on return.
-    private var backgroundedAt: Date?
+    /// Set when the app really backgrounds; returning to the foreground then
+    /// rebuilds the connection in place.
+    private var needsReconnectAfterBackground = false
     private(set) var isMuted = false
     private(set) var connectionPoor = false
     var volume: Double = 1.0 {
@@ -91,6 +91,8 @@ final class StreamSessionModel {
 
     /// Local cursor overlay shared by the input strategy and the video surface.
     let localCursor = StreamLocalCursor()
+    /// HDR-mode trims shared with the decoder's render thread.
+    let hdrTrim = StreamHDRTrimState()
 
     private var mouseStrategy: (any StreamMouseStrategy)?
     private let touchInput = StreamTouchInput()
@@ -108,6 +110,8 @@ final class StreamSessionModel {
         videoMode = StreamSettingsStore.shared.stereoSBS
             ? .sideBySide3D
             : .standard2D
+        hdrTrim.setSDRBrightness(Float(StreamSettingsStore.shared.hdrSdrBrightness))
+        hdrTrim.setHighlightHeadroom(Float(StreamSettingsStore.shared.hdrHighlightHeadroom))
     }
 
     var statusText: String {
@@ -216,6 +220,16 @@ final class StreamSessionModel {
     /// Applies the anti-shimmer (mipmap) option to the live decoder.
     func setAntiShimmerMipmaps(_ enabled: Bool) {
         activeDecoder?.setMipmappedOutput(enabled)
+    }
+
+    /// Feeds the live HDR SDR-brightness trim to the decoder.
+    func setHDRSdrBrightness(_ value: Float) {
+        hdrTrim.setSDRBrightness(value)
+    }
+
+    /// Feeds the live HDR highlight headroom (tone-map peak) to the decoder.
+    func setHDRHighlightHeadroom(_ value: Float) {
+        hdrTrim.setHighlightHeadroom(value)
     }
 
     /// Reconciles the stream with the current display mode: local 2D→3D needs
@@ -340,7 +354,7 @@ final class StreamSessionModel {
         if backgrounded {
             // Metal rejects command buffers submitted from the background, so
             // stop GPU work immediately even if the connection is still up.
-            if backgroundedAt == nil { backgroundedAt = Date() }
+            needsReconnectAfterBackground = true
             activeDecoder?.setRenderingPaused(true)
             teardownInput()
             return
@@ -363,30 +377,17 @@ final class StreamSessionModel {
     /// visionOS suspends the process while another immersive app is running,
     /// so the host usually drops the session; the window stays open and the
     /// connection is rebuilt in place.
-    /// Waits for the host's termination callback to settle, then reconnects
-    /// if the session did not survive the background.
-    func scheduleReconnectAfterBackground(force: Bool) {
-        Task {
-            try? await Task.sleep(for: .milliseconds(700))
-            reconnectAfterBackgroundIfNeeded(force: force)
-        }
-    }
-
-    func reconnectAfterBackgroundIfNeeded(force: Bool = false) {
-        guard !isBackgrounded else { return }
-        let away = backgroundedAt.map { Date().timeIntervalSince($0) } ?? 0
-        backgroundedAt = nil
+    /// Rebuilds the stream after the app returns from the background.
+    /// visionOS suspends the process, so the host connection is gone even if
+    /// the model has not seen the termination callback yet.
+    func reconnectAfterBackgroundIfNeeded() {
+        guard !isBackgrounded, needsReconnectAfterBackground else { return }
+        needsReconnectAfterBackground = false
         guard !userInitiatedStop, !isRestarting else { return }
 
         switch phase {
-        case .ended:
+        case .ended, .streaming, .connecting:
             Task { await restart() }
-        case .streaming, .connecting:
-            // visionOS suspends us while another immersive app runs, so even
-            // without an explicit termination the connection is usually gone.
-            if force || away > 3 {
-                Task { await restart() }
-            }
         default:
             break
         }
@@ -486,6 +487,7 @@ final class StreamSessionModel {
         let renderingPaused = isBackgrounded
         let useFramePacing = config.useFramePacing
         let activation = realtime3DActivation
+        let hdrTrimState = hdrTrim
         let initialAspect = Float(streamAspect)
         guard let manager = StreamManager(
             config: config,
@@ -496,7 +498,18 @@ final class StreamSessionModel {
                     aspectRatio: initialAspect,
                     useFramePacing: useFramePacing,
                     enableHDR: hdr,
-                    hdrSettingsProvider: nil,
+                    hdrSettingsProvider: { [trim = hdrTrimState] in
+                        HDRParams(
+                            boost: 1.0,
+                            contrast: 1.0,
+                            saturation: 1.0,
+                            brightness: 0.0,
+                            pqExposure: 1.0,
+                            mode: 0,
+                            sdrBrightness: trim.sdrSnapshot,
+                            edrHeadroom: trim.headroomSnapshot
+                        )
+                    },
                     enhancementsProvider: nil,
                     realtime3DSettingsProvider: {
                         Realtime3DSettingsStore.shared.settings(active: activation.isActive)
@@ -828,6 +841,9 @@ final class StreamSessionModel {
                     return
                 }
                 var text = manager.getStatsOverlayText() ?? ""
+                if let report = self.activeDecoder?.hdrFormatReport(), !report.isEmpty {
+                    text += "\n" + report
+                }
                 if self.isRealtime3DActive,
                    let report = self.activeDecoder?.realtime3DReport() {
                     let inferMS = (report.inferenceSeconds ?? 0) * 1000

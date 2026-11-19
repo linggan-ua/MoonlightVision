@@ -67,6 +67,9 @@
 "Auto" = "自动";
 "HEVC" = "HEVC";
 "HDR (HDR10)" = "HDR (HDR10)";
+"HDR SDR Brightness" = "HDR 下 SDR 亮度";
+"HDR Highlight Brightness" = "HDR 高光亮度";
+"HDR Highlight Level" = "HDR 高光级别";
 "Frame Pacing" = "帧节奏";
 "Anti-Shimmer (Mipmaps)" = "抗闪烁（Mipmap）";
 "Smooths shimmer and moiré in motion with mipmaps; the picture becomes slightly less sharp. Turn off for the sharpest picture." = "用 mipmap 减轻运动画面的闪烁和摩尔纹，清晰度会略微下降；关闭可保持最清晰的画面。";

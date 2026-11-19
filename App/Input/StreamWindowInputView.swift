@@ -21,6 +21,8 @@ final class StreamWindowInputView: UIView {
     /// A gaze + pinch (direct touch) on the picture. Physical mouse clicks are
     /// indirect-pointer events and do not trigger this.
     var onDirectTap: (() -> Void)?
+    private var appliedHeadroom: CGFloat = 2.0
+    private var isHDRContent = false
 
     /// The first direct contact of a gaze/pinch gesture, delivered before the
     /// touch is forwarded. The session uses it to release mouse capture.
@@ -84,9 +86,42 @@ final class StreamWindowInputView: UIView {
         super.didMoveToWindow()
         mouseSurfaceDelegate?.mouseSurfaceDidMoveToWindow()
         guard window != nil else { return }
+        applyLayerEDR()
         DispatchQueue.main.async { [weak self] in
             _ = self?.becomeFirstResponder()
         }
+    }
+
+    /// Tags the window's layer tree for high dynamic range. RealityKit hosts
+    /// the video in a child CAMetalLayer; walking the tree covers it as it
+    /// appears. `toneMapMode = .never` keeps the compositor from tone mapping
+    /// our already tone-mapped EDR image a second time.
+    func applyHDRHeadroom(_ headroom: CGFloat, enabled: Bool) {
+        appliedHeadroom = max(headroom, 1.0)
+        isHDRContent = enabled
+        applyLayerEDR()
+    }
+
+    private func applyLayerEDR() {
+        guard let window else { return }
+        Self.applyEDR(to: window.layer, headroom: appliedHeadroom, enabled: isHDRContent)
+    }
+
+    private static func applyEDR(to layer: CALayer, headroom: CGFloat, enabled: Bool) {
+        if enabled {
+            layer.toneMapMode = .never
+            if #available(visionOS 26.0, *) {
+                layer.preferredDynamicRange = .high
+                layer.contentsHeadroom = headroom
+            }
+        } else {
+            layer.toneMapMode = .automatic
+            if #available(visionOS 26.0, *) {
+                layer.preferredDynamicRange = .standard
+                layer.contentsHeadroom = 0
+            }
+        }
+        layer.sublayers?.forEach { applyEDR(to: $0, headroom: headroom, enabled: enabled) }
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -130,6 +165,7 @@ final class StreamWindowInputView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         mouseSurfaceDelegate?.mouseSurfaceDidLayout()
+        applyLayerEDR()
     }
 
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {

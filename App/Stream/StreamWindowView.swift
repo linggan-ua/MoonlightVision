@@ -172,7 +172,7 @@ struct StreamWindowView: View {
         .task { await model.startWhenReady() }
         .onAppear {
             model.inputView.isUserInteractionEnabled = !model.showSBSConfirm
-            model.setBackgrounded(scenePhase != .active)
+            model.setBackgrounded(scenePhase == .background)
         }
         .onChange(of: model.showSBSConfirm) { _, showing in
             // While the confirmation card floats over the picture, let its
@@ -180,36 +180,15 @@ struct StreamWindowView: View {
             model.inputView.isUserInteractionEnabled = !showing
         }
         .onChange(of: scenePhase) { _, newPhase in
-            let wasBackgrounded = model.isBackgrounded
-            model.setBackgrounded(newPhase != .active)
+            // Focus changes report .inactive and must not pause the stream.
+            // Only a real background (or another immersive app) does.
+            model.setBackgrounded(newPhase == .background)
             if newPhase == .active {
-                model.scheduleReconnectAfterBackground(force: wasBackgrounded)
+                model.reconnectAfterBackgroundIfNeeded()
             }
         }
-        .onChange(of: settings.hideChromeDuringMouseInput) { _, _ in
-            model.refreshChromeVisibility()
-        }
-        .onChange(of: settings.mouseInputMode) { _, _ in
-            model.refreshChromeVisibility()
-        }
-        .onChange(of: settings.suppressRestoreTap) { _, _ in
-            model.refreshChromeVisibility()
-        }
-        .onChange(of: settings.stereoSBS) { _, enabled in
-            model.setStereoSBS(enabled)
-        }
-        .onChange(of: settings.packedSBSInput) { _, _ in
-            model.refreshSBSLayout()
-        }
-        .onChange(of: settings.antiShimmerMipmaps) { _, enabled in
-            model.setAntiShimmerMipmaps(enabled)
-        }
-        .onChange(of: settings.mouseMode) { _, mode in
-            model.setMouseMode(mode)
-        }
-        .onChange(of: settings.swapABXY) { _, swap in
-            model.setSwapABXY(swap)
-        }
+        .modifier(StreamInputSettingsObserver(model: model, settings: settings))
+        .modifier(StreamVideoSettingsObserver(model: model, settings: settings))
         .onReceive(NotificationCenter.default.publisher(for: .streamKeyboardDidActivate)) { _ in
             showKeyboardHint()
         }
@@ -388,4 +367,32 @@ extension Notification.Name {
     static let streamKeyboardDidActivate = Notification.Name("mv.streamKeyboardDidActivate")
     static let streamKeyboardDidDeactivate = Notification.Name("mv.streamKeyboardDidDeactivate")
     static let streamKeyboardWindowDidClose = Notification.Name("mv.streamKeyboardWindowDidClose")
+}
+
+private struct StreamInputSettingsObserver: ViewModifier {
+    let model: StreamSessionModel
+    @Bindable var settings: StreamSettingsStore
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: settings.hideChromeDuringMouseInput) { _, _ in model.refreshChromeVisibility() }
+            .onChange(of: settings.mouseInputMode) { _, _ in model.refreshChromeVisibility() }
+            .onChange(of: settings.suppressRestoreTap) { _, _ in model.refreshChromeVisibility() }
+            .onChange(of: settings.mouseMode) { _, mode in model.setMouseMode(mode) }
+            .onChange(of: settings.swapABXY) { _, swap in model.setSwapABXY(swap) }
+    }
+}
+
+private struct StreamVideoSettingsObserver: ViewModifier {
+    let model: StreamSessionModel
+    @Bindable var settings: StreamSettingsStore
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: settings.stereoSBS) { _, enabled in model.setStereoSBS(enabled) }
+            .onChange(of: settings.packedSBSInput) { _, _ in model.refreshSBSLayout() }
+            .onChange(of: settings.antiShimmerMipmaps) { _, enabled in model.setAntiShimmerMipmaps(enabled) }
+            .onChange(of: settings.hdrSdrBrightness) { _, value in model.setHDRSdrBrightness(Float(value)) }
+            .onChange(of: settings.hdrHighlightHeadroom) { _, value in model.setHDRHighlightHeadroom(Float(value)) }
+    }
 }

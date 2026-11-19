@@ -302,6 +302,16 @@ struct SettingsView: View {
                     }
                     Toggle("HDR (HDR10)", isOn: $settings.hdrEnabled)
                         .disabled(!settings.codec.supportsHDR)
+                    LabeledContent(
+                        "HDR SDR Brightness",
+                        value: String(format: "%.2f×", settings.hdrSdrBrightness)
+                    )
+                    Slider(value: $settings.hdrSdrBrightness, in: 0.25...1.5, step: 0.05)
+                    LabeledContent(
+                        "HDR Highlight Brightness",
+                        value: String(format: "%.1f×", settings.hdrHighlightHeadroom)
+                    )
+                    Slider(value: $settings.hdrHighlightHeadroom, in: 1.0...8.0, step: 0.1)
                     Toggle("Frame Pacing", isOn: $settings.framePacing)
                     Toggle("Anti-Shimmer (Mipmaps)", isOn: $settings.antiShimmerMipmaps)
                 } header: {

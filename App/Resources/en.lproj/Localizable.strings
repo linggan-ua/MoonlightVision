@@ -67,6 +67,9 @@
 "Auto" = "Auto";
 "HEVC" = "HEVC";
 "HDR (HDR10)" = "HDR (HDR10)";
+"HDR SDR Brightness" = "HDR SDR Brightness";
+"HDR Highlight Brightness" = "HDR Highlight Brightness";
+"HDR Highlight Level" = "HDR Highlight Level";
 "Frame Pacing" = "Frame Pacing";
 "Anti-Shimmer (Mipmaps)" = "Anti-Shimmer (Mipmaps)";
 "Smooths shimmer and moiré in motion with mipmaps; the picture becomes slightly less sharp. Turn off for the sharpest picture." = "Smooths shimmer and moiré in motion with mipmaps; the picture becomes slightly less sharp. Turn off for the sharpest picture.";

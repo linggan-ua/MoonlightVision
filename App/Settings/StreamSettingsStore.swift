@@ -123,6 +123,8 @@ final class StreamSettingsStore {
     private static let invertScrollKey = "mv.invertScroll"
     private static let mousePointerSpeedKey = "mv.mousePointerSpeed"
     private static let showLocalCursorKey = "mv.showLocalCursor"
+    private static let hdrSdrBrightnessKey = "mv.hdrSdrBrightness"
+    private static let hdrHighlightHeadroomKey = "mv.hdrHighlightHeadroom"
     private static let stereoSBSKey = "mv.stereoSBS"
     private static let packedSBSInputKey = "mv.packedSBSInput"
     private static let windowCornerRadiusKey = "mv.windowCornerRadius"
@@ -190,6 +192,19 @@ final class StreamSettingsStore {
     var showLocalCursor: Bool = false {
         didSet {
             UserDefaults.standard.set(showLocalCursor, forKey: Self.showLocalCursorKey)
+        }
+    }
+    /// HDR-mode SDR white level. Lower values dim SDR content in an HDR
+    /// stream without touching highlights above the reference white.
+    var hdrSdrBrightness: Double = 1.0 {
+        didSet {
+            UserDefaults.standard.set(hdrSdrBrightness, forKey: Self.hdrSdrBrightnessKey)
+        }
+    }
+    /// Tone-map peak for HDR highlights, in EDR units (1.0 = SDR white).
+    var hdrHighlightHeadroom: Double = 2.0 {
+        didSet {
+            UserDefaults.standard.set(hdrHighlightHeadroom, forKey: Self.hdrHighlightHeadroomKey)
         }
     }
     var showStats: Bool = true {
@@ -306,6 +321,12 @@ final class StreamSettingsStore {
             mousePointerSpeed = UserDefaults.standard.double(forKey: Self.mousePointerSpeedKey)
         }
         showLocalCursor = UserDefaults.standard.bool(forKey: Self.showLocalCursorKey)
+        if UserDefaults.standard.object(forKey: Self.hdrSdrBrightnessKey) != nil {
+            hdrSdrBrightness = UserDefaults.standard.double(forKey: Self.hdrSdrBrightnessKey)
+        }
+        if UserDefaults.standard.object(forKey: Self.hdrHighlightHeadroomKey) != nil {
+            hdrHighlightHeadroom = UserDefaults.standard.double(forKey: Self.hdrHighlightHeadroomKey)
+        }
         stereoSBS = UserDefaults.standard.bool(forKey: Self.stereoSBSKey)
         packedSBSInput = UserDefaults.standard.bool(forKey: Self.packedSBSInputKey)
         if UserDefaults.standard.object(forKey: Self.windowCornerRadiusKey) != nil {
@@ -343,6 +364,8 @@ final class StreamSettingsStore {
         invertScroll = false
         mousePointerSpeed = 1.0
         showLocalCursor = false
+        hdrSdrBrightness = 1.0
+        hdrHighlightHeadroom = 2.0
         showStats = true
         framePacing = true
         optimizeGameSettings = true

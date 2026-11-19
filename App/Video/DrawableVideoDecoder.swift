@@ -34,6 +34,11 @@ struct HDRParams {
     var mode: Int32
     /// Bit 0 (`1`): Reference HDR — minimal client grading (PQ + gamut + tone map only). See `Shaders.metal` `FullHDRParams.hdrGradeFlags`.
     var hdrGradeFlags: UInt32 = 0
+    /// HDR-mode SDR white level; 1.0 = neutral, lower dims SDR content.
+    var sdrBrightness: Float = 1.0
+    /// Tone-map peak in EDR units (1.0 = SDR white). 2.0 matches the old
+    /// visionOS hardcode; higher values let HDR highlights go brighter.
+    var edrHeadroom: Float = 2.0
 }
 
 /// ChromaHalo / Chromosphere: halo drawable / RealityKit texture size is full frame `>> mipShift`.
@@ -144,6 +149,7 @@ private struct ShaderFullHDRParams {
     var pqExposure:  Float
     var mode:        Int32
     var hdrGradeFlags: UInt32
+    var sdrBrightness: Float
 }
 
 /// Buffer 0 for TestFlight SDR fragments (`copyFragmentShaderHDR_EDR` / `_HEVC_EDR`) — matches `LegacySDRFrameParams` in Shaders.metal.
@@ -253,6 +259,8 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
     private var depthPreviewPipeline: MTLRenderPipelineState?
     private var lastPresentationTimeSeconds: Double?
     private let renderFrameLock = NSLock()
+    private let hdrReportLock = NSLock()
+    private var hdrReport = ""
     /// GPU submission is forbidden once the app is in the background. The
     /// decoder keeps its VideoToolbox session but drops frames until resumed.
     private let renderStateLock = NSLock()
@@ -503,6 +511,28 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         let is10Bit    = pixelFormatIs10Bit(pf)    ? UInt32(1) : 0
         let isFullRange = pixelFormatIsFullRange(pf) ? UInt32(1) : 0
 
+        let hdrKind = !hdrEnabled ? "SDR" : (isPQ ? "PQ" : "extended/non-PQ")
+        let primariesName = primariesType == 1 ? "BT.2020" : (primariesType == 2 ? "SMPTE-C" : "BT.709")
+        let bitsName = is10Bit == 1 ? "10-bit" : "8-bit"
+        let rangeName = isFullRange == 1 ? "full" : "limited"
+        let transferName: String = {
+            guard let fd = formatDesc,
+                  let tfAny = CMFormatDescriptionGetExtension(fd, extensionKey: kCMFormatDescriptionExtension_TransferFunction)
+            else { return "tf=?" }
+            if CFGetTypeID(tfAny) == CFStringGetTypeID() {
+                return (tfAny as! CFString) as String
+            }
+            return "tf=?"
+        }()
+        let report = "HDR: \(hdrKind) · \(primariesName) · \(bitsName) · \(rangeName) · \(transferName)"
+        hdrReportLock.lock()
+        let reportChanged = hdrReport != report
+        hdrReport = report
+        hdrReportLock.unlock()
+        if reportChanged {
+            NSLog("[DrawableVideoDecoder] %@", report)
+        }
+
         if hdrEnabled { updateHDRMetadata() }
 
         // --- Texture Format Selection ---
@@ -610,6 +640,9 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
 
         // Always compute once so first-frame logging (and HDR shader params) share the same binding.
         let edrHeadroom: Float = {
+            if let params = hdrSettingsProvider?(), params.edrHeadroom > 0 {
+                return params.edrHeadroom
+            }
             #if os(visionOS)
             return 2.0
             #else
@@ -646,7 +679,8 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
                 brightness: userParams.brightness,
                 pqExposure: userParams.pqExposure,
                 mode:       userParams.mode,
-                hdrGradeFlags: userParams.hdrGradeFlags
+                hdrGradeFlags: userParams.hdrGradeFlags,
+                sdrBrightness: userParams.sdrBrightness
             )
             renderEncoder.setFragmentBytes(&fullParams, length: MemoryLayout<ShaderFullHDRParams>.size, index: 1)
         } else {
@@ -1089,6 +1123,13 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         region = MTLRegionMake2D(0, 0, outputWidth, outputHeight)
 
         self.callbackToRender(newQueue, self.chromaHaloQueue, (videoWidth, videoHeight))
+    }
+
+    /// Short description of the decoded stream's actual HDR format.
+    func hdrFormatReport() -> String {
+        hdrReportLock.lock()
+        defer { hdrReportLock.unlock() }
+        return hdrReport
     }
 
     /// Latest real-time 3D depth report (nil when 3D is off or no frame yet).

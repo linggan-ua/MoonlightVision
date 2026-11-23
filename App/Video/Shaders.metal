@@ -161,6 +161,13 @@ constant float3x3 BT2020_TO_BT709 = float3x3(
     float3(-0.072850, -0.008349,  1.118730)
 );
 
+// BT.709 linear → BT.2020 linear
+constant float3x3 BT709_TO_BT2020 = float3x3(
+    float3(0.627404, 0.069097, 0.016391),
+    float3(0.329283, 0.919541, 0.088013),
+    float3(0.043313, 0.011362, 0.895595)
+);
+
 // SMPTE-C (BT.601) linear → BT.709 linear
 constant float3x3 SMPTEC_TO_BT709 = float3x3(
     float3( 1.0654, -0.0196,  0.0016),
@@ -203,6 +210,22 @@ inline float pqToNits(float p) {
 
 inline float3 pqToNits(float3 p) {
     return float3(pqToNits(p.r), pqToNits(p.g), pqToNits(p.b));
+}
+
+// Encode absolute luminance (nits) back to ST.2084 / PQ code values.
+inline float pqFromNits(float nits) {
+    const float m1 = 0.1593017578125;
+    const float m2 = 78.84375;
+    const float c1 = 0.8359375;
+    const float c2 = 18.8515625;
+    const float c3 = 18.6875;
+    float y = clamp(nits / 10000.0, 0.0, 1.0);
+    float ym = pow(y, m1);
+    return pow((c1 + c2 * ym) / (1.0 + c3 * ym), m2);
+}
+
+inline float3 pqFromNits(float3 nits) {
+    return float3(pqFromNits(nits.r), pqFromNits(nits.g), pqFromNits(nits.b));
 }
 
 // MARK: - Gamut Mapping for SDR Content
@@ -392,6 +415,8 @@ inline float3 processFrame(
     float3 finalColor;
     const uint kHDRGradeReference = 1u;
     bool referenceHdr = (full.hdrGradeFlags & kHDRGradeReference) != 0u;
+    // 2 = encode PQ/BT.2020 for the flat BGR10A2 HDR10 layer.
+    bool targetPQ = (full.outputGamut == 2u);
 
     if (p.isPQ == 1u) {
         // --- PQ / HDR path ---
@@ -420,13 +445,18 @@ inline float3 processFrame(
         //    RealityKit's wider working space if the window is color-managed.
         bool use2020 = (p.primariesType == 1u);
         bool targetP3 = (full.outputGamut == 0u);
-        float3 colorOut = use2020
-            ? (targetP3 ? BT2020_TO_DISPLAYP3 * edr : BT2020_TO_BT709 * edr)
-            : (targetP3 ? BT709_TO_DISPLAYP3  * edr : edr);
+        float3 colorOut;
+        if (targetPQ) {
+            colorOut = use2020 ? edr : (BT709_TO_BT2020 * edr);
+        } else if (targetP3) {
+            colorOut = use2020 ? (BT2020_TO_DISPLAYP3 * edr) : (BT709_TO_DISPLAYP3 * edr);
+        } else {
+            colorOut = use2020 ? (BT2020_TO_BT709 * edr) : edr;
+        }
         colorOut = max(colorOut, float3(0.0));
-        float3 targetLuma = targetP3
-            ? (use2020 ? kRec2020Luma : kDisplayP3Luma)
-            : kRec709Luma;
+        float3 targetLuma = targetPQ
+            ? kRec2020Luma
+            : (targetP3 ? (use2020 ? kRec2020Luma : kDisplayP3Luma) : kRec709Luma);
 
         if (referenceHdr) {
             // Reference: PQ + gamut + dedicated tone map (no panel sliders). TM tuned slightly
@@ -488,13 +518,23 @@ inline float3 processFrame(
 
     // The HDR drawable is a linear rgba16Float texture. A true SDR stream
     // carried through the HDR path arrives gamma-encoded; linearise it and map
-    // BT.709 primaries into the drawable's Display P3 working space before it
-    // reaches the texture.
+    // BT.709 primaries into the drawable's working space before it reaches the
+    // texture. For the flat PQ layer, convert to BT.2020 and encode PQ instead.
     if (p.isPQ == 0u && p.extendedScene == 0u) {
-        finalColor = sdrPrimariesToDisplayP3(
-            pow(clamp(finalColor, 0.0, 1.0), float3(2.2)),
-            p
-        );
+        float3 linearSDR = pow(clamp(finalColor, 0.0, 1.0), float3(2.2));
+        if (targetPQ) {
+            finalColor = (p.primariesType == 1u) ? linearSDR : (BT709_TO_BT2020 * linearSDR);
+        } else {
+            finalColor = sdrPrimariesToDisplayP3(linearSDR, p);
+        }
+    }
+    if (targetPQ && p.extendedScene != 0u) {
+        finalColor = (p.primariesType == 1u)
+            ? max(finalColor, float3(0.0))
+            : (BT709_TO_BT2020 * max(finalColor, float3(0.0)));
+    }
+    if (targetPQ) {
+        finalColor = pqFromNits(max(finalColor, float3(0.0)) * max(full.sdrWhiteNits, 80.0));
     }
 
     // Safety ceiling — prevents any runaway value from blowing out the display.

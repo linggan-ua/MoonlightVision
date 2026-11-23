@@ -351,6 +351,10 @@ struct SettingsView: View {
                     Text("Lower slightly if HDR colors look more vivid than Steam Link.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    Toggle("Flat HDR (Experimental)", isOn: $settings.flatHDRMode)
+                    Text("HDR 2D only: renders through a CAMetalLayer to validate true EDR. Curvature, SBS 3D and the local cursor are disabled.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     LabeledContent(
                         "HDR Highlight Brightness",
                         value: String(format: "%.1f×", settings.hdrHighlightHeadroom)

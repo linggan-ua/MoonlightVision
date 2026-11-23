@@ -5,7 +5,9 @@
 //  Created by Linggan-ua.
 //
 
+import QuartzCore
 import SwiftUI
+import UIKit
 
 /// The stream window: the picture fills a plain window, controls live in a
 /// visionOS ornament below it, and stats float in an ornament above it.
@@ -22,6 +24,7 @@ struct StreamWindowView: View {
     @State private var showStreamSettings = false
     @State private var restartBaseline: StreamRestartSettings?
     @State private var showRestartPrompt = false
+    @State private var showFullScreenHDR = false
 
     init(model: StreamSessionModel, onExit: @escaping () -> Void) {
         self.model = model
@@ -50,7 +53,10 @@ struct StreamWindowView: View {
 
             // The picture is a RealityKit plane. With no opaque SwiftUI layer
             // behind it, the window's own background cannot fight with it.
-            if let texture = model.videoTexture, model.isStreaming {
+            if model.isStreaming, settings.flatHDRMode, !showFullScreenHDR {
+                FlatHDRVideoView(layer: model.flatHDRVideoLayer)
+                    .allowedDynamicRange(.high)
+            } else if let texture = model.videoTexture, model.isStreaming {
                 StreamVideoSurface(
                     texture: texture,
                     mailbox: model.frameMailbox,
@@ -76,6 +82,20 @@ struct StreamWindowView: View {
 
             StreamWindowInputViewRepresentable(view: model.inputView)
                 .ignoresSafeArea()
+
+            if model.isStreaming, settings.flatHDRMode, !showFullScreenHDR {
+                VStack {
+                    HStack {
+                        Spacer()
+                        Button("Full Screen HDR") {
+                            showFullScreenHDR = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .padding(16)
+                    }
+                    Spacer()
+                }
+            }
 
             if !model.isStreaming {
                 StreamGlassOverlay {
@@ -158,6 +178,14 @@ struct StreamWindowView: View {
             SettingsView(onCalibrateHDRWhite: { model.calibrateHDRWhite() })
                 .frame(minWidth: 720, minHeight: 760)
         }
+        .fullScreenCover(isPresented: $showFullScreenHDR) {
+            FlatHDRFullScreenView(layer: model.flatHDRVideoLayer) {
+                showFullScreenHDR = false
+            }
+        }
+        .onChange(of: settings.flatHDRMode) { _, enabled in
+            showFullScreenHDR = enabled
+        }
         .alert(
             "Some settings require restarting the stream to take effect.",
             isPresented: $showRestartPrompt
@@ -184,7 +212,7 @@ struct StreamWindowView: View {
             // Only a real background (or another immersive app) does.
             model.setBackgrounded(newPhase == .background)
             if newPhase == .active {
-                model.reconnectAfterBackgroundIfNeeded()
+                model.scheduleReconnectAfterBackgroundIfNeeded()
             }
         }
         .modifier(StreamInputSettingsObserver(model: model, settings: settings))
@@ -214,6 +242,64 @@ struct StreamWindowView: View {
         }
     }
 
+}
+
+private struct FlatHDRFullScreenView: View {
+    let layer: CAMetalLayer
+    let onClose: () -> Void
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            FlatHDRVideoView(layer: layer)
+                .ignoresSafeArea()
+                .allowedDynamicRange(.high)
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.title3)
+                    .padding(12)
+                    .glassBackgroundEffect(in: Circle())
+            }
+            .buttonStyle(.plain)
+            .padding(24)
+        }
+        .background(Color.black.ignoresSafeArea())
+    }
+}
+
+private final class FlatHDRHostView: UIView {
+    let metalLayer: CAMetalLayer
+
+    init(metalLayer: CAMetalLayer) {
+        self.metalLayer = metalLayer
+        super.init(frame: .zero)
+        backgroundColor = .black
+        isUserInteractionEnabled = false
+        layer.addSublayer(metalLayer)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        metalLayer.frame = bounds
+        CATransaction.commit()
+    }
+}
+
+private struct FlatHDRVideoView: UIViewRepresentable {
+    let layer: CAMetalLayer
+
+    func makeUIView(context: Context) -> FlatHDRHostView {
+        FlatHDRHostView(metalLayer: layer)
+    }
+
+    func updateUIView(_ view: FlatHDRHostView, context: Context) {
+        view.setNeedsLayout()
+    }
 }
 
 private struct StreamControlsView: View {
@@ -396,6 +482,7 @@ private struct StreamVideoSettingsObserver: ViewModifier {
             .onChange(of: settings.hdrSdrWhiteNits) { _, value in model.setHDRSdrWhiteNits(Float(value)) }
             .onChange(of: settings.hdrColorTarget) { _, target in model.setHDRColorTarget(target) }
             .onChange(of: settings.hdrSaturation) { _, value in model.setHDRSaturation(Float(value)) }
+            .onChange(of: settings.flatHDRMode) { _, enabled in model.setFlatHDRMode(enabled) }
             .onChange(of: settings.hdrHighlightHeadroom) { _, value in model.setHDRHighlightHeadroom(Float(value)) }
     }
 }

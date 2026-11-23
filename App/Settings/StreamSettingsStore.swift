@@ -148,6 +148,7 @@ final class StreamSettingsStore {
     private static let hdrSdrWhiteNitsKey = "mv.hdrSdrWhiteNits"
     private static let hdrColorTargetKey = "mv.hdrColorTarget"
     private static let hdrSaturationKey = "mv.hdrSaturation"
+    private static let flatHDRModeKey = "mv.flatHDRMode"
     private static let stereoSBSKey = "mv.stereoSBS"
     private static let packedSBSInputKey = "mv.packedSBSInput"
     private static let windowCornerRadiusKey = "mv.windowCornerRadius"
@@ -247,6 +248,13 @@ final class StreamSettingsStore {
     var hdrSaturation: Double = 1.0 {
         didSet {
             UserDefaults.standard.set(hdrSaturation, forKey: Self.hdrSaturationKey)
+        }
+    }
+    /// Flat HDR validation mode: render through a CAMetalLayer instead of
+    /// RealityKit's texture/material path.
+    var flatHDRMode: Bool = false {
+        didSet {
+            UserDefaults.standard.set(flatHDRMode, forKey: Self.flatHDRModeKey)
         }
     }
     var showStats: Bool = true {
@@ -388,6 +396,7 @@ final class StreamSettingsStore {
                 1.15
             )
         }
+        flatHDRMode = UserDefaults.standard.bool(forKey: Self.flatHDRModeKey)
         stereoSBS = UserDefaults.standard.bool(forKey: Self.stereoSBSKey)
         packedSBSInput = UserDefaults.standard.bool(forKey: Self.packedSBSInputKey)
         if UserDefaults.standard.object(forKey: Self.windowCornerRadiusKey) != nil {
@@ -430,6 +439,7 @@ final class StreamSettingsStore {
         hdrSdrWhiteNits = 203.0
         hdrColorTarget = .bt709
         hdrSaturation = 1.0
+        flatHDRMode = false
         showStats = true
         framePacing = true
         optimizeGameSettings = true

@@ -11,6 +11,7 @@ import Foundation
 import GameController
 import Metal
 import Observation
+import QuartzCore
 import RealityKit
 import UIKit
 import VideoToolbox
@@ -93,6 +94,27 @@ final class StreamSessionModel {
     let localCursor = StreamLocalCursor()
     /// HDR-mode trims shared with the decoder's render thread.
     let hdrTrim = StreamHDRTrimState()
+    /// Flat HDR validation target. The decoder renders directly into this
+    /// CAMetalLayer, bypassing RealityKit's EDR clamp; the window hosts it.
+    /// (@Observable does not support lazy stored properties, so the layer is
+    /// cached statically and exposed read-only.)
+    private static let flatHDRVideoLayerStorage: CAMetalLayer = {
+        let layer = CAMetalLayer()
+        // BGR10A2Unorm (raw 94; the visionOS SDK leaves the case untagged)
+        layer.pixelFormat = MTLPixelFormat(rawValue: 94) ?? .bgra10_xr
+        layer.framebufferOnly = true
+        layer.isOpaque = true
+        layer.contentsGravity = .resizeAspect
+        layer.colorspace = CGColorSpace(name: CGColorSpace.itur_2100_PQ)
+        layer.wantsExtendedDynamicRangeContent = true
+        layer.toneMapMode = .ifSupported
+        if #available(visionOS 26.0, *) {
+            layer.preferredDynamicRange = .high
+            layer.contentsHeadroom = 2.0
+        }
+        return layer
+    }()
+    var flatHDRVideoLayer: CAMetalLayer { Self.flatHDRVideoLayerStorage }
 
     private var mouseStrategy: (any StreamMouseStrategy)?
     private let touchInput = StreamTouchInput()
@@ -233,6 +255,9 @@ final class StreamSessionModel {
     /// Feeds the live HDR highlight headroom (tone-map peak) to the decoder.
     func setHDRHighlightHeadroom(_ value: Float) {
         hdrTrim.setHighlightHeadroom(value)
+        if #available(visionOS 26.0, *) {
+            flatHDRVideoLayer.contentsHeadroom = CGFloat(hdrTrim.headroomSnapshot)
+        }
     }
 
     /// Feeds the host SDR white point (nits) used to normalise PQ content.
@@ -248,6 +273,15 @@ final class StreamSessionModel {
     /// Fine saturation calibration for the HDR presentation path.
     func setHDRSaturation(_ value: Float) {
         hdrTrim.setSaturation(value)
+    }
+
+    /// Switches between the RealityKit surface and the flat CAMetalLayer used
+    /// to validate true HDR/EDR output.
+    func setFlatHDRMode(_ enabled: Bool) {
+        if #available(visionOS 26.0, *) {
+            flatHDRVideoLayer.contentsHeadroom = CGFloat(hdrTrim.headroomSnapshot)
+        }
+        activeDecoder?.setFlatHDRLayer(flatHDRVideoLayer, enabled: enabled)
     }
 
     /// Measures the host SDR white point from the next PQ frame. Show a
@@ -402,19 +436,23 @@ final class StreamSessionModel {
     /// visionOS suspends the process while another immersive app is running,
     /// so the host usually drops the session; the window stays open and the
     /// connection is rebuilt in place.
-    /// Rebuilds the stream after the app returns from the background.
-    /// visionOS suspends the process, so the host connection is gone even if
-    /// the model has not seen the termination callback yet.
+    /// Waits briefly for the host's termination callback, then reconnects
+    /// only if the session actually ended. A still-streaming connection is
+    /// resumed normally instead of being torn down.
+    func scheduleReconnectAfterBackgroundIfNeeded() {
+        Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            reconnectAfterBackgroundIfNeeded()
+        }
+    }
+
     func reconnectAfterBackgroundIfNeeded() {
         guard !isBackgrounded, needsReconnectAfterBackground else { return }
         needsReconnectAfterBackground = false
         guard !userInitiatedStop, !isRestarting else { return }
 
-        switch phase {
-        case .ended, .streaming, .connecting:
+        if case .ended = phase {
             Task { await restart() }
-        default:
-            break
         }
     }
 
@@ -549,6 +587,13 @@ final class StreamSessionModel {
                 // Must be set before setup(): it decides the initial queue width.
                 decoder.setStereoOutputEnabled(self?.isRealtime3DActive ?? false)
                 decoder.setRenderingPaused(renderingPaused)
+                decoder.setFlatHDRLayer(
+                    self?.flatHDRVideoLayer,
+                    enabled: StreamSettingsStore.shared.flatHDRMode
+                )
+                if #available(visionOS 26.0, *), let layer = self?.flatHDRVideoLayer {
+                    layer.contentsHeadroom = CGFloat(self?.hdrTrim.headroomSnapshot ?? 2.0)
+                }
                 decoder.onHDRWhiteSample = { [weak self] nits in
                     Task { @MainActor in
                         NSLog("[Stream] HDR white measured: %.1f nit", nits)

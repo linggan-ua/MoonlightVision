@@ -71,6 +71,8 @@
 "HDR SDR White" = "HDR SDR White";
 "HDR Color Target" = "HDR Color Target";
 "HDR Saturation" = "HDR Saturation";
+"Flat HDR (Experimental)" = "Flat HDR (Experimental)";
+"HDR 2D only: renders through a CAMetalLayer to validate true EDR. Curvature, SBS 3D and the local cursor are disabled." = "HDR 2D only: renders through a CAMetalLayer to validate true EDR. Curvature, SBS 3D and the local cursor are disabled.";
 "Lower slightly if HDR colors look more vivid than Steam Link." = "Lower slightly if HDR colors look more vivid than Steam Link.";
 "Match the host's SDR content brightness; raise if the HDR desktop looks brighter than SDR, lower if darker." = "Match the host's SDR content brightness; raise if the HDR desktop looks brighter than SDR, lower if darker.";
 "Calibrate from White Screen" = "Calibrate from White Screen";

@@ -279,9 +279,21 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
     private let renderStateLock = NSLock()
     private var renderingPaused = false
 
+    /// Flat HDR validation target: a CAMetalLayer with an EDR colorspace,
+    /// bypassing RealityKit's texture/material clamp.
+    private let flatLayerLock = NSLock()
+    private var flatHDRLayer: CAMetalLayer?
+    private var flatHDRLayerEnabled = false
+    private var flatDrawableFailureLogged = false
+    /// BGR10A2Unorm; the visionOS SDK does not tag this case, so use its raw value.
+    private static let flatPQPixelFormat: MTLPixelFormat =
+        MTLPixelFormat(rawValue: 94) ?? .bgra10_xr
+
     private var copyPipelineState: MTLRenderPipelineState?
     private var copyPipelineFormat: MTLPixelFormat?
     private var copyPipelineStateYUV: MTLRenderPipelineState?
+    private var copyPipelineStateFlatPQ: MTLRenderPipelineState?
+    private var copyPipelineStateFlatPQYUV: MTLRenderPipelineState?
     private var lastCopyFragment: String?
 
     // ChromaHalo: downsampled drawable queue for the edge bloom layer
@@ -374,6 +386,47 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         renderStateLock.lock()
         defer { renderStateLock.unlock() }
         return renderingPaused
+    }
+
+    /// Switches the output between the RealityKit drawable queue and a flat
+    /// CAMetalLayer used to validate true EDR output.
+    func setFlatHDRLayer(_ layer: CAMetalLayer?, enabled: Bool) {
+        flatLayerLock.lock()
+        flatHDRLayer = layer
+        flatHDRLayerEnabled = enabled
+        flatLayerLock.unlock()
+
+        guard let layer else { return }
+        layer.device = mtlDevice
+        layer.pixelFormat = Self.flatPQPixelFormat
+        layer.framebufferOnly = true
+        layer.isOpaque = true
+        layer.contentsGravity = .resizeAspect
+        layer.colorspace = CGColorSpace(name: CGColorSpace.itur_2100_PQ)
+        layer.wantsExtendedDynamicRangeContent = true
+        layer.toneMapMode = .ifSupported
+        if #available(visionOS 26.0, *) {
+            layer.preferredDynamicRange = .high
+            layer.contentsHeadroom = 2.0
+        }
+        if videoWidth > 0, videoHeight > 0 {
+            layer.drawableSize = CGSize(width: videoWidth, height: videoHeight)
+        }
+        NSLog(
+            "[DrawableVideoDecoder] Flat HDR %@ (drawable %.0fx%.0f, colorspace=%@, headroom=%.1f)",
+            enabled ? "enabled" : "disabled",
+            layer.drawableSize.width,
+            layer.drawableSize.height,
+            String(describing: layer.colorspace),
+            layer.contentsHeadroom
+        )
+    }
+
+    private func flatLayerSnapshot() -> (layer: CAMetalLayer, enabled: Bool)? {
+        flatLayerLock.lock()
+        defer { flatLayerLock.unlock() }
+        guard let layer = flatHDRLayer else { return nil }
+        return (layer, flatHDRLayerEnabled)
     }
 
     func decompressionOutputCallback(
@@ -577,13 +630,43 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             print("[DrawableVideoDecoder] PF=\(fmtStr), planes=\(planeCount), hdr=\(streamIsHDR), isPQ=\(isPQ), tfDesc=\(tfDesc), fullRange=\(isFullRange==1), 10bit=\(is10Bit==1), matrix=\(matrixType), primaries=\(primariesType)\(cllLog)")
         }
 
-        guard let drawable = try? drawableQueue?.nextDrawable() else {
-            commandBuffer.commit()
-            return
+        let flatTarget = flatLayerSnapshot()
+        let isFlatTarget = flatTarget?.enabled == true
+        let targetTexture: MTLTexture
+        var metalDrawable: CAMetalDrawable?
+        var presentReality: (() -> Void)?
+
+        if isFlatTarget, let layer = flatTarget?.layer {
+            guard let drawable = layer.nextDrawable() else {
+                if !flatDrawableFailureLogged {
+                    flatDrawableFailureLogged = true
+                    NSLog(
+                        "[DrawableVideoDecoder] Flat HDR: nextDrawable nil (drawable %.0fx%.0f)",
+                        layer.drawableSize.width,
+                        layer.drawableSize.height
+                    )
+                }
+                commandBuffer.commit()
+                return
+            }
+            flatDrawableFailureLogged = false
+            targetTexture = drawable.texture
+            metalDrawable = drawable
+        } else {
+            guard let drawable = try? drawableQueue?.nextDrawable() else {
+                commandBuffer.commit()
+                return
+            }
+            targetTexture = drawable.texture
+            presentReality = { drawable.present() }
         }
 
-        let outputWidth = drawable.texture.width
-        let outputHeight = drawable.texture.height
+        let outputWidth = targetTexture.width
+        let outputHeight = targetTexture.height
+        let targetFormat = isFlatTarget
+            ? (flatTarget?.layer.pixelFormat ?? metalFormat)
+            : metalFormat
+        let isFlatPQ = isFlatTarget && targetFormat == Self.flatPQPixelFormat
         // The drawable is double width whenever 3D is enabled, even if this
         // frame could not be converted; keeping per-eye halves in that case
         // shows a mono picture instead of a stretched side-by-side one.
@@ -604,7 +687,17 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             : "copyFragmentShaderHEVC_HDRUnified"
 
         if isBiPlanar {
-            if copyPipelineStateYUV == nil || lastCopyFragment != fragment {
+            if isFlatPQ {
+                if copyPipelineStateFlatPQYUV == nil || lastCopyFragment != fragment {
+                    copyPipelineStateFlatPQYUV = buildCopyPipeline(fragment: fragment, format: targetFormat)
+                    lastCopyFragment = fragment
+                    guard copyPipelineStateFlatPQYUV != nil else {
+                        print("DrawableVideoDecoder: Failed to build flat PQ YUV pipeline")
+                        commandBuffer.commit()
+                        return
+                    }
+                }
+            } else if copyPipelineStateYUV == nil || lastCopyFragment != fragment {
                 copyPipelineStateYUV = buildCopyPipeline(fragment: fragment)
                 lastCopyFragment = fragment
                 guard copyPipelineStateYUV != nil else {
@@ -614,7 +707,17 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
                 }
             }
         } else {
-            if copyPipelineState == nil || lastCopyFragment != fragment {
+            if isFlatPQ {
+                if copyPipelineStateFlatPQ == nil || lastCopyFragment != fragment {
+                    copyPipelineStateFlatPQ = buildCopyPipeline(fragment: fragment, format: targetFormat)
+                    lastCopyFragment = fragment
+                    guard copyPipelineStateFlatPQ != nil else {
+                        print("DrawableVideoDecoder: Failed to build flat PQ single-plane pipeline")
+                        commandBuffer.commit()
+                        return
+                    }
+                }
+            } else if copyPipelineState == nil || lastCopyFragment != fragment {
                 copyPipelineState = buildCopyPipeline(fragment: fragment)
                 lastCopyFragment = fragment
                 guard copyPipelineState != nil else {
@@ -626,7 +729,7 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         }
 
         let renderPassDescriptor = MTLRenderPassDescriptor()
-        renderPassDescriptor.colorAttachments[0].texture    = drawable.texture
+        renderPassDescriptor.colorAttachments[0].texture    = targetTexture
         renderPassDescriptor.colorAttachments[0].loadAction  = .clear
         renderPassDescriptor.colorAttachments[0].storeAction = .store
 
@@ -635,7 +738,13 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             return
         }
 
-        renderEncoder.setRenderPipelineState(isBiPlanar ? copyPipelineStateYUV! : copyPipelineState!)
+        let pipeline: MTLRenderPipelineState
+        if isFlatPQ {
+            pipeline = isBiPlanar ? copyPipelineStateFlatPQYUV! : copyPipelineStateFlatPQ!
+        } else {
+            pipeline = isBiPlanar ? copyPipelineStateYUV! : copyPipelineState!
+        }
+        renderEncoder.setRenderPipelineState(pipeline)
 
         // Buffer 0: ShaderHDRParams — frame signal description.
         // The stream's actual format, not the client toggle, decides whether
@@ -688,7 +797,7 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             hdrGradeFlags: userParams.hdrGradeFlags,
             sdrBrightness: streamIsHDR ? userParams.sdrBrightness : 1.0,
             sdrWhiteNits: max(userParams.sdrWhiteNits, 80.0),
-            outputGamut: userParams.outputGamut
+            outputGamut: isFlatTarget ? 2 : userParams.outputGamut
         )
         renderEncoder.setFragmentBytes(&fullParams, length: MemoryLayout<ShaderFullHDRParams>.size, index: 1)
 
@@ -773,18 +882,19 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         renderEncoder.endEncoding()
 
         // Mipmap generation — used by both ChromaHalo bloom and ambient zone sampling
-        if drawable.texture.mipmapLevelCount > 1,
+        if targetTexture.mipmapLevelCount > 1,
            let blitEncoder = commandBuffer.makeBlitCommandEncoder() {
-            blitEncoder.generateMipmaps(for: drawable.texture)
+            blitEncoder.generateMipmaps(for: targetTexture)
             blitEncoder.endEncoding()
         }
 
         // ChromaHalo: rim (mip 0) → two rounds separable blur (Ambilight diffusion) → temporal on final V-pass.
-        if chromaHaloIntensity > 0.0,
+        if !isFlatTarget,
+           chromaHaloIntensity > 0.0,
            let haloQueue = chromaHaloQueue,
            let haloDrawable = try? haloQueue.nextDrawable() {
 
-            let sampleMip = min(chromaHaloSourceMipLevel, drawable.texture.mipmapLevelCount - 1)
+            let sampleMip = min(chromaHaloSourceMipLevel, targetTexture.mipmapLevelCount - 1)
 
             if chromaHaloRimPipelineState == nil {
                 chromaHaloRimPipelineState = buildCopyPipeline(fragment: "chromaHaloRimFragment")
@@ -823,8 +933,8 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
 
             ensureChromaHaloBlurScratchMatches(haloDrawable.texture)
 
-            if let mipView = drawable.texture.makeTextureView(
-                pixelFormat: drawable.texture.pixelFormat,
+            if let mipView = targetTexture.makeTextureView(
+                pixelFormat: targetTexture.pixelFormat,
                 textureType: .type2D,
                 levels: sampleMip..<(sampleMip + 1),
                 slices: 0..<1),
@@ -935,8 +1045,11 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             haloDrawable.present()
         }
 
+        if let metalDrawable {
+            commandBuffer.present(metalDrawable)
+        }
         commandBuffer.addCompletedHandler { [weak self] _ in
-            drawable.present()
+            presentReality?()
             self?.noteFramePresented()
         }
         commandBuffer.commit()
@@ -1059,6 +1172,10 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         }
         let outputWidth = Int(videoWidth) * stereoOutputMultiplier
         let outputHeight = Int(videoHeight)
+
+        if let flat = flatLayerSnapshot() {
+            flat.layer.drawableSize = CGSize(width: outputWidth, height: outputHeight)
+        }
 
         let newQueue: TextureResource.DrawableQueue
         do {
@@ -2013,7 +2130,10 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
 
     // Builds a simple copy pipeline with no input buffers, just
     // draw 4 vertices to copy the input texture to the output
-    private func buildCopyPipeline(fragment: String) -> MTLRenderPipelineState? {
+    private func buildCopyPipeline(
+        fragment: String,
+        format: MTLPixelFormat? = nil
+    ) -> MTLRenderPipelineState? {
         guard
             let library = mtlDevice.makeDefaultLibrary()
         else {
@@ -2030,7 +2150,7 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         pipelineDescriptor.label = "CopyBlitPipeline:\(fragment)"
         pipelineDescriptor.vertexFunction = vertexFunction
         pipelineDescriptor.fragmentFunction = fragmentFunction
-        pipelineDescriptor.colorAttachments[0].pixelFormat = metalFormat
+        pipelineDescriptor.colorAttachments[0].pixelFormat = format ?? metalFormat
         pipelineDescriptor.colorAttachments[0].isBlendingEnabled = false
         pipelineDescriptor.maxVertexAmplificationCount = 1
 

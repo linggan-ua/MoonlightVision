@@ -71,6 +71,8 @@
 "HDR SDR White" = "HDR SDR 白点";
 "HDR Color Target" = "HDR 输出色域";
 "HDR Saturation" = "HDR 饱和度";
+"Flat HDR (Experimental)" = "平面 HDR（实验）";
+"HDR 2D only: renders through a CAMetalLayer to validate true EDR. Curvature, SBS 3D and the local cursor are disabled." = "仅 HDR 2D：通过 CAMetalLayer 渲染以验证真正的 EDR；曲面、SBS 3D 和本地光标在此模式下不可用。";
 "Lower slightly if HDR colors look more vivid than Steam Link." = "如果 HDR 颜色比 Steam Link 更鲜艳，可以稍微调低。";
 "Match the host's SDR content brightness; raise if the HDR desktop looks brighter than SDR, lower if darker." = "与主机的 SDR 内容亮度对齐；如果 HDR 桌面比 SDR 亮就调高，偏暗就调低。";
 "Calibrate from White Screen" = "从白屏校准";

@@ -11,7 +11,7 @@ import simd
 
 /// The stream picture as a RealityKit plane inside the stream window.
 ///
-/// This is a straight port of an earlier client's window video surface: the
+/// The window video surface: the
 /// RealityView is laid out in an aspect-fit rect, the plane is a rounded mesh
 /// sized by measuring an invisible 100 pt ruler, and the decoder's drawable
 /// queue is bound to a `TextureResource` from the scene update heartbeat.
@@ -39,11 +39,16 @@ struct StreamVideoSurface: View {
     /// Local cursor overlay shared with the input strategy.
     let localCursor: StreamLocalCursor
     let showLocalCursor: Bool
+    /// True when the picture is shown as side-by-side: either the host packs
+    /// two eyes or the user picked "SBS Only". Selects the SBS material.
+    let sbsPresentation: Bool
     /// True when enabling 3D will run the on-device 2D→3D conversion instead of
     /// showing a frame-packed host stream.
     let localConversion: Bool
     let showSBSConfirm: Bool
     let onEnableSBS: () -> Void
+    let onSBSOnly: () -> Void
+    let onShow3DSettings: () -> Void
     let onCancelSBS: () -> Void
 
     @State private var runtime = StreamVideoSurfaceRuntime()
@@ -64,6 +69,7 @@ struct StreamVideoSurface: View {
         let _ = runtime.configure(
             screenAspect: screenAspect,
             videoMode: videoMode,
+            sbsPresentation: sbsPresentation,
             showConfirmCard: showSBSConfirm,
             texture: texture
         )
@@ -104,6 +110,8 @@ struct StreamVideoSurface: View {
                             SBSConfirmCard(
                                 localConversion: localConversion,
                                 onEnable: onEnableSBS,
+                                onSBSOnly: onSBSOnly,
+                                onShowSettings: onShow3DSettings,
                                 onCancel: onCancelSBS
                             )
                         } else {
@@ -119,6 +127,29 @@ struct StreamVideoSurface: View {
         .onChange(of: videoMode) { _, _ in
             runtime.updateScreenMaterial(
                 videoMode: videoMode,
+                sbsPresentation: sbsPresentation,
+                material: surfaceMaterial,
+                texture: texture
+            )
+        }
+        .onChange(of: sbsPresentation) { _, _ in
+            // "SBS Only" changes which material shows the picture without
+            // changing the mode, so rebind here too.
+            runtime.updateScreenMaterial(
+                videoMode: videoMode,
+                sbsPresentation: sbsPresentation,
+                material: surfaceMaterial,
+                texture: texture
+            )
+        }
+        .onChange(of: ObjectIdentifier(texture)) { _, _ in
+            // Toggling 3D or "SBS Only" replaces the texture resource, and the
+            // material still points at the old one: its drawables stop being
+            // updated, so the picture freezes (or goes black when the new
+            // texture is still empty). Rebind on identity change.
+            runtime.updateScreenMaterial(
+                videoMode: videoMode,
+                sbsPresentation: sbsPresentation,
                 material: surfaceMaterial,
                 texture: texture
             )
@@ -175,7 +206,8 @@ struct StreamVideoSurface: View {
 
         if let card = attachments.entity(for: "sbsConfirm") {
             entity.addChild(card)
-            card.position = [0, 0, 0.15]
+            // Sit on the picture plane instead of floating in front of it.
+            card.position = [0, 0, StreamVideoSurfaceRuntime.confirmCardDepth]
             runtime.confirmCard = card
         }
 
@@ -187,6 +219,7 @@ struct StreamVideoSurface: View {
 
         runtime.updateScreenMaterial(
             videoMode: videoMode,
+            sbsPresentation: sbsPresentation,
             material: surfaceMaterial,
             texture: texture
         )
@@ -234,8 +267,8 @@ struct StreamVideoSurface: View {
 
     /// RealityKit still tone-maps ShaderGraph unlit surfaces by default, which
     /// lifts brightness, contrast and saturation compared with the system video
-    /// layer. Video pixels are already display-referred, so opt out like the
-    /// core client and pass them through unchanged.
+    /// layer. Video pixels are already display-referred, so opt out and pass
+    /// them through unchanged.
     private static func disablingToneMapping(
         on material: ShaderGraphMaterial
     ) async -> ShaderGraphMaterial {
@@ -263,6 +296,7 @@ struct StreamVideoSurface: View {
             surfaceMaterial = material
             runtime.updateScreenMaterial(
                 videoMode: videoMode,
+                sbsPresentation: sbsPresentation,
                 material: material,
                 texture: texture
             )
@@ -276,7 +310,7 @@ struct StreamVideoSurface: View {
 /// Geometry of the window picture plane. Rounded corners are cut in the flat
 /// parameterised grid before the vertex is bent onto the cylinder arc, and the
 /// chord is normalised so the picture keeps filling the fit rect at every
-/// curvature. The math follows the core client's curved-mesh cook.
+/// curvature.
 enum StreamVideoPlaneMesh {
     struct Geometry: Equatable {
         var aspect: Float
@@ -289,8 +323,7 @@ enum StreamVideoPlaneMesh {
 
     static let columns = 256
     static let rows = 256
-    /// The safe arc limit until we can replicate Steam Link's exact depth
-    /// frame; RealityKit's window scene clips a deeper recess.
+    /// The safe arc limit: RealityKit's window scene clips a deeper recess.
     static let maximumArcAngle: Float = .pi / 4
     /// Radius range in metres for the curvature control (0 % is flat).
     static let maximumCurvatureRadius: Float = 8
@@ -343,7 +376,7 @@ enum StreamVideoPlaneMesh {
         }
     }
 
-    /// The shipped Steam Link design: the topology and the MeshResource are
+    /// The topology and the MeshResource are
     /// built once; curvature and window changes only rewrite buffer 0. The
     /// Part uses infinite bounds so RealityKit never culls it while the
     /// vertices move.
@@ -597,6 +630,10 @@ final class StreamVideoSurfaceRuntime {
     weak var screen: ModelEntity?
     var ruler: Entity?
     var confirmCard: Entity?
+    /// Metres in front of the picture plane. Small enough that the card reads
+    /// as painted on the screen rather than hovering; the local cursor uses a
+    /// similar offset for the same reason.
+    static let confirmCardDepth: Float = 0.012
     var planeGeometry: StreamVideoPlaneMesh.Geometry?
     var planeHost: StreamVideoPlaneMesh.Host?
     var localCursor: Entity?
@@ -606,23 +643,33 @@ final class StreamVideoSurfaceRuntime {
 
     private var lastUpdateSize: CGSize = .zero
     private var appliedMode: VideoMode?
+    private var appliedSBSPresentation: Bool?
     private var appliedTexture: ObjectIdentifier?
     private var desiredAspect: Float = 0
     private var desiredMode: VideoMode = .standard2D
+    /// Whether the SBS material should be bound, which is not the same as the
+    /// mode: "SBS Only" shows a mono frame as two halves.
+    private var desiredSBSPresentation = false
     private var desiredShowConfirmCard = false
     private var currentTexture: TextureResource?
     private var lastCardScale: Float = 0
+    /// Physical width of the picture in metres, refreshed on every scene
+    /// update. The confirmation card sizes itself from this so it keeps its
+    /// proportion to the window instead of staying a fixed size.
+    private var screenPhysicalWidth: Float = 1.4
 
     /// Refreshes the values the per-frame closure reads. The subscription is
     /// created once, so it must not capture presentation state.
     func configure(
         screenAspect: Float,
         videoMode: VideoMode,
+        sbsPresentation: Bool,
         showConfirmCard: Bool,
         texture: TextureResource
     ) {
         desiredAspect = screenAspect
         desiredMode = videoMode
+        desiredSBSPresentation = sbsPresentation
         desiredShowConfirmCard = showConfirmCard
         currentTexture = texture
     }
@@ -650,7 +697,7 @@ final class StreamVideoSurfaceRuntime {
         // the card lazily so the dialog can never stay orphaned.
         if confirmCard == nil, let card = attachments.entity(for: "sbsConfirm") {
             screen?.addChild(card)
-            card.position = [0, 0, 0.15]
+            card.position = [0, 0, Self.confirmCardDepth]
             confirmCard = card
         }
 
@@ -673,6 +720,7 @@ final class StreamVideoSurfaceRuntime {
             }
         }
         if physicalWidth <= 0 { physicalWidth = 1.4 }
+        screenPhysicalWidth = physicalWidth
 
         // Rewrite the vertex buffer only when the shape actually changed.
         let geometry = StreamVideoPlaneMesh.Geometry(
@@ -733,29 +781,36 @@ final class StreamVideoSurfaceRuntime {
 
     func updateScreenMaterial(
         videoMode: VideoMode,
+        sbsPresentation: Bool,
         material: ShaderGraphMaterial?,
         texture: TextureResource
     ) {
         desiredMode = videoMode
+        desiredSBSPresentation = sbsPresentation
         let textureID = ObjectIdentifier(texture)
         guard let screen,
-              appliedMode != videoMode || appliedTexture != textureID else { return }
+              appliedMode != videoMode
+                || appliedSBSPresentation != sbsPresentation
+                || appliedTexture != textureID else { return }
 
-        if videoMode == .sideBySide3D, var material {
+        if sbsPresentation, var material {
             do {
                 try material.setParameter(name: "texture", value: .textureResource(texture))
                 screen.model?.materials = [material]
                 appliedMode = .sideBySide3D
+                appliedSBSPresentation = true
                 appliedTexture = textureID
             } catch {
                 NSLog("[Video] Failed to set SBS texture parameter: %@", "\(error)")
                 screen.model?.materials = [StreamVideoMaterialFactory.unlit(texture: texture)]
                 appliedMode = .standard2D
+                appliedSBSPresentation = false
                 appliedTexture = textureID
             }
         } else {
             screen.model?.materials = [StreamVideoMaterialFactory.unlit(texture: texture)]
             appliedMode = .standard2D
+            appliedSBSPresentation = false
             appliedTexture = textureID
         }
     }
@@ -767,14 +822,19 @@ final class StreamVideoSurfaceRuntime {
 
         if let screen, confirmCard.parent !== screen {
             screen.addChild(confirmCard)
-            confirmCard.position = [0, 0, 0.15]
+            confirmCard.position = [0, 0, Self.confirmCardDepth]
         }
 
         let bounds = confirmCard.visualBounds(relativeTo: nil)
         guard bounds.extents.x > 0 else { return }
         let unscaledWidth = Float(bounds.extents.x) / max(confirmCard.scale.x, 0.0001)
         guard unscaledWidth > 0 else { return }
-        let target: Float = 0.24
+        // Size the card relative to the picture, so a small window still gets a
+        // legible card and a large one does not get an oversized panel. The
+        // card holds four buttons and a paragraph, so it needs a meaningful
+        // share of the width: at half the picture, the body text lands around
+        // 26 mm tall, readable at normal viewing distance.
+        let target = min(max(screenPhysicalWidth * 0.50, 0.45), 0.95)
         let scale = target / unscaledWidth
         guard abs(scale - lastCardScale) > 0.0001 else { return }
         confirmCard.scale = [scale, scale, scale]
@@ -783,11 +843,13 @@ final class StreamVideoSurfaceRuntime {
 
 }
 
-/// Asks before switching the window into side-by-side 3D, matching the
-/// core client's confirmation card.
+/// Asks how to enter side-by-side 3D. The card sits on the picture itself, not
+/// floating in front of it, so it reads as an on-screen overlay.
 struct SBSConfirmCard: View {
     let localConversion: Bool
     let onEnable: () -> Void
+    let onSBSOnly: () -> Void
+    let onShowSettings: () -> Void
     let onCancel: () -> Void
 
     private var title: LocalizedStringKey {
@@ -805,9 +867,9 @@ struct SBSConfirmCard: View {
     }
 
     var body: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 16) {
             Image(systemName: "view.3d")
-                .font(.system(size: 34, weight: .bold))
+                .font(.system(size: 30, weight: .bold))
                 .foregroundStyle(.white)
 
             VStack(spacing: 8) {
@@ -821,19 +883,29 @@ struct SBSConfirmCard: View {
             }
 
             HStack(spacing: 12) {
-                Button("Cancel", action: onCancel)
-                    .buttonStyle(.bordered)
-
                 Button(action: onEnable) {
                     Text(actionTitle)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+
+                Button("Settings", action: onShowSettings)
+                    .buttonStyle(.bordered)
+
+                if localConversion {
+                    // Skip the on-device conversion and treat the host frame as
+                    // already packed, which is what ReShade + Depth3D produces.
+                    Button("SBS Only", action: onSBSOnly)
+                        .buttonStyle(.bordered)
+                }
+
+                Button("Cancel", action: onCancel)
+                    .buttonStyle(.bordered)
             }
         }
-        .padding(26)
-        .frame(width: 400)
-        .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .padding(24)
+        .frame(width: 520)
+        .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 

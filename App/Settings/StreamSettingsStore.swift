@@ -107,8 +107,8 @@ enum AudioMode: String, CaseIterable, Identifiable {
     }
 }
 
-/// Output gamut for HDR: BT.709 matches Steam Link's linear-sRGB SDL output
-/// (and the window's presentation); Display P3 is an alternative wide-gamut target.
+/// Output gamut for HDR: BT.709 is the default presentation gamut;
+/// Display P3 is an alternative wide-gamut target.
 enum HDRColorTarget: String, CaseIterable, Identifiable {
     case displayP3
     case bt709
@@ -146,16 +146,32 @@ final class StreamSettingsStore {
     private static let hdrSdrBrightnessKey = "mv.hdrSdrBrightness"
     private static let hdrHighlightHeadroomKey = "mv.hdrHighlightHeadroom"
     private static let hdrSdrWhiteNitsKey = "mv.hdrSdrWhiteNits"
+    private static let hdrWhiteMigrationKey = "mv.hdrWhiteDefaultMovedTo239_8"
+    private static let hdrHighlightMigrationKey = "mv.hdrHighlightDefaultMovedTo8"
     private static let hdrColorTargetKey = "mv.hdrColorTarget"
     private static let hdrSaturationKey = "mv.hdrSaturation"
     private static let flatHDRModeKey = "mv.flatHDRMode"
     private static let stereoSBSKey = "mv.stereoSBS"
     private static let packedSBSInputKey = "mv.packedSBSInput"
+    private static let sbsOnlyKey = "mv.sbsOnly"
     private static let windowCornerRadiusKey = "mv.windowCornerRadius"
     private static let antiShimmerKey = "mv.antiShimmerMipmaps"
     private static let screenCurvatureKey = "mv.screenCurvature"
 
     private let dataManager = DataManager()
+    /// Defaults for the HDR trims. The settings sliders reset to these, so a
+    /// single definition keeps the reset buttons and the load path in step.
+    enum HDRDefault {
+        /// SDR content inside an HDR stream, relative to reference white.
+        static let sdrBrightness = 1.0
+        /// Tone-map peak for HDR highlights, in EDR units (1.0 = SDR white).
+        static let highlightHeadroom = 8.0
+        /// Host SDR white point in nits, the ITU-R BT.2408 graphics white.
+        static let sdrWhiteNits = 239.8
+        /// Saturation calibration for the HDR presentation path.
+        static let saturation = 1.0
+    }
+
 
     var resolution: StreamResolution = .p1080 {
         didSet { save() }
@@ -205,7 +221,7 @@ final class StreamSettingsStore {
         }
     }
     /// Multiplier for physical-mouse relative movement. 1.0 forwards the
-    /// deltas unchanged, like Steam Link's SDL path.
+    /// deltas unchanged.
     var mousePointerSpeed: Double = 1.0 {
         didSet {
             UserDefaults.standard.set(mousePointerSpeed, forKey: Self.mousePointerSpeedKey)
@@ -220,32 +236,32 @@ final class StreamSettingsStore {
     }
     /// HDR-mode SDR white level. Lower values dim SDR content in an HDR
     /// stream without touching highlights above the reference white.
-    var hdrSdrBrightness: Double = 1.0 {
+    var hdrSdrBrightness: Double = HDRDefault.sdrBrightness {
         didSet {
             UserDefaults.standard.set(hdrSdrBrightness, forKey: Self.hdrSdrBrightnessKey)
         }
     }
     /// Tone-map peak for HDR highlights, in EDR units (1.0 = SDR white).
-    var hdrHighlightHeadroom: Double = 2.0 {
+    var hdrHighlightHeadroom: Double = HDRDefault.highlightHeadroom {
         didSet {
             UserDefaults.standard.set(hdrHighlightHeadroom, forKey: Self.hdrHighlightHeadroomKey)
         }
     }
     /// Host SDR white point in nits. PQ content is normalised by this so the
     /// host's desktop white maps to EDR 1.0 instead of 1.48x/2.36x.
-    var hdrSdrWhiteNits: Double = 203.0 {
+    var hdrSdrWhiteNits: Double = HDRDefault.sdrWhiteNits {
         didSet {
             UserDefaults.standard.set(hdrSdrWhiteNits, forKey: Self.hdrSdrWhiteNitsKey)
         }
     }
-    /// HDR output gamut A/B: BT.709 matches Steam Link; P3 is an alternative.
+    /// HDR output gamut A/B: BT.709 is the default; P3 is an alternative.
     var hdrColorTarget: HDRColorTarget = .bt709 {
         didSet {
             UserDefaults.standard.set(hdrColorTarget.rawValue, forKey: Self.hdrColorTargetKey)
         }
     }
     /// Fine saturation calibration for the HDR presentation path.
-    var hdrSaturation: Double = 1.0 {
+    var hdrSaturation: Double = HDRDefault.saturation {
         didSet {
             UserDefaults.standard.set(hdrSaturation, forKey: Self.hdrSaturationKey)
         }
@@ -294,6 +310,14 @@ final class StreamSettingsStore {
     var packedSBSInput: Bool = false {
         didSet {
             UserDefaults.standard.set(packedSBSInput, forKey: Self.packedSBSInputKey)
+        }
+    }
+    /// "SBS Only": show the stream's halves as they arrive instead of running
+    /// the on-device 2D→3D model. Unlike `packedSBSInput` this does not change
+    /// how the frame is sized; it only picks the display path.
+    var sbsOnly: Bool = false {
+        didSet {
+            UserDefaults.standard.set(sbsOnly, forKey: Self.sbsOnlyKey)
         }
     }
     /// Corner radius of the video plane, as a percentage of its width. 0 gives
@@ -377,15 +401,32 @@ final class StreamSettingsStore {
         if UserDefaults.standard.object(forKey: Self.hdrHighlightHeadroomKey) != nil {
             hdrHighlightHeadroom = min(
                 max(UserDefaults.standard.double(forKey: Self.hdrHighlightHeadroomKey), 1.1),
-                4.0
+                8.0
             )
+            // The default moved from 2.0 to 8.0. A value still sitting on the
+            // old default was never touched, so move it once; the flag is
+            // written either way so a later explicit 2.0 is never rewritten.
+            if !UserDefaults.standard.bool(forKey: Self.hdrHighlightMigrationKey),
+               hdrHighlightHeadroom == 2.0 {
+                hdrHighlightHeadroom = HDRDefault.highlightHeadroom
+            }
         }
+        UserDefaults.standard.set(true, forKey: Self.hdrHighlightMigrationKey)
         if UserDefaults.standard.object(forKey: Self.hdrSdrWhiteNitsKey) != nil {
             hdrSdrWhiteNits = min(
                 max(UserDefaults.standard.double(forKey: Self.hdrSdrWhiteNitsKey), 80.0),
                 500.0
             )
+            // The default moved from 203.0 to 239.8. A value still sitting on
+            // the old default was never touched, so move it once; anything
+            // else is the user's own choice. The flag is written either way,
+            // so a later explicit 203 is never rewritten.
+            if !UserDefaults.standard.bool(forKey: Self.hdrWhiteMigrationKey),
+               hdrSdrWhiteNits == 203.0 {
+                hdrSdrWhiteNits = HDRDefault.sdrWhiteNits
+            }
         }
+        UserDefaults.standard.set(true, forKey: Self.hdrWhiteMigrationKey)
         if let raw = UserDefaults.standard.string(forKey: Self.hdrColorTargetKey),
            let target = HDRColorTarget(rawValue: raw) {
             hdrColorTarget = target
@@ -399,6 +440,7 @@ final class StreamSettingsStore {
         flatHDRMode = UserDefaults.standard.bool(forKey: Self.flatHDRModeKey)
         stereoSBS = UserDefaults.standard.bool(forKey: Self.stereoSBSKey)
         packedSBSInput = UserDefaults.standard.bool(forKey: Self.packedSBSInputKey)
+        sbsOnly = UserDefaults.standard.bool(forKey: Self.sbsOnlyKey)
         if UserDefaults.standard.object(forKey: Self.windowCornerRadiusKey) != nil {
             windowCornerRadius = UserDefaults.standard.double(forKey: Self.windowCornerRadiusKey)
         }
@@ -411,6 +453,7 @@ final class StreamSettingsStore {
         save()
         stereoSBS = false
         packedSBSInput = false
+        sbsOnly = false
     }
 
     // MARK: - Loading
@@ -434,11 +477,11 @@ final class StreamSettingsStore {
         invertScroll = false
         mousePointerSpeed = 1.0
         showLocalCursor = false
-        hdrSdrBrightness = 1.0
-        hdrHighlightHeadroom = 2.0
-        hdrSdrWhiteNits = 203.0
+        hdrSdrBrightness = HDRDefault.sdrBrightness
+        hdrHighlightHeadroom = HDRDefault.highlightHeadroom
+        hdrSdrWhiteNits = HDRDefault.sdrWhiteNits
         hdrColorTarget = .bt709
-        hdrSaturation = 1.0
+        hdrSaturation = HDRDefault.saturation
         flatHDRMode = false
         showStats = true
         framePacing = true
@@ -449,6 +492,7 @@ final class StreamSettingsStore {
         spatialAudio = false
         stereoSBS = false
         packedSBSInput = false
+        sbsOnly = false
         windowCornerRadius = 1.2
         antiShimmerMipmaps = false
         screenCurvature = 0

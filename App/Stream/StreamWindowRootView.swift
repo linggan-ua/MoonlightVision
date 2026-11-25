@@ -107,3 +107,67 @@ struct StreamWindowRootView: View {
         StreamWindowSizeStore.save(lastWindowSize)
     }
 }
+
+/// The stream's settings panel, in its own auxiliary window. It shares the
+/// active stream session so the HDR calibration and probe buttons still work.
+/// Nothing here can reconnect the stream, so it compares a baseline of the
+/// restart-only settings when it closes and asks the stream window to offer the
+/// restart.
+struct StreamSettingsWindowView: View {
+    @Environment(\.dismissWindow) private var dismissWindow
+    @Environment(\.openWindow) private var openWindow
+    @Bindable private var presentation = StreamPresentation.shared
+    @State private var restartBaseline: StreamRestartSettings?
+
+    /// Restart-only settings that changed since this window opened. Reading the
+    /// store here is what makes the banner update as the user drags a slider.
+    private var needsRestart: Bool {
+        guard let restartBaseline else { return false }
+        return StreamRestartSettings() != restartBaseline
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Group {
+                if let model = presentation.session {
+                    SettingsView(
+                        showsDoneButton: false,
+                        onCalibrateHDRWhite: { model.calibrateHDRWhite() },
+                        onShowEDRProbe: { openWindow(id: "edr-probe") }
+                    )
+                } else {
+                    SettingsView(showsDoneButton: false)
+                }
+            }
+            if needsRestart, let model = presentation.session {
+                HStack(spacing: 12) {
+                    Text("Some settings take effect after the stream restarts")
+                        .font(.callout)
+                    Spacer()
+                    Button("Restart") {
+                        restartBaseline = StreamRestartSettings()
+                        Task { await model.restart() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(.thinMaterial)
+            }
+        }
+        .onAppear {
+            restartBaseline = StreamRestartSettings()
+        }
+        .onDisappear {
+            // Read before clearing: the baseline is only consumed once.
+            let baseline = restartBaseline
+            restartBaseline = nil
+            guard baseline != nil, presentation.session != nil else { return }
+            guard let baseline, StreamRestartSettings() != baseline else { return }
+            presentation.requestRestart()
+        }
+        .onChange(of: presentation.session == nil) { _, ended in
+            if ended { dismissWindow(id: "stream-settings-window") }
+        }
+    }
+}

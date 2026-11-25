@@ -74,11 +74,11 @@ nonisolated final class LSRealtimeDepthEstimator: @unchecked Sendable {
     var inputWidth: Int { model.inputWidth }
     var inputHeight: Int { model.inputHeight }
 
-    private static let logger = Logger(subsystem: "com.lingganua.prismxr", category: "realtime3D")
+    private static let logger = Logger(subsystem: "app.moonlightvision", category: "realtime3D")
 
     private let modelURL: URL?
     private let computeUnits: MLComputeUnits
-    private let loadQueue = DispatchQueue(label: "com.prismxr.realtime3D.depthModel", qos: .userInitiated)
+    private let loadQueue = DispatchQueue(label: "app.moonlightvision.realtime3D.depthModel", qos: .userInitiated)
     private let lock = NSLock()
     /// One prediction at a time even if two theaters briefly overlap during
     /// a candidate/promotion handoff.

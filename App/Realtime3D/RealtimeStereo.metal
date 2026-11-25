@@ -1,6 +1,10 @@
 //
 //  RealtimeStereo.metal
-//  the 3D pipeline – real-time 2D → 3D
+//  MoonlightVision
+//
+//  Created by Linggan-ua.
+//
+//  Real-time 2D -> 3D synthesis
 //
 //  One Depth Anything V2 prediction per converted frame drives a pure GPU
 //  view synthesis. Both eyes are resampled from the full-resolution source
@@ -68,7 +72,7 @@ struct RSAnalyzeParams {
 #define RS_CUT_GRID 16
 #define RS_CUT_BINS 16
 
-/// 两级切镜阈值（the 3D pipeline 的原值，见 depthCutStep）。
+/// 两级切镜阈值（见 depthCutStep）。
 struct RSCutParams {
     float jumpDiff;
     float jumpHist;
@@ -156,7 +160,7 @@ struct RSStereoParams {
     uint flags;
 };
 
-/// 精修时深度沿行用三次 B 样条读（复刻 the 3D pipeline 的低分辨率深度读取），
+/// 精修时深度沿行用三次 B 样条读（低分辨率深度），
 /// 否则线性。
 #define RSA_FLAG_CUBIC_DEPTH 1u
 
@@ -290,7 +294,7 @@ inline float rs_cut_correlation(RSCutThumb a, RSCutThumb b, float flat) {
     return ab / sqrt(max(aa * bb, 1.0e-12));
 }
 
-/// 两级切镜的状态机（对照 the 3D pipeline 的 depthCutStep）。
+/// 两级切镜的状态机（见 depthCutStep）。
 /// jump：格均值差或直方图差超过阈值 → 重置逐 texel 时间平均。
 /// confirmed：跳变后的下一张与跳变帧「同」（差小于 same*）、与跳变前一帧「远」、
 /// 两帧相关性低、跳变幅度显著（≥ standOut × 邻域差）且再前一帧不显著
@@ -655,7 +659,7 @@ kernel void rs_dilate(texture2d<float, access::read> depth [[texture(0)]],
     depthOut.write(float4(result), gid);
 }
 
-// MARK: - Visibility-aware gather（the 3D pipeline 的做法）
+// MARK: - Visibility-aware gather
 
 /// 输出像素 x 处，源位置 t 落到这里的误差是 e(t) = (t - x) ± S(t)，
 /// S(t) = A·edge(t)·(d(t) - convergence)（左眼取 +、右眼取 −，与老链路的

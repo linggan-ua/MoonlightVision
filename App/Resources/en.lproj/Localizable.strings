@@ -67,20 +67,23 @@
 "Auto" = "Auto";
 "HEVC" = "HEVC";
 "HDR (HDR10)" = "HDR (HDR10)";
-"HDR SDR Brightness" = "HDR SDR Brightness";
-"HDR SDR White" = "HDR SDR White";
-"HDR Color Target" = "HDR Color Target";
-"HDR Saturation" = "HDR Saturation";
-"Flat HDR (Experimental)" = "Flat HDR (Experimental)";
+"HDR is still under development; the picture may be unstable. Use with care." = "HDR is still under development; the picture may be unstable. Use with care.";
+"SDR Content Brightness" = "SDR Content Brightness";
+"SDR White Point" = "SDR White Point";
+"Display P3 / BT.709 Gamut (Experimental)" = "Display P3 / BT.709 Gamut (Experimental)";
+"HDR & SDR Saturation" = "HDR & SDR Saturation";
+"HDR on CAMetalLayer (Experimental)" = "HDR on CAMetalLayer (Experimental)";
+"EDR Probe (Debug)" = "EDR Probe (Debug)";
+"Isolates the EDR layer and hosting from the video pipeline." = "Isolates the EDR layer and hosting from the video pipeline.";
 "HDR 2D only: renders through a CAMetalLayer to validate true EDR. Curvature, SBS 3D and the local cursor are disabled." = "HDR 2D only: renders through a CAMetalLayer to validate true EDR. Curvature, SBS 3D and the local cursor are disabled.";
-"Lower slightly if HDR colors look more vivid than Steam Link." = "Lower slightly if HDR colors look more vivid than Steam Link.";
+"Lower slightly if HDR colors look too vivid." = "Lower slightly if HDR colors look too vivid.";
 "Match the host's SDR content brightness; raise if the HDR desktop looks brighter than SDR, lower if darker." = "Match the host's SDR content brightness; raise if the HDR desktop looks brighter than SDR, lower if darker.";
-"Calibrate from White Screen" = "Calibrate from White Screen";
+"Calibrate White Point from SDR White Screen (Experimental)" = "Calibrate White Point from SDR White Screen (Experimental)";
 "During an HDR stream, show a full-screen SDR white image on the host, then calibrate. The measured value replaces the slider value." = "During an HDR stream, show a full-screen SDR white image on the host, then calibrate. The measured value replaces the slider value.";
 "Waiting for a PQ white frame…" = "Waiting for a PQ white frame…";
-"Display P3 matches RealityKit's working space; BT.709 matches Steam Link's SDL output." = "Display P3 matches RealityKit's working space; BT.709 matches Steam Link's SDL output.";
-"BT.709 matches Steam Link's SDL output; Display P3 is an alternative wide-gamut target." = "BT.709 matches Steam Link's SDL output; Display P3 is an alternative wide-gamut target.";
-"HDR Highlight Brightness" = "HDR Highlight Brightness";
+"Display P3 matches RealityKit's working space; BT.709 is the default presentation gamut." = "Display P3 matches RealityKit's working space; BT.709 is the default presentation gamut.";
+"BT.709 is the default output gamut; Display P3 is an alternative wide-gamut target." = "BT.709 is the default output gamut; Display P3 is an alternative wide-gamut target.";
+"HDR Content Brightness" = "HDR Content Brightness";
 "HDR Highlight Level" = "HDR Highlight Level";
 "Frame Pacing" = "Frame Pacing";
 "Anti-Shimmer (Mipmaps)" = "Anti-Shimmer (Mipmaps)";
@@ -112,7 +115,7 @@
 "Hides the control bar, system cursor, and window resizing while the mouse is captured." = "Hides the control bar, system cursor, and window resizing while the mouse is captured.";
 "Mouse Mode" = "Mouse Mode";
 "Relative (FPS)" = "Relative (FPS)";
-"Absolute" = "Absolute";
+"Absolute" = "Absolute (Follows System Cursor)";
 "Swap A/B and X/Y" = "Swap A/B and X/Y";
 "Multiple Controllers" = "Multiple Controllers";
 "Diagnostics" = "Diagnostics";
@@ -193,12 +196,13 @@
 "3D" = "3D";
 "SBS 3D" = "SBS 3D";
 "Enable SBS 3D" = "Enable SBS 3D";
-"Use software such as ReShade + Depth3D on your host PC to utilize SBS mode." = "Use software such as ReShade + Depth3D on your host PC to utilize SBS mode.";
+"Use software such as ReShade + Depth3D on your host PC to utilize SBS mode." = "Use 3D software on your host PC to enjoy SBS mode.";
 "Show the stream as side-by-side 3D. The host must send a 32:9 SBS frame." = "Show the stream as side-by-side 3D. The host must send a 32:9 SBS frame.";
 
 "Enable Real-time 3D" = "Enable Real-time 3D";
-"Convert this 2D stream to 3D on this device using the Neural Engine." = "Convert this 2D stream to 3D on this device using the Neural Engine.";
+"Convert this 2D stream to 3D on this device using the Neural Engine." = "Convert this 2D picture to 3D on this device using the Neural Engine, or switch to SBS Only.";
 "Enable 3D" = "Enable 3D";
+"SBS Only" = "SBS Only";
 
 "Real-time 3D" = "Real-time 3D";
 "Scheme" = "Scheme";
@@ -232,6 +236,7 @@
 "Later" = "Later";
 "3D Settings" = "3D Settings";
 "Changes apply live where possible. Video, audio layout and host options need a stream restart." = "Changes apply live where possible. Video, audio layout and host options need a stream restart.";
+"Open the stream settings window." = "Open the stream settings window.";
 "Adjust stream settings without leaving the picture." = "Adjust stream settings without leaving the picture.";
 "Show the stream as side-by-side 3D. Long-press for 3D settings." = "Show the stream as side-by-side 3D. Long-press for 3D settings.";
 
@@ -256,5 +261,3 @@
 "Window" = "Window";
 "Window Corner Radius" = "Window Corner Radius";
 "Screen Curvature" = "Screen Curvature";
-"0% corner radius gives square corners; 0% curvature is flat. Curvature uses a fixed radius, so a larger window wraps further." = "0% corner radius gives square corners; 0% curvature is flat. Curvature uses a fixed radius, so a larger window wraps further.";
-"0% gives the picture square corners; the default matches the rounded window." = "0% gives the picture square corners; the default matches the rounded window.";

@@ -52,6 +52,11 @@ void MVSetStreamSpatialAudio(bool enabled)
     [audioRenderer setSpatialAudio:enabled];
 }
 
+void MVSetStreamAudioActive(bool active)
+{
+    [audioRenderer setOutputActive:active];
+}
+
 static id<AnyVideoDecoderRenderer> __strong renderer;
 
 int DrDecoderSetup(int videoFormat, int width, int height, int redrawRate, void* context, int drFlags)
@@ -329,6 +334,12 @@ void ClSetControllerLED(uint16_t controllerNumber, uint8_t r, uint8_t g, uint8_t
 
 -(void) terminateWithCompletion:(void (^)(void))completion
 {
+    // Silence the audio graph before anything that can block. LiStopConnection
+    // can take seconds in a debugger, and an audio unit that keeps pulling
+    // while the app is stopped replays its last buffer as a buzz. The ring is
+    // flipped to silence synchronously here, so that window is already quiet.
+    [audioRenderer setOutputActive:NO];
+
     // Interrupt any action blocking LiStartConnection(). This is thread-safe
     // and done outside initLock on purpose, since we won't be able to acquire
     // the lock while a start is in progress.

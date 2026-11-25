@@ -33,6 +33,33 @@ struct MoonlightVisionApp: SwiftUI.App {
         .defaultSize(width: 560, height: 700)
         .defaultWindowPlacement { _, context in
             if let stream = context.windows.first(where: { $0.id == "stream" }) {
+                // The main settings window takes the right side.
+                return WindowPlacement(.leading(stream))
+            }
+            return WindowPlacement(.none)
+        }
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
+
+        Window("Stream Settings", id: "stream-settings-window") {
+            StreamSettingsWindowView()
+        }
+        .defaultSize(width: 720, height: 760)
+        .defaultWindowPlacement { _, context in
+            if let stream = context.windows.first(where: { $0.id == "stream" }) {
+                return WindowPlacement(.trailing(stream))
+            }
+            return WindowPlacement(.none)
+        }
+        .defaultLaunchBehavior(.suppressed)
+        .restorationBehavior(.disabled)
+
+        Window("EDR Probe", id: "edr-probe") {
+            EDRProbeWindowView()
+        }
+        .defaultSize(width: 920, height: 680)
+        .defaultWindowPlacement { _, context in
+            if let stream = context.windows.first(where: { $0.id == "stream" }) {
                 return WindowPlacement(.trailing(stream))
             }
             return WindowPlacement(.none)

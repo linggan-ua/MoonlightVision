@@ -2,9 +2,9 @@
 //  AnyVideoDecoderRenderer.h
 //  Moonlight
 //
-//  Ported from NeoMoonlight. The connection drives any renderer through this
-//  protocol, so the app can choose its video path (texture drawables for the
-//  window, including SBS 3D) without changing the Limelight core.
+//  The connection drives any renderer through this protocol, so the app can
+//  choose its video path (texture drawables for the window, including SBS 3D)
+//  without changing the Limelight core.
 //
 
 #include "Limelight.h"

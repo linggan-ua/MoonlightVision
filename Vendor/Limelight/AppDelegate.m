@@ -7,6 +7,10 @@
 //
 
 #import "AppDelegate.h"
+#import <AVFoundation/AVFoundation.h>
+
+/// Defined in Stream/Connection.m. Silences the stream's audio graph.
+extern void MVSetStreamAudioActive(bool active);
 
 @implementation AppDelegate
 
@@ -41,8 +45,19 @@ static NSString* DB_NAME = @"Limelight_iOS.sqlite";
 
 - (void)applicationWillResignActive:(UIApplication *)application
 {
-    // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
-    // Use this method to pause ongoing tasks, disable timers, and throttle down OpenGL ES frame rates. Games should use this method to pause the game.
+    // A debugger stop freezes the process with the audio unit still installed.
+    // The HAL then has nobody to refill its buffer and plays garbage, which is
+    // the buzz heard while the app hangs. Silencing on the way out of the
+    // active state catches the stops that do resign first, and costs nothing
+    // when the app stays active.
+    MVSetStreamAudioActive(false);
+}
+
+- (void)applicationDidBecomeActive:(UIApplication *)application
+{
+    // Counterpart of the silence in applicationWillResignActive. Also covers
+    // the case where the debugger resumed the process after a stop.
+    MVSetStreamAudioActive(true);
 }
 
 - (void)applicationDidEnterBackground:(UIApplication *)application
@@ -56,13 +71,14 @@ static NSString* DB_NAME = @"Limelight_iOS.sqlite";
     // Called as part of the transition from the background to the inactive state; here you can undo many of the changes made on entering the background.
 }
 
-- (void)applicationDidBecomeActive:(UIApplication *)application
-{
-    // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
-}
-
 - (void)applicationWillTerminate:(UIApplication *)application
 {
+    // Silence the audio graph before the termination grace period begins.
+    // Without this the audio unit can keep pulling the last buffer while the
+    // process is being torn down, which is the buzz heard on a debug stop.
+    MVSetStreamAudioActive(false);
+    [[AVAudioSession sharedInstance] setActive:NO withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation error:nil];
+
     // Saves changes in the application's managed object context before the application terminates.
     [self saveContext];
 }

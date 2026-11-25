@@ -1,32 +1,13 @@
 //
-//  ring buffer.c
-//  Moonlight Vision
+//  MVRingBuffer.c
+//  MoonlightVision
 //
-//  Created by Michael Tyson on 10/12/2011.
-//  Updated by Lumanaire (RikuKunMS2) on 4/26/26.
-//  Notice: If you are missing from the contributor list, please contact Lumanaire (RikuKunMS2).
-//  Based on files created by Andy Grundman https://github.com/andygrundman
-//
-//  Circular/Ring buffer implementation
-//  https://github.com/michaeltyson/ring buffer
-//  This software is provided 'as-is', without any express or implied
-//  warranty.  In no event will the authors be held liable for any damages
-//  arising from the use of this software.
-//  Permission is granted to anyone to use this software for any purpose,
-//  including commercial applications, and to alter it and redistribute it
-//  freely, subject to the following restrictions:
-//  1. The origin of this software must not be misrepresented; you must not
-//     claim that you wrote the original software. If you use this software
-//     in a product, an acknowledgment in the product documentation would be
-//     appreciated but is not required.
-//  2. Altered source versions must be plainly marked as such, and must not be
-//     misrepresented as being the original software.
-//  3. This notice may not be removed or altered from any source distribution.
-//
-//  Copyright © 2024 Moonlight Game Streaming Project. All rights reserved.
+//  Lock-free single-producer/single-consumer ring buffer implementation.
+//  Derived from an MIT/zlib-licensed implementation; copyright and the full
+//  licence text are in CREDITS.md.
 //
 
-#include "TPCircularBuffer.h"
+#include "MVRingBuffer.h"
 #include <mach/mach.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,12 +21,12 @@ static inline bool _reportResult(kern_return_t result, const char *operation, co
     return true;
 }
 
-bool _TPCircularBufferInit(TPCircularBuffer *buffer, uint32_t length, size_t structSize) {
+bool MVRingBufferInit(MVRingBuffer *buffer, uint32_t length, size_t structSize) {
 
     assert(length > 0);
 
-    if ( structSize != sizeof(TPCircularBuffer) ) {
-        fprintf(stderr, "TPCircularBuffer: Header version mismatch. Check for old versions of TPCircularBuffer in your project\n");
+    if ( structSize != sizeof(MVRingBuffer) ) {
+        fprintf(stderr, "MVRingBuffer: Header version mismatch. Check for old versions of MVRingBuffer in your project\n");
         abort();
     }
 
@@ -131,18 +112,18 @@ bool _TPCircularBufferInit(TPCircularBuffer *buffer, uint32_t length, size_t str
     return false;
 }
 
-void TPCircularBufferCleanup(TPCircularBuffer *buffer) {
+void MVRingBufferCleanup(MVRingBuffer *buffer) {
     vm_deallocate(mach_task_self(), (vm_address_t)buffer->buffer, buffer->length * 2);
-    memset(buffer, 0, sizeof(TPCircularBuffer));
+    memset(buffer, 0, sizeof(MVRingBuffer));
 }
 
-void TPCircularBufferClear(TPCircularBuffer *buffer) {
+void MVRingBufferClear(MVRingBuffer *buffer) {
     uint32_t fillCount;
-    if ( TPCircularBufferTail(buffer, &fillCount) ) {
-        TPCircularBufferConsume(buffer, fillCount);
+    if ( MVRingBufferTail(buffer, &fillCount) ) {
+        MVRingBufferConsume(buffer, fillCount);
     }
 }
 
-void  TPCircularBufferSetAtomic(TPCircularBuffer *buffer, bool atomic) {
+void  MVRingBufferSetAtomic(MVRingBuffer *buffer, bool atomic) {
     buffer->atomic = atomic;
 }

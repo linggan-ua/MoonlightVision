@@ -1,8 +1,7 @@
 //
 //  DrawableVideoDecoder.swift
-//  the protocol
+//  MoonlightVision
 //
-//  Created by tht7 on 30/12/2024. Updated 12/09/2025 by NeoVector X
 //  Copyright © 2025 Moonlight Game Streaming Project. All rights reserved.
 //
 
@@ -42,8 +41,7 @@ struct HDRParams {
     /// Host SDR white point in nits. PQ is normalised by this so the host's
     /// desktop white maps to EDR 1.0 (the window's SDR white), not 1.48x/2.36x.
     var sdrWhiteNits: Float = 203.0
-    /// 0 = Display P3, 1 = BT.709. Used to A/B the RealityKit working space
-    /// against Steam Link's linear-sRGB SDL output.
+    /// 0 = Display P3, 1 = BT.709. Selects the presentation gamut.
     var outputGamut: UInt32 = 0
 }
 
@@ -404,10 +402,10 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         layer.contentsGravity = .resizeAspect
         layer.colorspace = CGColorSpace(name: CGColorSpace.itur_2100_PQ)
         layer.wantsExtendedDynamicRangeContent = true
-        layer.toneMapMode = .ifSupported
+        layer.toneMapMode = .never
         if #available(visionOS 26.0, *) {
             layer.preferredDynamicRange = .high
-            layer.contentsHeadroom = 2.0
+            layer.contentsHeadroom = 8.0
         }
         if videoWidth > 0, videoHeight > 0 {
             layer.drawableSize = CGSize(width: videoWidth, height: videoHeight)
@@ -758,8 +756,8 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             ? (hdrSettingsProvider?() ?? neutralParams)
             : neutralParams
 
-        // visionOS has no public numeric EDR headroom; default to 2.0 the way
-        // Steam Link's SDL3 backend does, and let the user trim within it.
+        // visionOS has no public numeric EDR headroom; default to 2.0 and let
+        // the user trim within it.
         let edrHeadroom: Float = {
             guard streamIsHDR, let params = hdrSettingsProvider?(), params.edrHeadroom > 0 else {
                 return 2.0
@@ -1467,7 +1465,11 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         if Thread.isMainThread {
             teardown()
         } else {
-            DispatchQueue.main.sync(execute: teardown)
+            // Never block here. Teardown runs while the core joins its
+            // threads; a synchronous hop to the main queue can deadlock
+            // against a main thread that is itself waiting on the stream, and
+            // that hang is what leaves the audio unit running unattended.
+            DispatchQueue.main.async(execute: teardown)
         }
     }
 

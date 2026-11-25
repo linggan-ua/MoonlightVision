@@ -36,9 +36,9 @@ final class StreamWindowInputView: UIView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        // The video is a RealityKit plane behind this view. Match the
-        // core client's nearly transparent input layer so the window
-        // still composites as a non-empty surface without covering the plane.
+        // The video is a RealityKit plane behind this view. Keep a nearly
+        // transparent input layer so the window still composites as a
+        // non-empty surface without covering the plane.
         backgroundColor = UIColor.black.withAlphaComponent(0.01)
         isOpaque = false
         isUserInteractionEnabled = true

@@ -10,12 +10,14 @@ import Foundation
 
 /// Fresh visionOS audio output for the stream.
 ///
-/// Structure adapted from an earlier GPL-3.0 project: AVAudioEngine with a
-/// pull-based AVAudioSourceNode, an explicit channel layout for 5.1/7.1, the
-/// GameStream 7.1 channel-order fix, and AVAudioSession spatial experience.
-/// Ring-buffer parameters and engine recovery follow an earlier GPL-3.0 project's StreamAudioOutput
-/// (GPL-3.0): 100 ms capacity, 20 ms priming, trim 60 ms down to 30 ms, and
-/// restart on configuration changes, interruptions and media-service resets.
+/// AVAudioEngine with a pull-based AVAudioSourceNode, an explicit channel
+/// layout for 5.1/7.1, the GameStream 7.1 channel-order fix, and AVAudioSession
+/// spatial experience. The ring buffer holds 100 ms, primes 20 ms, trims from
+/// 60 ms down to 30 ms, and restarts on configuration changes, interruptions
+/// and media-service resets.
+///
+/// Portions of this structure and the ring-buffer parameters are derived from
+/// GPL-3.0 projects; see CREDITS.md for attribution.
 @objc(MVStreamAudioRenderer)
 public final class StreamAudioRenderer: NSObject {
     private static let capacitySeconds = 0.100
@@ -26,6 +28,7 @@ public final class StreamAudioRenderer: NSObject {
     private let ring = AudioRingBuffer()
     private let lifecycleLock = NSLock()
     private let engineQueue = DispatchQueue(label: "com.moonlightvision.audio.engine")
+    private static let queueKey = DispatchSpecificKey<UInt8>()
 
     private var decoder: OpaquePointer?
     private var channelCount = 0
@@ -48,6 +51,8 @@ public final class StreamAudioRenderer: NSObject {
     @objc(initWithOpusConfig:)
     public init?(opusConfig: UnsafePointer<OPUS_MULTISTREAM_CONFIGURATION>) {
         super.init()
+
+        engineQueue.setSpecific(key: Self.queueKey, value: 1)
 
         let config = opusConfig.pointee
         channelCount = Int(config.channelCount)
@@ -125,6 +130,7 @@ public final class StreamAudioRenderer: NSObject {
     @objc public func start() {
         engineQueue.async { [weak self] in
             guard let self, !self.isStopped else { return }
+            self.ring.setSuspended(false)
             self.setRunning(true)
             self.installObserversIfNeeded()
             if self.engine == nil {
@@ -137,11 +143,63 @@ public final class StreamAudioRenderer: NSObject {
     }
 
     @objc public func stop() {
+        // Silence the render callback on THIS thread, before any queue hop.
+        // Teardown (or a debugger halt) can block for seconds; the audio unit
+        // keeps pulling frames the whole time, so it must already be reading
+        // silence by the time we return from this call.
+        NSLog(
+            "[Audio] stop() thread=%@ name=%@",
+            Thread.isMainThread ? "main" : "other",
+            Thread.current.name ?? "-"
+        )
+        ring.setSuspended(true)
+
         engineQueue.async { [weak self] in
             guard let self else { return }
             self.setRunning(false)
+            self.engine?.mainMixerNode.outputVolume = 0
             self.engine?.stop()
             self.setEngineRunning(false)
+            self.deactivateSession()
+        }
+    }
+
+    /// Silences the output without tearing the graph down. Used when the app
+    /// is not in the foreground, so a suspended or hung process never leaves a
+    /// live audio unit looping over stale buffer contents.
+    ///
+    /// The ring is flipped to silence synchronously: the HAL keeps calling the
+    /// render block until the engine actually stops, so that flag — not the
+    /// engine teardown — is what guarantees quiet. The engine work itself is
+    /// queued, never awaited, because awaiting it from the main thread can
+    /// deadlock against an engine start that is itself waiting on main.
+    @objc public func setOutputActive(_ active: Bool) {
+        NSLog("[Audio] setOutputActive(%d) thread=%@", active ? 1 : 0, Thread.isMainThread ? "main" : "other")
+        if active {
+            engineQueue.async { [weak self] in
+                guard let self, self.isRunning, !self.isStopped else { return }
+                // Re-activate the session BEFORE touching the engine: the
+                // engine restart below needs an active route.
+                self.activateSession()
+                self.engine?.mainMixerNode.outputVolume = self.volume
+                if self.engine != nil {
+                    self.startEngine(reason: "outputActive")
+                }
+                self.ring.setSuspended(false)
+            }
+            return
+        }
+
+        ring.setSuspended(true)
+
+        engineQueue.async { [weak self] in
+            guard let self else { return }
+            self.engine?.mainMixerNode.outputVolume = 0
+            self.engine?.stop()
+            self.setEngineRunning(false)
+            // Releasing the session here, while the process is still healthy,
+            // is what keeps a later hard kill from tearing down an active
+            // audio route mid-waveform.
             self.deactivateSession()
         }
     }
@@ -164,28 +222,44 @@ public final class StreamAudioRenderer: NSObject {
     }
 
     @objc public func cleanup() {
+        NSLog("[Audio] cleanup() thread=%@", Thread.isMainThread ? "main" : "other")
+        // Same reasoning as stop(): the ring must be silent immediately, even
+        // if the queue hop below is delayed by a hung teardown.
+        ring.setSuspended(true)
+
         lifecycleLock.lock()
         stopped = true
         let decoderToDestroy = decoder
         decoder = nil
         lifecycleLock.unlock()
 
-        engineQueue.sync {
-            setRunning(false)
-            setEngineRunning(false)
-            if let sourceNode, let engine {
+        let teardown = {
+            self.setRunning(false)
+            self.setEngineRunning(false)
+            self.engine?.mainMixerNode.outputVolume = 0
+            // Stop the engine BEFORE detaching the source node. Detaching a
+            // node that is still installed in a running graph lets the audio
+            // unit's render thread call into a node the engine no longer owns,
+            // which is exactly how a teardown turns into a loud burst of
+            // garbage samples.
+            self.engine?.stop()
+            if let sourceNode = self.sourceNode, let engine = self.engine {
                 engine.detach(sourceNode)
             }
-            engine?.stop()
-            engine = nil
-            sourceNode = nil
-            observers.forEach(NotificationCenter.default.removeObserver)
-            observers.removeAll()
-            if let engineObserver {
+            self.engine = nil
+            self.sourceNode = nil
+            self.observers.forEach(NotificationCenter.default.removeObserver)
+            self.observers.removeAll()
+            if let engineObserver = self.engineObserver {
                 NotificationCenter.default.removeObserver(engineObserver)
                 self.engineObserver = nil
             }
             self.deactivateSession()
+        }
+        if DispatchQueue.getSpecific(key: StreamAudioRenderer.queueKey) != nil {
+            teardown()
+        } else {
+            engineQueue.sync(execute: teardown)
         }
 
         if let decoderToDestroy {
@@ -197,8 +271,8 @@ public final class StreamAudioRenderer: NSObject {
 
     @objc(decodeAndPlaySample:length:)
     public func decodeAndPlaySample(_ data: UnsafeMutablePointer<CChar>?, length: Int32) {
-        // The official/Starlight audio paths drop packets when the core's audio
-        // queue is already backing up, instead of decoding stale packets forever.
+        // Drop packets when the core's audio queue is already backing up,
+        // instead of decoding stale packets forever.
         if LiGetPendingAudioDuration() > 30 {
             return
         }
@@ -428,8 +502,8 @@ public final class StreamAudioRenderer: NSObject {
 
 /// Lock-free single-producer/single-consumer interleaved float ring.
 ///
-/// Backed by the vendored ring buffer (zlib, the same ring the official
-/// the protocol audio output used) through MVAudioRing. The network/audio decode
+/// Backed by the vendored lock-free ring buffer (see CREDITS.md) through
+/// MVAudioRing. The network/audio decode
 /// thread writes whole Opus frames; the AVAudioSourceNode render thread reads
 /// and deinterleaves them. The render callback never takes a lock. Backlog
 /// trimming happens on the consumer side, so it cannot race the producer.
@@ -444,6 +518,8 @@ final class AudioRingBuffer: @unchecked Sendable {
     private var trimAboveFrames = 0
     private var trimToFrames = 0
     private var priming = true
+    /// Logs the first silent callback of each dry spell, instead of every one.
+    private var silenceLogOnce = false
     private(set) var underruns: Int64 = 0
     private(set) var overflowFrames: Int64 = 0
     private(set) var trimmedFrames: Int64 = 0
@@ -478,7 +554,7 @@ final class AudioRingBuffer: @unchecked Sendable {
         let capacityBytes = capacityFrames * bytesPerFrame
         ring = MVAudioRingCreate(UInt32(capacityBytes))
         if ring == nil {
-            NSLog("[Audio] TPCircularBuffer allocation failed (%d bytes)", capacityBytes)
+            NSLog("[Audio] ring buffer allocation failed (%d bytes)", capacityBytes)
             return
         }
         scratch = UnsafeMutablePointer<Float>.allocate(capacity: capacityFrames * channels)
@@ -491,6 +567,18 @@ final class AudioRingBuffer: @unchecked Sendable {
         }
         scratch?.deallocate()
         scratch = nil
+    }
+
+    /// Makes the render callback emit silence from its next call on. Safe from
+    /// any thread; the render thread reads it without taking a lock. Resuming
+    /// also arms a flush, so whatever accumulated while suspended is dropped
+    /// by the render thread itself instead of being played back late.
+    /// Priming is deliberately NOT touched here: it belongs to the render
+    /// thread, which re-arms it when it sees an empty buffer.
+    func setSuspended(_ suspended: Bool) {
+        guard let ring else { return }
+        MVAudioRingSetSuspended(ring, suspended)
+        NSLog("[Audio] ring suspended=%d", suspended ? 1 : 0)
     }
 
     func write(_ samples: UnsafePointer<Float>, frames: Int) {
@@ -513,6 +601,20 @@ final class AudioRingBuffer: @unchecked Sendable {
         }
 
         var availableFrames = Int(MVAudioRingAvailableBytes(ring)) / bytesPerFrame
+
+        if availableFrames == 0 {
+            // Suspended, freshly resumed, or starved: emit defined silence and
+            // re-arm priming so the next audible callback starts on a whole
+            // buffer instead of a partial one.
+            if !silenceLogOnce {
+                silenceLogOnce = true
+                NSLog("[Audio] render callback silent (ring empty)")
+            }
+            priming = true
+            outputSilence(buffers, isSilence: isSilence)
+            return
+        }
+        silenceLogOnce = false
 
         if priming {
             if availableFrames < primeFrames {

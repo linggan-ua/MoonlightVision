@@ -7,7 +7,7 @@
 
 import Foundation
 import UIKit
-/// Steam Link-style pointer handling:
+/// Pointer handling in the style of a system-pointer capture client:
 /// - Uncaptured (default): the system pointer is visible and moves normally
 ///   over the picture; nothing is forwarded to the host.
 /// - A click on the picture captures the mouse: the system pointer hides and
@@ -118,8 +118,8 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
             },
             scroll: { [weak self] horizontal, vertical in
                 guard let self, self.running, self.captured else { return }
-                // Steam Link's SDL path forwards the physical wheel through
-                // GCMouse.scroll; the pan recognizers only cover trackpads.
+                // The physical wheel is forwarded through GCMouse.scroll; the
+                // pan recognizers only cover trackpads.
                 let sign: Float = StreamSettingsStore.shared.invertScroll ? -1 : 1
                 let y = Int32(clamping: Int((vertical * 120 * sign).rounded()))
                 let x = Int32(clamping: Int((horizontal * 120).rounded()))
@@ -202,6 +202,42 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
 
     func mouseSurfaceDidLayout() {
         pointerInteraction?.invalidate()
+    }
+
+    /// The SwiftUI host rebuilds its view controller whenever the stream window
+    /// changes, which re-parents the shared input view. UIKit drops pointer
+    /// interactions and stops delivering hover when that happens, so both the
+    /// capture region and `pointerOverContent` die — and a click can never take
+    /// capture again because capture requires the pointer to be over content.
+    /// Re-installing here is the event the re-parent actually emits; no poll.
+    func mouseSurfaceDidMoveToWindow() {
+        guard running, let view, view.window != nil else { return }
+
+        hover.remove()
+        hover.onHover = { [weak self] point, isActive in
+            self?.handleHover(point, isActive: isActive)
+        }
+        hover.install(on: view)
+
+        scroll.remove()
+        scroll.install(on: view)
+
+        if let pointerInteraction {
+            view.removeInteraction(pointerInteraction)
+            self.pointerInteraction = nil
+        }
+        let interaction = UIPointerInteraction(delegate: self)
+        view.addInteraction(interaction)
+        pointerInteraction = interaction
+
+        // A new window may come with fresh GCMouse profiles; re-attach and
+        // re-install their handlers instead of relying on a later connect event
+        // that never fires for a device that stayed plugged in.
+        mouseHub.repairHandlers()
+        lastHoverPoint = nil
+        pointerOverContent = false
+        setCaptured(false)
+        NSLog("[Mouse] input view re-parented; pointer interactions reinstalled")
     }
 
     func mouseSurfaceTouchesBegan(_ touches: Set<UITouch>, event: UIEvent?) {

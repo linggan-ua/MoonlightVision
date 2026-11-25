@@ -31,7 +31,7 @@ nonisolated struct LSRealtime3DSettings: Equatable, Sendable {
     /// 面板不给它单独的入口，避免和方案各说各话。
     let modelOverride: LSRealtimeDepthModel?
     /// 用户指定的深度刷新上限（maps/s；nil = 用方案默认，0 = 不限）。
-    /// 对应 the 3D pipeline 的 maps/s 设置：方案决定算法，用户仍可单独限速。
+    /// 方案决定算法，用户仍可单独限速。
     let depthRateOverride: Double?
 
     /// 本帧实际使用的深度模型。

@@ -1,10 +1,11 @@
 //
 //  Realtime3DSettingsStore.swift
-//  Moonlight Vision
+//  MoonlightVision
 //
-//  Persisted settings for the real-time 2D→3D mode. The synthesis schemes come
-//  from the 3D pipeline; the Comfort/Balanced/Strong presets, model selection, maps/s
-//  override and eye swap come from the 3D pipeline (Quest).
+//  Created by Linggan-ua.
+//
+//  Persisted settings for the real-time 2D→3D mode: scheme, depth strength,
+//  convergence, model selection, maps/s override and eye swap.
 //
 
 import Foundation
@@ -98,7 +99,17 @@ final class Realtime3DSettingsStore: ObservableObject {
     }
 
     func resetTuning() {
+        resetDepth()
+        resetConvergence()
+    }
+
+    /// Back to the scheme's default depth for a fresh install.
+    func resetDepth() {
         depthStrength = balancedDepth
+    }
+
+    /// Zero puts the screen plane at the middle of the depth range.
+    func resetConvergence() {
         convergence = 0
     }
 
@@ -138,6 +149,16 @@ enum Realtime3DPreset: String, CaseIterable, Identifiable {
         case .balanced: return "realtime3d_preset_balanced"
         case .strong: return "realtime3d_preset_strong"
         }
+    }
+
+    /// Which preset a depth value corresponds to. `nil` means the slider sits
+    /// between presets, i.e. a custom value.
+    static func matching(depth: Float, store: Realtime3DSettingsStore) -> Realtime3DPreset? {
+        let tolerance: Float = 0.005
+        if abs(depth - store.comfortDepth) <= tolerance { return .comfort }
+        if abs(depth - store.balancedDepth) <= tolerance { return .balanced }
+        if abs(depth - store.strongDepth) <= tolerance { return .strong }
+        return nil
     }
 }
 

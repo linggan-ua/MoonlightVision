@@ -38,3 +38,7 @@
 
 void MVSetStreamVolume(float volume);
 void MVSetStreamSpatialAudio(bool enabled);
+/// Suspends or resumes audio output. Call with NO while the app leaves the
+/// foreground so the render callback emits silence before the process can be
+/// suspended or killed.
+void MVSetStreamAudioActive(bool active);

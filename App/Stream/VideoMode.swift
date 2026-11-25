@@ -63,8 +63,7 @@ enum StreamPictureGeometry {
     ///
     /// A host sends 32:9 side-by-side 3D as one frame holding both eyes, so in
     /// 3D the window must use one eye's half-width aspect. Every other frame
-    /// keeps its own aspect; the SBS material still samples the halves, exactly
-    /// like the core client.
+    /// keeps its own aspect; the SBS material still samples the halves.
     static func aspectRatio(width: Int, height: Int, mode: VideoMode) -> Double {
         1 / planeHeightToWidth(width: width, height: height, mode: mode)
     }

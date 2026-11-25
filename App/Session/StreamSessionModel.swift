@@ -53,6 +53,12 @@ final class StreamSessionModel {
         didSet {
             if videoMode != .sideBySide3D {
                 showSBSConfirm = false
+                // "SBS Only" is a per-viewing choice. Leaving 3D clears it so
+                // the next time the card opens it offers both paths again
+                // instead of silently reusing the old one.
+                if StreamSettingsStore.shared.sbsOnly {
+                    StreamSettingsStore.shared.sbsOnly = false
+                }
             }
             let enabled = videoMode == .sideBySide3D
             let store = StreamSettingsStore.shared
@@ -65,9 +71,21 @@ final class StreamSessionModel {
     /// The SBS confirmation card is showing in the stream window.
     var showSBSConfirm = false
 
+    /// "SBS Only": show the frame's halves as they arrive and skip the
+    /// on-device 2D→3D model. Stored in the settings store because the 3D
+    /// settings panel offers it as a switch; turning 3D off clears it.
+    var sbsOnly: Bool {
+        get { StreamSettingsStore.shared.sbsOnly }
+        set { StreamSettingsStore.shared.sbsOnly = newValue }
+    }
+
     private(set) var phase: Phase = .idle
     private(set) var statsText = ""
     private(set) var isBackgrounded = false
+    /// Flat HDR is captured at stream start and only changes on reconnect; a
+    /// live switch between the CAMetalLayer and the RealityKit drawable queue
+    /// would leave the surface cold for several frames.
+    private(set) var flatHDRModeActive = false
     /// Set when the app really backgrounds; returning to the foreground then
     /// rebuilds the connection in place.
     private var needsReconnectAfterBackground = false
@@ -107,10 +125,12 @@ final class StreamSessionModel {
         layer.contentsGravity = .resizeAspect
         layer.colorspace = CGColorSpace(name: CGColorSpace.itur_2100_PQ)
         layer.wantsExtendedDynamicRangeContent = true
-        layer.toneMapMode = .ifSupported
+        layer.toneMapMode = .never
         if #available(visionOS 26.0, *) {
+            // Match the probe's stable layer configuration while keeping the
+            // system tone map disabled.
             layer.preferredDynamicRange = .high
-            layer.contentsHeadroom = 2.0
+            layer.contentsHeadroom = 8.0
         }
         return layer
     }()
@@ -170,7 +190,7 @@ final class StreamSessionModel {
     /// carry both eyes side by side, so each eye's picture is half as wide; the
     /// window locks to that per-eye aspect in 3D.
     var streamAspect: Double {
-        if videoMode == .sideBySide3D, isSBSStream {
+        if videoMode == .sideBySide3D, hasPackedFrame {
             return (Double(streamWidth) / 2) / Double(max(streamHeight, 1))
         }
         return Double(streamWidth) / Double(max(streamHeight, 1))
@@ -180,15 +200,24 @@ final class StreamSessionModel {
     var streamWidth: Int {
         Int(activeConfig?.width ?? StreamSettingsStore.shared.resolution.width)
     }
-
     var streamHeight: Int {
         Int(activeConfig?.height ?? StreamSettingsStore.shared.resolution.height)
     }
 
     /// True when the host itself sends a frame-packed side-by-side picture.
     /// 32:9 is detected automatically; "Packed SBS Input" extends that to any
-    /// 3:1-or-wider frame.
+    /// How the picture should be presented as side-by-side: either the host
+    /// really packs two eyes, or the user chose "SBS Only". Both use the SBS
+    /// material; neither runs the on-device converter.
     var isSBSStream: Bool {
+        hasPackedFrame || sbsOnly
+    }
+
+    /// The host frame really holds two eyes side by side. Only this changes the
+    /// window's aspect: "SBS Only" merely picks how the frame is displayed, so
+    /// turning it on for a normal 16:9 stream must not reshape the window into
+    /// a portrait one.
+    var hasPackedFrame: Bool {
         StreamPictureGeometry.isPackedStream(
             width: streamWidth,
             height: streamHeight,
@@ -197,6 +226,8 @@ final class StreamSessionModel {
     }
 
     /// A normal 2D stream shown as side-by-side 3D by converting it on device.
+    /// "SBS Only" turns the converter off; the frame is then shown as it
+    /// arrives instead of being synthesised.
     var isRealtime3DActive: Bool {
         videoMode == .sideBySide3D && !isSBSStream
     }
@@ -242,6 +273,16 @@ final class StreamSessionModel {
         applyVideoModeChange()
     }
 
+    /// "SBS Only" switches between the on-device converter and showing the
+    /// frame's halves directly. That changes the drawable width the decoder
+    /// must produce and the material the surface uses, so re-apply both and
+    /// ask for a keyframe; without the request the picture keeps showing the
+    /// old converted frame and looks frozen.
+    func applyVideoModeAfterSBSOnlyChange() {
+        guard videoMode == .sideBySide3D else { return }
+        applyVideoModeChange()
+    }
+
     /// Applies the anti-shimmer (mipmap) option to the live decoder.
     func setAntiShimmerMipmaps(_ enabled: Bool) {
         activeDecoder?.setMipmappedOutput(enabled)
@@ -255,9 +296,6 @@ final class StreamSessionModel {
     /// Feeds the live HDR highlight headroom (tone-map peak) to the decoder.
     func setHDRHighlightHeadroom(_ value: Float) {
         hdrTrim.setHighlightHeadroom(value)
-        if #available(visionOS 26.0, *) {
-            flatHDRVideoLayer.contentsHeadroom = CGFloat(hdrTrim.headroomSnapshot)
-        }
     }
 
     /// Feeds the host SDR white point (nits) used to normalise PQ content.
@@ -273,15 +311,6 @@ final class StreamSessionModel {
     /// Fine saturation calibration for the HDR presentation path.
     func setHDRSaturation(_ value: Float) {
         hdrTrim.setSaturation(value)
-    }
-
-    /// Switches between the RealityKit surface and the flat CAMetalLayer used
-    /// to validate true HDR/EDR output.
-    func setFlatHDRMode(_ enabled: Bool) {
-        if #available(visionOS 26.0, *) {
-            flatHDRVideoLayer.contentsHeadroom = CGFloat(hdrTrim.headroomSnapshot)
-        }
-        activeDecoder?.setFlatHDRLayer(flatHDRVideoLayer, enabled: enabled)
     }
 
     /// Measures the host SDR white point from the next PQ frame. Show a
@@ -410,6 +439,11 @@ final class StreamSessionModel {
         guard isBackgrounded != backgrounded else { return }
         isBackgrounded = backgrounded
 
+        // Gate the audio unit on the app's active state, not just the stream
+        // state. A suspended process (or one halted in the debugger) cannot
+        // run teardown, so the render callback must already be silent.
+        MVSetStreamAudioActive(!backgrounded)
+
         if backgrounded {
             // Metal rejects command buffers submitted from the background, so
             // stop GPU work immediately even if the connection is still up.
@@ -479,6 +513,18 @@ final class StreamSessionModel {
                     return
                 }
                 self.phase = .connecting(stage: stage)
+            }
+        }
+        delegate.onSetHdrMode = { [weak self] enabled in
+            Task { @MainActor in
+                guard let self, !self.hasEnded else { return }
+                // The host switched its desktop into or out of HDR. Follow it:
+                // the switch is the client's statement of what the stream
+                // carries, and the decoder already picks its path from the
+                // frames themselves.
+                if StreamSettingsStore.shared.hdrEnabled != enabled {
+                    StreamSettingsStore.shared.hdrEnabled = enabled
+                }
             }
         }
         delegate.onConnectionStatus = { [weak self] status in
@@ -587,13 +633,12 @@ final class StreamSessionModel {
                 // Must be set before setup(): it decides the initial queue width.
                 decoder.setStereoOutputEnabled(self?.isRealtime3DActive ?? false)
                 decoder.setRenderingPaused(renderingPaused)
+                let activeFlatHDR = StreamSettingsStore.shared.flatHDRMode
+                self?.flatHDRModeActive = activeFlatHDR
                 decoder.setFlatHDRLayer(
                     self?.flatHDRVideoLayer,
-                    enabled: StreamSettingsStore.shared.flatHDRMode
+                    enabled: activeFlatHDR
                 )
-                if #available(visionOS 26.0, *), let layer = self?.flatHDRVideoLayer {
-                    layer.contentsHeadroom = CGFloat(self?.hdrTrim.headroomSnapshot ?? 2.0)
-                }
                 decoder.onHDRWhiteSample = { [weak self] nits in
                     Task { @MainActor in
                         NSLog("[Stream] HDR white measured: %.1f nit", nits)
@@ -955,6 +1000,8 @@ final class StreamConnectionDelegate: NSObject, ConnectionCallbacks {
     var onRumbleTriggers: ((UInt16, UInt16, UInt16) -> Void)?
     var onSetMotionEventState: ((UInt16, UInt8, UInt16) -> Void)?
     var onSetControllerLed: ((UInt16, UInt8, UInt8, UInt8) -> Void)?
+    /// The host reported that its desktop switched into or out of HDR.
+    var onSetHdrMode: ((Bool) -> Void)?
 
     func stageStarting(_ stageName: UnsafePointer<CChar>!) {
         guard let stageName else { return }
@@ -991,7 +1038,9 @@ final class StreamConnectionDelegate: NSObject, ConnectionCallbacks {
         onConnectionStatus?(status)
     }
 
-    func setHdrMode(_ enabled: Bool) {}
+    func setHdrMode(_ enabled: Bool) {
+        onSetHdrMode?(enabled)
+    }
 
     func rumbleTriggers(_ controllerNumber: UInt16, leftTrigger: UInt16, rightTrigger: UInt16) {
         onRumbleTriggers?(controllerNumber, leftTrigger, rightTrigger)

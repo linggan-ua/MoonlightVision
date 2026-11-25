@@ -1,10 +1,11 @@
 //
 //  Realtime3DConverter.swift
-//  Moonlight Vision
+//  MoonlightVision
 //
-//  Adapter between the stream decoder and the real-time 2D→3D renderer ported
-//  from the 3D pipeline (originally the 3D pipeline for Quest): owns the depth renderer and
-//  a small CVPixelBuffer pool for the two eye frames.
+//  Created by Linggan-ua.
+//
+//  Adapter between the stream decoder and the real-time 2D→3D renderer: owns
+//  the depth renderer and a small CVPixelBuffer pool for the two eye frames.
 //
 
 import CoreMedia

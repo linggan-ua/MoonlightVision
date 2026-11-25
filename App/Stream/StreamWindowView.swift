@@ -14,18 +14,17 @@ import UIKit
 struct StreamWindowView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.physicalMetrics) private var physicalMetrics
+    @Environment(\.openWindow) private var openWindow
     @Bindable private var settings = StreamSettingsStore.shared
+    @Bindable private var presentation = StreamPresentation.shared
 
     let model: StreamSessionModel
     private let onExit: () -> Void
 
     @State private var keyboardHintVisible = false
     @State private var keyboardHintTask: Task<Void, Never>?
-    @State private var showStreamSettings = false
-    @State private var restartBaseline: StreamRestartSettings?
     @State private var showRestartPrompt = false
     @State private var showFullScreenHDR = false
-
     init(model: StreamSessionModel, onExit: @escaping () -> Void) {
         self.model = model
         self.onExit = onExit
@@ -53,7 +52,7 @@ struct StreamWindowView: View {
 
             // The picture is a RealityKit plane. With no opaque SwiftUI layer
             // behind it, the window's own background cannot fight with it.
-            if model.isStreaming, settings.flatHDRMode, !showFullScreenHDR {
+            if model.isStreaming, model.flatHDRModeActive, !showFullScreenHDR {
                 FlatHDRVideoView(layer: model.flatHDRVideoLayer)
                     .allowedDynamicRange(.high)
             } else if let texture = model.videoTexture, model.isStreaming {
@@ -63,16 +62,35 @@ struct StreamWindowView: View {
                     videoMode: model.videoMode,
                     streamWidth: model.streamWidth,
                     streamHeight: model.streamHeight,
-                    packedSBS: model.isSBSStream,
+                    // Any side-by-side output — host-packed or converted on
+                    // device — is a double-width frame that the SBS material
+                    // splits per eye. The plane's aspect still follows the host
+                    // frame, so "SBS Only" on a mono stream keeps its shape.
+                    packedSBS: model.hasPackedFrame,
                     cornerRadiusFraction: Float(settings.windowCornerRadius / 100),
                     curvatureFraction: Float(settings.screenCurvature / 100),
                     localCursor: model.localCursor,
                     showLocalCursor: settings.showLocalCursor,
-                    localConversion: !model.isSBSStream,
+                    sbsPresentation: model.videoMode == .sideBySide3D,
+                    // The card describes what turning 3D on will do. That
+                    // depends on the host frame only: "SBS Only" is a choice
+                    // made from this very card, so it must not change the
+                    // card's own copy or hide its button.
+                    localConversion: !model.hasPackedFrame,
                     showSBSConfirm: model.showSBSConfirm,
                     onEnableSBS: {
                         model.showSBSConfirm = false
                         model.videoMode = .sideBySide3D
+                    },
+                    onSBSOnly: {
+                        // Show the host frame's halves as-is, without running
+                        // the on-device 2D→3D model.
+                        model.showSBSConfirm = false
+                        model.sbsOnly = true
+                        model.videoMode = .sideBySide3D
+                    },
+                    onShow3DSettings: {
+                        openWindow(id: "stream-3d-settings")
                     },
                     onCancelSBS: {
                         model.showSBSConfirm = false
@@ -83,7 +101,7 @@ struct StreamWindowView: View {
             StreamWindowInputViewRepresentable(view: model.inputView)
                 .ignoresSafeArea()
 
-            if model.isStreaming, settings.flatHDRMode, !showFullScreenHDR {
+            if model.isStreaming, model.flatHDRModeActive, !showFullScreenHDR {
                 VStack {
                     HStack {
                         Spacer()
@@ -98,7 +116,7 @@ struct StreamWindowView: View {
             }
 
             if !model.isStreaming {
-                StreamGlassOverlay {
+                StreamGlassOverlay(isInteractive: isEnded) {
                     VStack(spacing: 14) {
                         if !isEnded {
                             ProgressView()
@@ -141,8 +159,7 @@ struct StreamWindowView: View {
                         model: model,
                         onExit: onExit,
                         onOpenSettings: {
-                            restartBaseline = StreamRestartSettings()
-                            showStreamSettings = true
+                            openWindow(id: "stream-settings-window")
                         }
                     )
                 }
@@ -165,26 +182,19 @@ struct StreamWindowView: View {
             }
             .padding(.bottom, ornamentGap)
         }
-        .sheet(isPresented: $showStreamSettings, onDismiss: {
-            guard let baseline = restartBaseline else { return }
-            restartBaseline = nil
-            guard StreamRestartSettings() != baseline else { return }
-            // Let the sheet's dismissal finish before presenting the dialog.
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(250))
-                showRestartPrompt = true
-            }
-        }) {
-            SettingsView(onCalibrateHDRWhite: { model.calibrateHDRWhite() })
-                .frame(minWidth: 720, minHeight: 760)
+        .onChange(of: presentation.restartRecommended) { _, requested in
+            guard requested else { return }
+            presentation.clearRestartRequest()
+            guard model.isStreaming else { return }
+            showRestartPrompt = true
         }
         .fullScreenCover(isPresented: $showFullScreenHDR) {
             FlatHDRFullScreenView(layer: model.flatHDRVideoLayer) {
                 showFullScreenHDR = false
             }
         }
-        .onChange(of: settings.flatHDRMode) { _, enabled in
-            showFullScreenHDR = enabled
+        .onChange(of: model.flatHDRModeActive) { _, active in
+            showFullScreenHDR = active
         }
         .alert(
             "Some settings require restarting the stream to take effect.",
@@ -416,11 +426,22 @@ private struct StreamStatsPanel: View {
 }
 
 /// The centered glass panel used by the startup status overlay.
+///
+/// While connecting the panel must not eat pointer events — the picture and the
+/// stream window still need them. Once the session ends the panel owns the
+/// Reconnect button, so it has to be hit-testable; with hit testing off the
+/// button can never be clicked and gets no hover/gaze feedback.
 private struct StreamGlassOverlay<Content: View>: View {
+    var isInteractive: Bool = false
     let padding: CGFloat
     @ViewBuilder let content: Content
 
-    init(padding: CGFloat = 24, @ViewBuilder content: () -> Content) {
+    init(
+        isInteractive: Bool = false,
+        padding: CGFloat = 24,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.isInteractive = isInteractive
         self.padding = padding
         self.content = content()
     }
@@ -432,7 +453,7 @@ private struct StreamGlassOverlay<Content: View>: View {
                 in: RoundedRectangle(cornerRadius: 22, style: .continuous)
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .allowsHitTesting(false)
+            .allowsHitTesting(isInteractive)
     }
 }
 
@@ -476,13 +497,13 @@ private struct StreamVideoSettingsObserver: ViewModifier {
     func body(content: Content) -> some View {
         content
             .onChange(of: settings.stereoSBS) { _, enabled in model.setStereoSBS(enabled) }
+            .onChange(of: settings.sbsOnly) { _, _ in model.applyVideoModeAfterSBSOnlyChange() }
             .onChange(of: settings.packedSBSInput) { _, _ in model.refreshSBSLayout() }
             .onChange(of: settings.antiShimmerMipmaps) { _, enabled in model.setAntiShimmerMipmaps(enabled) }
             .onChange(of: settings.hdrSdrBrightness) { _, value in model.setHDRSdrBrightness(Float(value)) }
             .onChange(of: settings.hdrSdrWhiteNits) { _, value in model.setHDRSdrWhiteNits(Float(value)) }
             .onChange(of: settings.hdrColorTarget) { _, target in model.setHDRColorTarget(target) }
             .onChange(of: settings.hdrSaturation) { _, value in model.setHDRSaturation(Float(value)) }
-            .onChange(of: settings.flatHDRMode) { _, enabled in model.setFlatHDRMode(enabled) }
             .onChange(of: settings.hdrHighlightHeadroom) { _, value in model.setHDRHighlightHeadroom(Float(value)) }
     }
 }

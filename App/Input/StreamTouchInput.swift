@@ -10,8 +10,7 @@ import UIKit
 
 /// Handles gaze + pinch / direct touches on the picture. visionOS delivers a
 /// pinch as a direct `UITouch`; forwarding it with `LiSendTouchEvent` makes the
-/// host see a real touchscreen contact (the same model Steam Link exposes),
-/// rather than moving the mouse.
+/// host see a real touchscreen contact rather than moving the mouse.
 @MainActor
 protocol StreamDirectTouchDelegate: AnyObject {
     func directTouchesBegan(_ touches: Set<UITouch>, in view: UIView)

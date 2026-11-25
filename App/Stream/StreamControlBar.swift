@@ -169,7 +169,7 @@ struct StreamControlBar: View {
             Button(action: onOpenSettings) {
                 Label("Settings", systemImage: "gearshape")
             }
-            .help("Stream settings")
+            .help("Open the stream settings window.")
         }
         .labelStyle(.iconOnly)
         .padding(12)

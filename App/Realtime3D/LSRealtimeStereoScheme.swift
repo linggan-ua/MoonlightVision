@@ -13,28 +13,26 @@ import Foundation
 /// **面板顺序 = 这里的声明顺序 = 按效果排序**（遮挡视差优先，其次平滑视差；
 /// 同一合成内深度刷新越新越前），跟「省电」顺序相反。
 ///
-/// 命名与旧名对照（2026-10-08 定稿改名，rawValue 不变、已存设置不受影响）：
+/// 命名对照（2026-10-08 定稿改名，rawValue 不变、已存设置不受影响）：
 ///
-/// | 面板显示 | rawValue（持久化键） | 旧显示名 |
-/// | --- | --- | --- |
-/// | ZipDepth · 遮挡视差 逐帧 | fusion | 「集大成 / Fusion」 |
-/// | ZipDepth · 遮挡视差 30/s | moonlightOptimized | 「the 3D pipeline（Vision Pro 优化）」 |
-/// | ZipDepth · 遮挡视差 20/s | moonlightVerbatim | 「the 3D pipeline（完全照搬）」 |
-/// | ZipDepth · 平滑视差 | legacyZipDepth | 「老链路（ZipDepth）」 |
-/// | DA V2 · 平滑视差 | legacyDepthAnything | 「老链路（Depth Anything V2）」 |
+/// | 面板显示 | rawValue（持久化键） |
+/// | --- | --- |
+/// | ZipDepth · 遮挡视差 逐帧 | fusion |
+/// | ZipDepth · 遮挡视差 30/s | moonlightOptimized |
+/// | ZipDepth · 遮挡视差 20/s | moonlightVerbatim |
+/// | ZipDepth · 平滑视差 | legacyZipDepth |
+/// | DA V2 · 平滑视差 | legacyDepthAnything |
 ///
 /// 「平滑视差」= 自研合成（限斜率膨胀 + 固定点逆映射，不出空洞、边缘靠拉伸）；
-/// 「遮挡视差」= the 3D pipeline 的可见性合成（逐行遮挡求根 + 牛顿精修）；后缀是
-/// 深度刷新档。详见 docs/realtime-3d-five-schemes-plan.md。
+/// 「遮挡视差」= 可见性合成（逐行遮挡求根 + 牛顿精修）；后缀是深度刷新档。
 nonisolated enum LSRealtimeStereoScheme: String, CaseIterable, Sendable, Equatable {
-    /// 面板第 1（效果最好）：遮挡视差 + 深度逐帧。原名 `.fusion`（「集大成」），
+    /// 面板第 1（效果最好）：遮挡视差 + 深度逐帧。
     /// rawValue 保持 `fusion` 以兼容已保存的方案选择。
     case fusion
-    /// 面板第 2：遮挡视差 + 深度上限 30 maps/s（省电档）。原名
-    /// `.moonlightOptimized`（「the 3D pipeline（Vision Pro 优化）」）。
+    /// 面板第 2：遮挡视差 + 深度上限 30 maps/s（省电档）。
     case moonlightOptimized
-    /// 面板第 3：遮挡视差照搬原版——深度网格 1/4 画面、B 样条读深、20 maps/s、
-    /// 带推理预算治理（最省，轮廓更柔）。原名 `.moonlightVerbatim`（「完全照搬」）。
+    /// 面板第 3：遮挡视差、较柔和的轮廓——深度网格 1/4 画面、B 样条读深、
+    /// 20 maps/s、带推理预算治理（最省）。
     case moonlightVerbatim
     /// 面板第 4：平滑视差 + ZipDepth（对照用）。原名 `.legacyZipDepth`。
     case legacyZipDepth
@@ -103,7 +101,7 @@ nonisolated enum LSRealtimeStereoScheme: String, CaseIterable, Sendable, Equatab
     var workingGridDivisor: Double { self == .moonlightVerbatim ? 4 : 1 }
 
     /// 全新安装时该方案的默认深度强度。遮挡视差三档与「ZipDepth · 平滑视差」用
-    /// 40 %（每眼 0.6 % 画宽，对齐 the 3D pipeline 的 Balanced）；「DA V2 · 平滑视差」
+    /// 40 %（每眼 0.6 % 画宽）；「DA V2 · 平滑视差」
     /// 用 15 %——它是对照档，深度更锐，弱一点更耐看。
     var defaultDepthStrength: Float {
         switch self {
@@ -146,8 +144,8 @@ nonisolated enum LSRealtimeStereoScheme: String, CaseIterable, Sendable, Equatab
         return current
     }
 
-    /// 真实时间一阶平均的权重：α = 1 − e^(−dt/τ)，与 the 3D pipeline 的
-    /// depthTauAlpha 同式（纯函数，便于单测）。
+    /// 真实时间一阶平均的权重：α = 1 − e^(−dt/τ)，depthTauAlpha 同式
+    /// （纯函数，便于单测）。
     static func temporalAlpha(dt: Double, tau: Double) -> Float {
         guard tau > 0, dt.isFinite else { return 1 }
         return Float(1 - exp(-max(dt, 0) / tau))

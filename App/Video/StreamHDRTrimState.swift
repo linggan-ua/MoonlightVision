@@ -55,7 +55,7 @@ final class StreamHDRTrimState: @unchecked Sendable {
 
     func setHighlightHeadroom(_ value: Float) {
         lock.lock()
-        highlightHeadroom = min(max(value, 1.1), 4.0)
+        highlightHeadroom = min(max(value, 1.1), 8.0)
         lock.unlock()
     }
 

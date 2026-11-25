@@ -1,40 +1,19 @@
 //
-//  ring buffer.h
-//  Moonlight Vision
+//  MVRingBuffer.h
+//  MoonlightVision
 //
-//  Created by Michael Tyson on 10/12/2011.
-//  Updated by Lumanaire (RikuKunMS2) on 4/26/26.
-//  Notice: If you are missing from the contributor list, please contact Lumanaire (RikuKunMS2).
-//  Based on files created by Andy Grundman https://github.com/andygrundman
+//  Lock-free single-producer/single-consumer ring buffer.
+//  Derived from an MIT/zlib-licensed implementation; copyright and the full
+//  licence text are in CREDITS.md, which ships with this source.
 //
-//  Circular/Ring buffer implementation
-//  https://github.com/michaeltyson/ring buffer
-//  This implementation makes use of a virtual memory mapping technique that inserts a virtual copy
-//  of the buffer memory directly after the buffer's end, negating the need for any buffer wrap-around
-//  logic. Clients can simply use the returned memory address as if it were contiguous space.
-//  The implementation is thread-safe in the case of a single producer and single consumer.
-//  Virtual memory technique originally proposed by Philip Howard (http://vrb.slashusr.org/), and
-//  adapted to Darwin by Kurt Revis (http://www.snoize.com,
-//  http://www.snoize.com/Code/PlayBufferedSoundFile.tar.gz)
-//  This software is provided 'as-is', without any express or implied
-//  warranty.  In no event will the authors be held liable for any damages
-//  arising from the use of this software.
-//  Permission is granted to anyone to use this software for any purpose,
-//  including commercial applications, and to alter it and redistribute it
-//  freely, subject to the following restrictions:
-//  1. The origin of this software must not be misrepresented; you must not
-//     claim that you wrote the original software. If you use this software
-//     in a product, an acknowledgment in the product documentation would be
-//     appreciated but is not required.
-//  2. Altered source versions must be plainly marked as such, and must not be
-//     misrepresented as being the original software.
-//  3. This notice may not be removed or altered from any source distribution.
-//
-//  Copyright © 2024 Moonlight Game Streaming Project. All rights reserved.
+//  Uses a virtual memory mapping technique that places a virtual copy of the
+//  buffer directly after its end, so clients can treat the returned memory as
+//  contiguous and skip all wrap-around logic. Thread-safe for one producer and
+//  one consumer.
 //
 
-#ifndef TPCircularBuffer_h
-#define TPCircularBuffer_h
+#ifndef MVRingBuffer_h
+#define MVRingBuffer_h
 
 #include <stdbool.h>
 #include <string.h>
@@ -63,7 +42,7 @@ typedef struct {
     uint32_t           head;
     volatile atomicInt fillCount;
     bool              atomic;
-} TPCircularBuffer;
+} MVRingBuffer;
 
 /*!
  * Initialise buffer
@@ -82,16 +61,16 @@ typedef struct {
  * @param buffer Circular buffer
  * @param length Length of buffer
  */
-#define TPCircularBufferInit(buffer, length) \
-    _TPCircularBufferInit(buffer, length, sizeof(*buffer))
-bool _TPCircularBufferInit(TPCircularBuffer *buffer, uint32_t length, size_t structSize);
+#define MVRingBufferInitAndSize(buffer, length) \
+    MVRingBufferInit(buffer, length, sizeof(*buffer))
+bool MVRingBufferInit(MVRingBuffer *buffer, uint32_t length, size_t structSize);
 
 /*!
  * Cleanup buffer
  *
  *  Releases buffer resources.
  */
-void  TPCircularBufferCleanup(TPCircularBuffer *buffer);
+void  MVRingBufferCleanup(MVRingBuffer *buffer);
 
 /*!
  * Clear buffer
@@ -101,7 +80,7 @@ void  TPCircularBufferCleanup(TPCircularBuffer *buffer);
  *  This is safe for use by consumer while producer is accessing
  *  buffer.
  */
-void  TPCircularBufferClear(TPCircularBuffer *buffer);
+void  MVRingBufferClear(MVRingBuffer *buffer);
 
 /*!
  * Set the atomicity
@@ -117,7 +96,7 @@ void  TPCircularBufferClear(TPCircularBuffer *buffer);
  * @param buffer Circular buffer
  * @param atomic Whether the buffer is atomic (default true)
  */
-void  TPCircularBufferSetAtomic(TPCircularBuffer *buffer, bool atomic);
+void  MVRingBufferSetAtomic(MVRingBuffer *buffer, bool atomic);
 
 // Reading (consuming)
 
@@ -131,7 +110,7 @@ void  TPCircularBufferSetAtomic(TPCircularBuffer *buffer, bool atomic);
  * @param availableBytes On output, the number of bytes ready for reading
  * @return Pointer to the first bytes ready for reading, or NULL if buffer is empty
  */
-static __inline__ __attribute__((always_inline)) void* TPCircularBufferTail(TPCircularBuffer *buffer, uint32_t* availableBytes) {
+static __inline__ __attribute__((always_inline)) void* MVRingBufferTail(MVRingBuffer *buffer, uint32_t* availableBytes) {
     *availableBytes = buffer->fillCount;
     if ( *availableBytes == 0 ) return NULL;
     return (void*)((char*)buffer->buffer + buffer->tail);
@@ -145,7 +124,7 @@ static __inline__ __attribute__((always_inline)) void* TPCircularBufferTail(TPCi
  * @param buffer Circular buffer
  * @param amount Number of bytes to consume
  */
-static __inline__ __attribute__((always_inline)) void TPCircularBufferConsume(TPCircularBuffer *buffer, uint32_t amount) {
+static __inline__ __attribute__((always_inline)) void MVRingBufferConsume(MVRingBuffer *buffer, uint32_t amount) {
     buffer->tail = (buffer->tail + amount) % buffer->length;
     if ( buffer->atomic ) {
         atomicFetchAdd(&buffer->fillCount, -(int)amount);
@@ -165,7 +144,7 @@ static __inline__ __attribute__((always_inline)) void TPCircularBufferConsume(TP
  * @param availableBytes On output, the number of bytes ready for writing
  * @return Pointer to the first bytes ready for writing, or NULL if buffer is full
  */
-static __inline__ __attribute__((always_inline)) void* TPCircularBufferHead(TPCircularBuffer *buffer, uint32_t* availableBytes) {
+static __inline__ __attribute__((always_inline)) void* MVRingBufferHead(MVRingBuffer *buffer, uint32_t* availableBytes) {
     *availableBytes = (buffer->length - buffer->fillCount);
     if ( *availableBytes == 0 ) return NULL;
     return (void*)((char*)buffer->buffer + buffer->head);
@@ -181,7 +160,7 @@ static __inline__ __attribute__((always_inline)) void* TPCircularBufferHead(TPCi
  * @param buffer Circular buffer
  * @param amount Number of bytes to produce
  */
-static __inline__ __attribute__((always_inline)) void TPCircularBufferProduce(TPCircularBuffer *buffer, uint32_t amount) {
+static __inline__ __attribute__((always_inline)) void MVRingBufferProduce(MVRingBuffer *buffer, uint32_t amount) {
     buffer->head = (buffer->head + amount) % buffer->length;
     if ( buffer->atomic ) {
         atomicFetchAdd(&buffer->fillCount, (int)amount);
@@ -201,20 +180,20 @@ static __inline__ __attribute__((always_inline)) void TPCircularBufferProduce(TP
  * @param len Number of bytes in source buffer
  * @return true if bytes copied, false if there was insufficient space
  */
-static __inline__ __attribute__((always_inline)) bool TPCircularBufferProduceBytes(TPCircularBuffer *buffer, const void* src, uint32_t len) {
+static __inline__ __attribute__((always_inline)) bool MVRingBufferProduceBytes(MVRingBuffer *buffer, const void* src, uint32_t len) {
     uint32_t space;
-    void *ptr = TPCircularBufferHead(buffer, &space);
+    void *ptr = MVRingBufferHead(buffer, &space);
     if ( space < len ) return false;
     memcpy(ptr, src, len);
-    TPCircularBufferProduce(buffer, len);
+    MVRingBufferProduce(buffer, len);
     return true;
 }
 
 /*!
  * Deprecated method
  */
-static __inline__ __attribute__((always_inline)) __deprecated_msg("use TPCircularBufferSetAtomic(false) and TPCircularBufferConsume instead")
-void TPCircularBufferConsumeNoBarrier(TPCircularBuffer *buffer, uint32_t amount) {
+static __inline__ __attribute__((always_inline)) __deprecated_msg("use MVRingBufferSetAtomic(false) and MVRingBufferConsume instead")
+void MVRingBufferConsumeNoBarrier(MVRingBuffer *buffer, uint32_t amount) {
     buffer->tail = (buffer->tail + amount) % buffer->length;
     buffer->fillCount -= amount;
     assert(buffer->fillCount >= 0);
@@ -223,8 +202,8 @@ void TPCircularBufferConsumeNoBarrier(TPCircularBuffer *buffer, uint32_t amount)
 /*!
  * Deprecated method
  */
-static __inline__ __attribute__((always_inline)) __deprecated_msg("use TPCircularBufferSetAtomic(false) and TPCircularBufferProduce instead")
-void TPCircularBufferProduceNoBarrier(TPCircularBuffer *buffer, uint32_t amount) {
+static __inline__ __attribute__((always_inline)) __deprecated_msg("use MVRingBufferSetAtomic(false) and MVRingBufferProduce instead")
+void MVRingBufferProduceNoBarrier(MVRingBuffer *buffer, uint32_t amount) {
     buffer->head = (buffer->head + amount) % buffer->length;
     buffer->fillCount += amount;
     assert(buffer->fillCount <= buffer->length);

@@ -22,6 +22,7 @@ struct SettingsView: View {
 
     var showsDoneButton = true
     var onCalibrateHDRWhite: (() -> Void)? = nil
+    var onShowEDRProbe: (() -> Void)? = nil
 
     private static let frameRatePresets = [24, 30, 60, 90, 100, 120]
     private static let bitratePresets = [5, 10, 30, 50, 75, 100, 120, 150, 200, 300, 400, 500, 600]
@@ -304,62 +305,96 @@ struct SettingsView: View {
                     }
                     Toggle("HDR (HDR10)", isOn: $settings.hdrEnabled)
                         .disabled(!settings.codec.supportsHDR)
-                    LabeledContent(
-                        "HDR SDR Brightness",
-                        value: String(format: "%.2f×", settings.hdrSdrBrightness)
-                    )
-                    Slider(value: $settings.hdrSdrBrightness, in: 0.25...1.5, step: 0.05)
-                    LabeledContent(
-                        "HDR SDR White",
-                        value: "\(Int(settings.hdrSdrWhiteNits)) nit"
-                    )
-                    Slider(value: $settings.hdrSdrWhiteNits, in: 80...500, step: 5)
-                    Text("Match the host's SDR content brightness; raise if the HDR desktop looks brighter than SDR, lower if darker.")
+                    Text("HDR is still under development; the picture may be unstable. Use with care.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    if let onCalibrateHDRWhite {
-                        Button("Calibrate from White Screen") {
-                            isCalibrating = true
-                            onCalibrateHDRWhite()
-                        }
-                        if isCalibrating {
-                            HStack(spacing: 6) {
-                                ProgressView().controlSize(.small)
-                                Text("Waiting for a PQ white frame…")
+                    // Everything below only affects HDR rendering, so it
+                    // appears with the HDR switch instead of sitting in the
+                    // list year-round. Order runs from the trim most likely
+                    // to need adjusting down to the debug-only entries.
+                    if settings.hdrEnabled {
+                        hdrSliderRow(
+                            "HDR Content Brightness",
+                            value: $settings.hdrHighlightHeadroom,
+                            range: 1.1...8.0,
+                            step: 0.1,
+                            valueText: String(format: "%.1f×", settings.hdrHighlightHeadroom),
+                            reset: { settings.hdrHighlightHeadroom = StreamSettingsStore.HDRDefault.highlightHeadroom }
+                        )
+
+                        hdrSliderRow(
+                            "SDR Content Brightness",
+                            value: $settings.hdrSdrBrightness,
+                            range: 0.25...1.5,
+                            step: 0.05,
+                            valueText: String(format: "%.2f×", settings.hdrSdrBrightness),
+                            reset: { settings.hdrSdrBrightness = StreamSettingsStore.HDRDefault.sdrBrightness }
+                        )
+
+                        hdrSliderRow(
+                            "HDR & SDR Saturation",
+                            value: $settings.hdrSaturation,
+                            range: 0.85...1.15,
+                            step: 0.01,
+                            valueText: String(format: "%.2f×", settings.hdrSaturation),
+                            reset: { settings.hdrSaturation = StreamSettingsStore.HDRDefault.saturation }
+                        )
+                        Text("Lower slightly if HDR colors look too vivid.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        hdrSliderRow(
+                            "SDR White Point",
+                            value: $settings.hdrSdrWhiteNits,
+                            range: 80...500,
+                            step: 0.1,
+                            valueText: String(format: "%.1f nit", settings.hdrSdrWhiteNits),
+                            reset: { settings.hdrSdrWhiteNits = StreamSettingsStore.HDRDefault.sdrWhiteNits }
+                        )
+                        Text("Match the host's SDR content brightness; raise if the HDR desktop looks brighter than SDR, lower if darker.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        if let onCalibrateHDRWhite {
+                            Button("Calibrate White Point from SDR White Screen (Experimental)") {
+                                isCalibrating = true
+                                onCalibrateHDRWhite()
                             }
+                            if isCalibrating {
+                                HStack(spacing: 6) {
+                                    ProgressView().controlSize(.small)
+                                    Text("Waiting for a PQ white frame…")
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            }
+                            Text("During an HDR stream, show a full-screen SDR white image on the host, then calibrate. The measured value replaces the slider value.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Toggle("HDR on CAMetalLayer (Experimental)", isOn: $settings.flatHDRMode)
+                        Text("HDR 2D only: renders through a CAMetalLayer to validate true EDR. Curvature, SBS 3D and the local cursor are disabled.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+
+                        if let onShowEDRProbe {
+                            Button("EDR Probe (Debug)") { onShowEDRProbe() }
+                            Text("Isolates the EDR layer and hosting from the video pipeline.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                        Text("During an HDR stream, show a full-screen SDR white image on the host, then calibrate. The measured value replaces the slider value.")
+
+                        Picker("Display P3 / BT.709 Gamut (Experimental)", selection: $settings.hdrColorTarget) {
+                            ForEach(HDRColorTarget.allCases) { target in
+                                Text(target.title).tag(target)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        Text("BT.709 is the default output gamut; Display P3 is an alternative wide-gamut target.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    Picker("HDR Color Target", selection: $settings.hdrColorTarget) {
-                        ForEach(HDRColorTarget.allCases) { target in
-                            Text(target.title).tag(target)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    Text("BT.709 matches Steam Link's SDL output; Display P3 is an alternative wide-gamut target.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    LabeledContent(
-                        "HDR Saturation",
-                        value: String(format: "%.2f×", settings.hdrSaturation)
-                    )
-                    Slider(value: $settings.hdrSaturation, in: 0.85...1.15, step: 0.01)
-                    Text("Lower slightly if HDR colors look more vivid than Steam Link.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Toggle("Flat HDR (Experimental)", isOn: $settings.flatHDRMode)
-                    Text("HDR 2D only: renders through a CAMetalLayer to validate true EDR. Curvature, SBS 3D and the local cursor are disabled.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    LabeledContent(
-                        "HDR Highlight Brightness",
-                        value: String(format: "%.1f×", settings.hdrHighlightHeadroom)
-                    )
-                    Slider(value: $settings.hdrHighlightHeadroom, in: 1.1...4.0, step: 0.1)
                     Toggle("Frame Pacing", isOn: $settings.framePacing)
                     Toggle("Anti-Shimmer (Mipmaps)", isOn: $settings.antiShimmerMipmaps)
                 } header: {
@@ -369,7 +404,14 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Toggle("Stereo 3D", isOn: $settings.stereoSBS)
+                    // The switch names the path it will take: on-device
+                    // conversion, or the host's own packed frame. "Stereo 3D"
+                    // said nothing about which one you were about to get.
+                    Toggle(isOn: $settings.stereoSBS) {
+                        Text(settings.sbsOnly
+                            ? LocalizedStringKey("SBS 3D")
+                            : LocalizedStringKey("Real-time 3D"))
+                    }
                     NavigationLink {
                         Stereo3DSettingsView()
                     } label: {
@@ -402,8 +444,6 @@ struct SettingsView: View {
                     Slider(value: $settings.screenCurvature, in: 0...100, step: 1)
                 } header: {
                     Label("Window", systemImage: "rectangle.roundedtop")
-                } footer: {
-                    Text("0% corner radius gives square corners; 0% curvature is flat. Curvature uses a fixed radius, so a larger window wraps further.")
                 }
 
                 Section("Host") {
@@ -503,4 +543,31 @@ struct SettingsView: View {
             }
         }
     }
+    /// An HDR trim with its value on the label line and its own reset button,
+    /// so one control can be restored without touching the others. Matches the
+    /// 3D settings' slider rows.
+    @ViewBuilder
+    private func hdrSliderRow(
+        _ title: LocalizedStringKey,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        step: Double,
+        valueText: String,
+        reset: @escaping () -> Void
+    ) -> some View {
+        LabeledContent(title) {
+            Text(valueText)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+        }
+        HStack(spacing: 10) {
+            Slider(value: value, in: range, step: step)
+            Button(action: reset) {
+                Image(systemName: "arrow.counterclockwise")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text("Reset"))
+        }
+    }
 }
+

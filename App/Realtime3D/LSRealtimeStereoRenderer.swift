@@ -35,7 +35,7 @@ nonisolated struct LSRealtimeStereoAnalyzeParams {
     static let twoStageCutFlag: UInt32 = 1 << 0
 }
 
-/// 两级切镜的阈值（the 3D pipeline 的原值：jumpDiff 0.06 / jumpHist 0.50 /
+/// 两级切镜的阈值（jumpDiff 0.06 / jumpHist 0.50 /
 /// sameDiff 0.06 / sameHist 0.20 / corrMax 0.60 / standOut 3.0 / twoBack 1.12）。
 nonisolated struct LSRealtimeStereoCutParams {
     var jumpDiff: Float
@@ -104,7 +104,7 @@ nonisolated struct LSRealtimeStereoUpsampleParams {
 }
 
 nonisolated struct LSRealtimeStereoParams {
-    /// 精修时深度沿行用三次 B 样条读（复刻 the 3D pipeline 的低分辨率深度读取）。
+    /// 精修时深度沿行用三次 B 样条读（低分辨率深度）。
     static let cubicDepthFlag: UInt32 = 1 << 0
 
     var amplitude: Float
@@ -167,7 +167,7 @@ nonisolated final class LSRealtimeStereoGPU: @unchecked Sendable {
 
     init(device: MTLDevice, library: MTLLibrary) throws {
         guard let queue = device.makeCommandQueue() else { throw GPUError.metalUnavailable }
-        queue.label = "Real-time 3D"
+        queue.label = "MoonlightVision real-time 3D"
         self.device = device
         self.queue = queue
 
@@ -261,9 +261,9 @@ nonisolated final class LSRealtimeStereoRenderer: @unchecked Sendable {
         /// Normalised depth that lands on the screen plane.
         var convergence: Float
 
-        /// 标尺对齐 the 3D pipeline：深度 100 % = 每眼 1.5 % 画宽（他们的滑条上限；
-        /// 他们的 ZipDepth 默认 0.6 %，对应我们的深度 40 %）。汇聚滑条 0 = 0.5，
-        /// 与他们的默认（50 %）一致：滑条 −1 全部出屏、+1 全部入屏，0 时前后各半。
+        /// 深度标尺：深度 100 % = 每眼 1.5 % 画宽；ZipDepth 默认 0.6 %，
+        /// 对应我们的深度 40 %。汇聚滑条 0 = 0.5，默认 50 %：滑条 −1 全部出屏、
+        /// +1 全部入屏，0 时前后各半。
         init(settings: LSRealtime3DSettings) {
             amplitude = settings.depthStrength * 0.015
             convergence = 0.5 + 0.5 * settings.convergence
@@ -278,7 +278,7 @@ nonisolated final class LSRealtimeStereoRenderer: @unchecked Sendable {
     /// Edge fade contributes at most 1 / edgeFadeFactor to |dS/du|.
     static let edgeFadeFactor: Float = 4
 
-    private static let logger = Logger(subsystem: "com.lingganua.prismxr", category: "realtime3D")
+    private static let logger = Logger(subsystem: "app.moonlightvision", category: "realtime3D")
 
     private struct SourceLayout: Equatable {
         let width: Int
@@ -364,7 +364,7 @@ nonisolated final class LSRealtimeStereoRenderer: @unchecked Sendable {
     /// 推理线程自己做模型输入、Core ML 推理、统计归一化，完成后发布深度。
     /// 同一时刻最多一个在跑 + 一个排队——新请求取消还没开跑的那个，所以慢
     /// 设备上不会积压，永远在算最新一帧。
-    private let depthQueue = DispatchQueue(label: "com.prismxr.realtime3D.depth", qos: .userInitiated)
+    private let depthQueue = DispatchQueue(label: "app.moonlightvision.realtime3D.depth", qos: .userInitiated)
     private let depthState = NSLock()
     /// 排队中（还没开跑）的推理，按提交顺序。深度管线比内容帧率慢是常态
     /// （60fps 片源 vs 约 33 次/秒推理），所以按“先进先出 + 超量丢最旧”处理：
@@ -442,7 +442,7 @@ nonisolated final class LSRealtimeStereoRenderer: @unchecked Sendable {
         ) else {
             throw RenderError.commandBuffer
         }
-        cutBuffer.label = "Real-time 3D cut state"
+        cutBuffer.label = "MoonlightVision real-time 3D cut state"
         memset(cutBuffer.contents(), 0, LSRealtimeStereoCutStateLayout.byteCount)
         cutState = cutBuffer
     }
@@ -1147,7 +1147,7 @@ nonisolated final class LSRealtimeStereoRenderer: @unchecked Sendable {
         encoder.endEncoding()
     }
 
-    /// 可见性 gather（the 3D pipeline 的求根 + 最近面），输出与固定点逆映射同格式
+    /// 可见性 gather（逐行求根 + 最近面），输出与固定点逆映射同格式
     /// 的 RG16F 偏移，warp 不用改。
     private func encodeGather(_ commandBuffer: MTLCommandBuffer,
                               stereo: LSRealtimeStereoParams) throws {

@@ -67,20 +67,23 @@
 "Auto" = "自动";
 "HEVC" = "HEVC";
 "HDR (HDR10)" = "HDR (HDR10)";
-"HDR SDR Brightness" = "HDR 下 SDR 亮度";
-"HDR SDR White" = "HDR SDR 白点";
-"HDR Color Target" = "HDR 输出色域";
-"HDR Saturation" = "HDR 饱和度";
-"Flat HDR (Experimental)" = "平面 HDR（实验）";
+"HDR is still under development; the picture may be unstable. Use with care." = "HDR 模式目前仍在开发调试阶段，画面表现可能不稳定，请酌情使用。";
+"SDR Content Brightness" = "SDR 内容亮度";
+"SDR White Point" = "SDR 白点值";
+"Display P3 / BT.709 Gamut (Experimental)" = "DisplayP3 色域 / BT.709 色域（实验性）";
+"HDR & SDR Saturation" = "HDR 与 SDR 饱和度";
+"HDR on CAMetalLayer (Experimental)" = "HDR on CAMetalLayer（实验性）";
+"EDR Probe (Debug)" = "EDR 探针调试（调试）";
+"Isolates the EDR layer and hosting from the video pipeline." = "把 EDR 图层与承载方式从视频管线中隔离出来测试。";
 "HDR 2D only: renders through a CAMetalLayer to validate true EDR. Curvature, SBS 3D and the local cursor are disabled." = "仅 HDR 2D：通过 CAMetalLayer 渲染以验证真正的 EDR；曲面、SBS 3D 和本地光标在此模式下不可用。";
-"Lower slightly if HDR colors look more vivid than Steam Link." = "如果 HDR 颜色比 Steam Link 更鲜艳，可以稍微调低。";
+"Lower slightly if HDR colors look too vivid." = "如果 HDR 颜色看起来过于艳丽，可以稍微调低。";
 "Match the host's SDR content brightness; raise if the HDR desktop looks brighter than SDR, lower if darker." = "与主机的 SDR 内容亮度对齐；如果 HDR 桌面比 SDR 亮就调高，偏暗就调低。";
-"Calibrate from White Screen" = "从白屏校准";
+"Calibrate White Point from SDR White Screen (Experimental)" = "从 SDR 全白屏校准白点（实验性）";
 "During an HDR stream, show a full-screen SDR white image on the host, then calibrate. The measured value replaces the slider value." = "在 HDR 串流中，先在主机上显示一张全屏纯白（SDR 白）图，再点校准；测量值会替换滑条值。";
 "Waiting for a PQ white frame…" = "正在等待 PQ 白帧…";
-"Display P3 matches RealityKit's working space; BT.709 matches Steam Link's SDL output." = "Display P3 对应 RealityKit 的工作色域；BT.709 对应 Steam Link 的 SDL 输出。";
-"BT.709 matches Steam Link's SDL output; Display P3 is an alternative wide-gamut target." = "BT.709 对应 Steam Link 的 SDL 输出；Display P3 是另一个广色域目标。";
-"HDR Highlight Brightness" = "HDR 高光亮度";
+"Display P3 matches RealityKit's working space; BT.709 is the default presentation gamut." = "Display P3 对应 RealityKit 的工作色域；BT.709 是默认的呈现色域。";
+"BT.709 is the default output gamut; Display P3 is an alternative wide-gamut target." = "BT.709 是默认输出色域；Display P3 是另一个广色域目标。";
+"HDR Content Brightness" = "HDR 内容亮度";
 "HDR Highlight Level" = "HDR 高光级别";
 "Frame Pacing" = "帧节奏";
 "Anti-Shimmer (Mipmaps)" = "抗闪烁（Mipmap）";
@@ -112,7 +115,7 @@
 "Hides the control bar, system cursor, and window resizing while the mouse is captured." = "鼠标被捕获时隐藏控制条、系统光标，并禁用窗口缩放。";
 "Mouse Mode" = "鼠标模式";
 "Relative (FPS)" = "相对（FPS）";
-"Absolute" = "绝对";
+"Absolute" = "绝对（跟随系统光标）";
 "Swap A/B and X/Y" = "交换 A/B 与 X/Y";
 "Multiple Controllers" = "多手柄";
 "Diagnostics" = "诊断";
@@ -193,12 +196,13 @@
 "3D" = "3D";
 "SBS 3D" = "SBS 3D";
 "Enable SBS 3D" = "启用 SBS 3D";
-"Use software such as ReShade + Depth3D on your host PC to utilize SBS mode." = "请在主机上使用 ReShade + Depth3D 等软件以启用 SBS 模式。";
+"Use software such as ReShade + Depth3D on your host PC to utilize SBS mode." = "请在主机上使用3D软件享受 SBS 模式。";
 "Show the stream as side-by-side 3D. The host must send a 32:9 SBS frame." = "以左右分屏 3D 显示串流。主机需要输出 32:9 的 SBS 画面。";
 
 "Enable Real-time 3D" = "启用实时 3D";
-"Convert this 2D stream to 3D on this device using the Neural Engine." = "在本设备上用神经网络引擎把这个 2D 串流转换成 3D。";
+"Convert this 2D stream to 3D on this device using the Neural Engine." = "在本设备上用神经网络引擎把2D画面转换成3D画面。或者切换到仅SBS模式";
 "Enable 3D" = "启用 3D";
+"SBS Only" = "仅 SBS 模式";
 
 "Real-time 3D" = "实时 3D";
 "Scheme" = "方案";
@@ -232,6 +236,7 @@
 "Later" = "暂不";
 "3D Settings" = "3D 设置";
 "Changes apply live where possible. Video, audio layout and host options need a stream restart." = "设置会尽量实时生效；视频、声道布局和主机选项需要重新启动串流。";
+"Open the stream settings window." = "打开串流设置窗口。";
 "Adjust stream settings without leaving the picture." = "不离开画面调整串流设置。";
 "Show the stream as side-by-side 3D. Long-press for 3D settings." = "以左右分屏 3D 显示串流。长按打开 3D 设置。";
 
@@ -256,5 +261,3 @@
 "Window" = "窗口";
 "Window Corner Radius" = "窗口圆角";
 "Screen Curvature" = "屏幕曲率";
-"0% corner radius gives square corners; 0% curvature is flat and 100% wraps the screen about 90°." = "圆角 0% 为直角；曲率 0% 为平面。曲率按固定半径计算，窗口越大环绕越多。";
-"0% gives the picture square corners; the default matches the rounded window." = "0% 时画面四角为直角；默认值与窗口圆角一致。";

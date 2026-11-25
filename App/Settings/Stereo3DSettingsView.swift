@@ -5,8 +5,7 @@
 //  Created by Linggan-ua.
 //
 //  Real-time 2D→3D tuning. The master on/off switch is the stream's Stereo 3D
-//  control; these rows carry the conversion tuning ported from the the 3D pipeline /
-//  the 3D pipeline pipeline.
+//  control; these rows carry the conversion tuning.
 //
 
 import SwiftUI
@@ -15,11 +14,68 @@ struct Stereo3DSettingsView: View {
     @Bindable private var settings = StreamSettingsStore.shared
     @ObservedObject private var realtime3D = Realtime3DSettingsStore.shared
 
+    /// The preset picker is a view onto the depth slider: choosing a preset
+    /// writes its depth, and moving the slider off a preset shows "Custom".
+    private var presetSelection: Binding<Realtime3DPreset?> {
+        Binding(
+            get: {
+                Realtime3DPreset.matching(depth: realtime3D.depthStrength, store: realtime3D)
+            },
+            set: { preset in
+                guard let preset else { return }
+                realtime3D.applyPreset(preset)
+            }
+        )
+    }
+
     var body: some View {
         Form {
+            // The tuning that matters while watching sits directly under the
+            // switch, so enabling 3D and adjusting it are the same place.
             Section {
-                Toggle("Stereo 3D", isOn: $settings.stereoSBS)
+                Toggle(isOn: $settings.stereoSBS) {
+                    Text(settings.sbsOnly
+                        ? LocalizedStringKey("SBS 3D")
+                        : LocalizedStringKey("Real-time 3D"))
+                }
 
+                // Same choice the confirmation card offers. It can be flipped
+                // while 3D is running: turning it on stops the on-device
+                // converter and shows the frame's halves instead.
+                Toggle("SBS Only", isOn: $settings.sbsOnly)
+                    .disabled(!settings.stereoSBS)
+
+                Picker("Preset", selection: presetSelection) {
+                    ForEach(Realtime3DPreset.allCases) { preset in
+                        Text(preset.displayTitle).tag(Optional(preset))
+                    }
+                    Text("Custom").tag(Realtime3DPreset?.none)
+                }
+                .pickerStyle(.segmented)
+
+                sliderRow(
+                    "Depth",
+                    value: $realtime3D.depthStrength,
+                    range: 0...1,
+                    valueText: "\(Int((realtime3D.depthStrength * 100).rounded()))%",
+                    reset: { realtime3D.resetDepth() }
+                )
+
+                sliderRow(
+                    "Convergence",
+                    value: $realtime3D.convergence,
+                    range: -1...1,
+                    valueText: "\(Int((realtime3D.convergence * 100).rounded()))%",
+                    reset: { realtime3D.resetConvergence() }
+                )
+            } header: {
+                Label("Parallax", systemImage: "square.stack.3d.down.right")
+            } footer: {
+                Text("Depth sets how far the picture separates; convergence picks where the screen plane sits inside that range.")
+                    .font(.caption)
+            }
+
+            Section {
                 Picker("Scheme", selection: $realtime3D.scheme) {
                     ForEach(LSRealtimeStereoScheme.allCases, id: \.self) { scheme in
                         Text(LocalizedStringKey(scheme.tileTitle)).tag(scheme)
@@ -51,41 +107,42 @@ struct Stereo3DSettingsView: View {
             } header: {
                 Label("Synthesis", systemImage: "cube.transparent")
             }
-
-            Section {
-                LabeledContent("Depth", value: "\(Int((realtime3D.depthStrength * 100).rounded()))%")
-                Slider(value: $realtime3D.depthStrength, in: 0...1, step: 0.01)
-
-                LabeledContent("Convergence", value: "\(Int((realtime3D.convergence * 100).rounded()))%")
-                Slider(value: $realtime3D.convergence, in: -1...1, step: 0.01)
-
-                HStack(spacing: 12) {
-                    ForEach(Realtime3DPreset.allCases) { preset in
-                        Button(preset.title) {
-                            realtime3D.applyPreset(preset)
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
-
-                Button {
-                    realtime3D.resetTuning()
-                } label: {
-                    Label("Reset Tuning", systemImage: "arrow.counterclockwise")
-                }
-            } header: {
-                Label("Parallax", systemImage: "square.stack.3d.down.right")
-            }
         }
         .formStyle(.grouped)
         .frame(maxWidth: 640)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-        .navigationTitle("Stereo 3D")
+        .navigationTitle("3D Settings")
+    }
+
+    /// A slider with its value on the label line and its own reset button on
+    /// the right, so each control can be restored without a section-wide reset.
+    @ViewBuilder
+    private func sliderRow(
+        _ title: LocalizedStringKey,
+        value: Binding<Float>,
+        range: ClosedRange<Float>,
+        valueText: String,
+        reset: @escaping () -> Void
+    ) -> some View {
+        LabeledContent(title) {
+            Text(valueText)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+        }
+        HStack(spacing: 10) {
+            Slider(value: value, in: range, step: 0.01)
+            Button(action: reset) {
+                Image(systemName: "arrow.counterclockwise")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(Text("Reset"))
+        }
     }
 }
 
 private extension Realtime3DPreset {
-    var title: String {
+    /// Matches the existing "Comfort"/"Balanced"/"Strong" localization keys.
+    var displayTitle: String {
         switch self {
         case .comfort: return String(localized: "Comfort")
         case .balanced: return String(localized: "Balanced")

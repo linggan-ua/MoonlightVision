@@ -9,7 +9,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>MoonlightVision</string>
+	<string>Moonlight Vision</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -49,7 +49,7 @@
 		<string>_nvstream._tcp</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>MoonlightVision uses the local network to discover and stream from your Sunshine host.</string>
+	<string>Moonlight Vision uses the local network to discover and stream from your Sunshine host.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

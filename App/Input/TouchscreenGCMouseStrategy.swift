@@ -47,6 +47,11 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
     private var moveRemainderY: Float = 0
     private let localCursor: StreamLocalCursor
 
+    /// Diagnostics: one-shot logs that show which input path is live.
+    private var loggedLayout = false
+    private var loggedRegionRequest = false
+    private var loggedIndirectTouch = false
+
     var isCaptured: Bool { captured }
 
     init(localCursor: StreamLocalCursor) {
@@ -118,6 +123,12 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
             },
             scroll: { [weak self] horizontal, vertical in
                 guard let self, self.running, self.captured else { return }
+                // The wheel is real mouse input. Without this the idle timer
+                // below treats a scroll-only sequence as "mouse gone", arms the
+                // trackpad fallback, and the next hover jumps the pointer to an
+                // absolute position.
+                self.lastGCMouseActivity = Date.timeIntervalSinceReferenceDate
+                self.pointerFallbackArmed = false
                 // The physical wheel is forwarded through GCMouse.scroll; the
                 // pan recognizers only cover trackpads.
                 let sign: Float = StreamSettingsStore.shared.invertScroll ? -1 : 1
@@ -132,11 +143,17 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         ))
 
         sender.setForwarding(active)
-        NSLog("[Mouse] Touchscreen+GCMouse start mode=%@ host=%dx%d displayed=%dx%d", mode.rawValue, size.hostWidth, size.hostHeight, size.displayedWidth, size.displayedHeight)
+        NSLog(
+            "[Mouse] Touchscreen+GCMouse start mode=%@ host=%dx%d displayed=%dx%d view=%@ window=%@",
+            mode.rawValue, size.hostWidth, size.hostHeight,
+            size.displayedWidth, size.displayedHeight,
+            mvLogPointer(view), mvLogPointer(view.window)
+        )
     }
 
     func stop() {
         guard running || view != nil else { return }
+        NSLog("[Mouse] stop view=%@ captured=%d", mvLogPointer(view), captured ? 1 : 0)
         running = false
         captured = false
         localCursor.visible = false
@@ -170,6 +187,7 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
     }
 
     func setActive(_ active: Bool) {
+        NSLog("[Mouse] setActive(%d)", active ? 1 : 0)
         self.active = active
         sender.setForwarding(active)
         if !active {
@@ -202,6 +220,13 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
 
     func mouseSurfaceDidLayout() {
         pointerInteraction?.invalidate()
+        if !loggedLayout, running {
+            loggedLayout = true
+            NSLog(
+                "[Mouse] first mouseSurfaceDidLayout view=%@ window=%@",
+                mvLogPointer(view), mvLogPointer(view?.window)
+            )
+        }
     }
 
     /// The SwiftUI host rebuilds its view controller whenever the stream window
@@ -211,6 +236,10 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
     /// capture again because capture requires the pointer to be over content.
     /// Re-installing here is the event the re-parent actually emits; no poll.
     func mouseSurfaceDidMoveToWindow() {
+        NSLog(
+            "[Mouse] didMoveToWindow running=%d view=%@ window=%@",
+            running ? 1 : 0, mvLogPointer(view), mvLogPointer(view?.window)
+        )
         guard running, let view, view.window != nil else { return }
 
         hover.remove()
@@ -241,6 +270,14 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
     }
 
     func mouseSurfaceTouchesBegan(_ touches: Set<UITouch>, event: UIEvent?) {
+        if !loggedIndirectTouch,
+           touches.contains(where: { $0.type == .indirectPointer || $0.type == .indirect }) {
+            loggedIndirectTouch = true
+            NSLog(
+                "[Mouse] first indirect touch began gcMouse=%d -> %@",
+                hasGCMouse ? 1 : 0, hasGCMouse ? "dropped" : "handled"
+            )
+        }
         guard let view, !hasGCMouse else { return }
         indirect.began(touches, event: event, in: view)
     }
@@ -278,29 +315,46 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         moveRemainderX -= wholeX
         moveRemainderY -= wholeY
 
-        let hostWidth = CGFloat(max(size.hostWidth, 1))
-        let hostHeight = CGFloat(max(size.hostHeight, 1))
-        localCursor.position.x = min(
-            max(localCursor.position.x + CGFloat(wholeX) / hostWidth, 0),
-            1
-        )
-        localCursor.position.y = min(
-            max(localCursor.position.y + CGFloat(wholeY) / hostHeight, 0),
-            1
-        )
+        // The overlay cursor is only drawn when the setting is on. Writing its
+        // position anyway invalidates the video surface's body on every motion
+        // event, which is a lot of main-thread work for something nobody sees.
+        if StreamSettingsStore.shared.showLocalCursor {
+            let hostWidth = CGFloat(max(size.hostWidth, 1))
+            let hostHeight = CGFloat(max(size.hostHeight, 1))
+            localCursor.position.x = min(
+                max(localCursor.position.x + CGFloat(wholeX) / hostWidth, 0),
+                1
+            )
+            localCursor.position.y = min(
+                max(localCursor.position.y + CGFloat(wholeY) / hostHeight, 0),
+                1
+            )
+        }
 
         // In absolute mode the pointer interaction supplies position. While a
         // button is held hover/region updates pause, so use deltas to keep the
-        // drag alive, exactly like the core client's indirect-pointer path.
+        // drag alive.
         guard mode == .relative || !sender.heldButtons.isEmpty else { return }
         sender.move(dx: Int32(clamping: Int(wholeX)), dy: Int32(clamping: Int(wholeY)))
     }
 
     private func handleButton(_ button: StreamMouseButton, pressed: Bool) {
+        if pressed {
+            // One line per press: which gate is blocking capture.
+            NSLog(
+                "[Mouse] press %d state running=%d gcMouse=%d active=%d captured=%d overContent=%d forwarding=%d",
+                button.rawValue, running ? 1 : 0, hasGCMouse ? 1 : 0, active ? 1 : 0,
+                captured ? 1 : 0, pointerOverContent ? 1 : 0, sender.isForwarding ? 1 : 0
+            )
+        }
         guard running, hasGCMouse else { return }
         lastGCMouseActivity = Date.timeIntervalSinceReferenceDate
         pointerFallbackArmed = false
-        if pressed, !captured, active, pointerOverContent {
+        // A physical mouse press always belongs to the picture. Gating it on
+        // `pointerOverContent` meant one stale hover state (the system can
+        // leave a hover recognizer in .possible for minutes) silently dropped
+        // every click, which looks exactly like the window refusing input.
+        if pressed, !captured, active {
             if mode == .absolute, let point = lastHoverPoint {
                 sendAbsolute(point)
             }
@@ -309,7 +363,7 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         sender.button(
             button,
             pressed: pressed,
-            allowed: active && (captured || pointerOverContent)
+            allowed: active && (captured || pointerOverContent || hasGCMouse)
         )
     }
 
@@ -352,7 +406,13 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         if isActive {
             lastHoverPoint = point
             updatePointerOverContent(point)
-            updateLocalCursorPosition(point)
+            // The local cursor is driven by GCMouse deltas (relative mode) or
+            // by the absolute pointer. Letting hover write it as well makes two
+            // sources fight over the position, and every write re-runs the
+            // video surface's body on the main thread.
+            if localCursor.visible, !hasGCMouse {
+                updateLocalCursorPosition(point)
+            }
             if captured, mode == .relative, hasGCMouse, pointerFallbackAvailable,
                pointerOverContent, sender.heldButtons.isEmpty {
                 // A trackpad may only report hover while a mouse GCMouse is
@@ -372,6 +432,10 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
     }
 
     private func updateLocalCursorPosition(_ point: CGPoint) {
+        // Called from the pointer delegate on every move. Writing the cursor
+        // position invalidates the video surface's body, so skip it entirely
+        // while the overlay cursor is off.
+        guard StreamSettingsStore.shared.showLocalCursor else { return }
         guard let view else { return }
         let geometry = MouseInputGeometry(
             viewSize: view.bounds.size,
@@ -404,7 +468,8 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
             streamHeight: size.displayedHeight
         )
         pointerOverContent = geometry.contains(point)
-        if let normalized = geometry.normalizedPoint(for: point) {
+        if StreamSettingsStore.shared.showLocalCursor,
+           let normalized = geometry.normalizedPoint(for: point) {
             localCursor.position = normalized
         }
         guard let position = geometry.streamPoint(for: point) else { return }
@@ -424,6 +489,13 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
         defaultRegion: UIPointerRegion
     ) -> UIPointerRegion? {
         guard running, let view else { return nil }
+        if !loggedRegionRequest {
+            loggedRegionRequest = true
+            NSLog(
+                "[Mouse] first pointer region request at %@ view=%@",
+                NSCoder.string(for: request.location), mvLogPointer(view)
+            )
+        }
 
         let geometry = MouseInputGeometry(
             viewSize: view.bounds.size,

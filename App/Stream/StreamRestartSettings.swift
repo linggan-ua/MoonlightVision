@@ -15,7 +15,6 @@ struct StreamRestartSettings: Equatable {
     var frameRate: Int
     var bitrateMbps: Int
     var codec: String
-    var hdrEnabled: Bool
     var flatHDRMode: Bool
     var framePacing: Bool
     var audioMode: String
@@ -30,7 +29,6 @@ struct StreamRestartSettings: Equatable {
         frameRate = settings.frameRate
         bitrateMbps = settings.bitrateMbps
         codec = settings.codec.rawValue
-        hdrEnabled = settings.hdrEnabled
         flatHDRMode = settings.flatHDRMode
         framePacing = settings.framePacing
         audioMode = settings.audioMode.rawValue

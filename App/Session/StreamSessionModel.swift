@@ -334,6 +334,11 @@ final class StreamSessionModel {
             prepareVideoTexture(for: config)
             frameMailbox.clear()
         }
+        NSLog(
+            "[Stream] 3D=%@ texture %dx%d (was %d) needsTexture=%d",
+            active ? "on" : "off", desiredWidth, Int(config.height),
+            videoTextureWidth, needsTexture ? 1 : 0
+        )
         activeDecoder?.setStereoOutputEnabled(active, forceReattach: needsTexture)
         if isStreaming {
             LiRequestIdrFrame()
@@ -387,8 +392,8 @@ final class StreamSessionModel {
         streamManager = nil
 
         // StreamManager/Connection serialize LiStopConnection against a later
-        // LiStartConnection with Connection's static initLock, exactly like the
-        // core client. No extra gate or watchdog is needed.
+        // LiStartConnection with Connection's static initLock. No extra gate or
+        // watchdog is needed.
         manager.stopStream(completion: { [weak self] in
             Task { @MainActor in
                 self?.finish(message: nil)
@@ -404,7 +409,7 @@ final class StreamSessionModel {
         defer { isRestarting = false }
 
         phase = .preparing
-        teardownInput()
+        teardownInput(preserveMouse: true)
         statsTimer?.invalidate()
         statsTimer = nil
         statsText = ""
@@ -437,6 +442,7 @@ final class StreamSessionModel {
     /// Called from the stream scene when visionOS backgrounds or foregrounds the window.
     func setBackgrounded(_ backgrounded: Bool) {
         guard isBackgrounded != backgrounded else { return }
+        NSLog("[Stream] setBackgrounded(%d) phase=%@", backgrounded ? 1 : 0, String(describing: phase))
         isBackgrounded = backgrounded
 
         // Gate the audio unit on the app's active state, not just the stream
@@ -449,18 +455,36 @@ final class StreamSessionModel {
             // stop GPU work immediately even if the connection is still up.
             needsReconnectAfterBackground = true
             activeDecoder?.setRenderingPaused(true)
-            teardownInput()
+            // A window scene that is still being created reports `.background`
+            // once before it activates. When that happens the stream is still
+            // `.preparing`, and tearing the input stack down here used to strand
+            // the session: the foreground path below only rebuilt input for
+            // `.streaming` and `.connecting`, so nothing was built again — no
+            // strategy, no GCEventInteraction, no pointer interaction — and
+            // clicks on the picture did nothing until the app was relaunched.
+            // Stop forwarding instead; the stack survives and is re-activated
+            // on foreground.
+            if phase == .preparing || phase == .idle {
+                NSLog("[Stream] backgrounded while starting up; kept the input stack")
+                inputView.releaseHeldKeys()
+                touchInput.cancelAll()
+                mouseStrategy?.setActive(false)
+            } else {
+                teardownInput()
+            }
             return
         }
 
         activeDecoder?.setRenderingPaused(false)
         switch phase {
-        case .streaming, .connecting:
+        case .preparing, .streaming, .connecting:
             if let config = activeConfig {
                 setupInput(config: config)
             }
-            // Frames were dropped while paused; the next one must be a keyframe.
-            LiRequestIdrFrame()
+            if phase != .preparing {
+                // Frames were dropped while paused; the next one must be a keyframe.
+                LiRequestIdrFrame()
+            }
         default:
             break
         }
@@ -470,9 +494,10 @@ final class StreamSessionModel {
     /// visionOS suspends the process while another immersive app is running,
     /// so the host usually drops the session; the window stays open and the
     /// connection is rebuilt in place.
-    /// Waits briefly for the host's termination callback, then reconnects
-    /// only if the session actually ended. A still-streaming connection is
-    /// resumed normally instead of being torn down.
+    /// Waits briefly for the host's termination callback, then rebuilds the
+    /// connection after a real background. A phase that still says streaming
+    /// or connecting is not trustworthy after suspension, so it is rebuilt
+    /// too instead of risking a silent dead connection.
     func scheduleReconnectAfterBackgroundIfNeeded() {
         Task {
             try? await Task.sleep(for: .milliseconds(600))
@@ -485,8 +510,11 @@ final class StreamSessionModel {
         needsReconnectAfterBackground = false
         guard !userInitiatedStop, !isRestarting else { return }
 
-        if case .ended = phase {
+        switch phase {
+        case .ended, .streaming, .connecting:
             Task { await restart() }
+        default:
+            break
         }
     }
 
@@ -518,13 +546,13 @@ final class StreamSessionModel {
         delegate.onSetHdrMode = { [weak self] enabled in
             Task { @MainActor in
                 guard let self, !self.hasEnded else { return }
-                // The host switched its desktop into or out of HDR. Follow it:
-                // the switch is the client's statement of what the stream
-                // carries, and the decoder already picks its path from the
-                // frames themselves.
+                // The host reports its desktop HDR state here. The read-only
+                // switch mirrors it: Sunshine only streams HDR when the host
+                // desktop is HDR, so this is the state the user needs to see.
                 if StreamSettingsStore.shared.hdrEnabled != enabled {
                     StreamSettingsStore.shared.hdrEnabled = enabled
                 }
+                NSLog("[Stream] host reported HDR state=%d", enabled ? 1 : 0)
             }
         }
         delegate.onConnectionStatus = { [weak self] status in
@@ -664,9 +692,9 @@ final class StreamSessionModel {
             finish(message: nil)
             return
         }
-        // Terminated-connection behavior: a terminated connection ends the stream
-        // and reports the error. The StreamManager must still be stopped so
-        // LiStopConnection releases common-c's static state for the next stream.
+        // A terminated connection ends the stream and reports the error. The
+        // StreamManager must still be stopped so LiStopConnection releases the
+        // core's static state for the next stream.
         finishAfterTeardown(message: code == 0
             ? nil
             : String(format: String(localized: "Connection lost (%d)"), code))
@@ -745,10 +773,10 @@ final class StreamSessionModel {
         let hevcSupported = VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC)
         let av1Supported = VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1)
 
-        // Advertise HDR-capable Main10 whenever the hardware and host support
-        // it, regardless of the client toggle. The host's HDR mode decides what
-        // it actually sends; the renderer follows the stream's format. This is
-        // what makes a host-side HDR toggle work without a client restart.
+        // The client always advertises the HDR decode capability. The host
+        // decides whether the stream is HDR from its own desktop state; the
+        // client follows the format that actually arrives, and the HDR switch
+        // is a read-only mirror of the host state.
         let hostMask = UInt32(truncatingIfNeeded: host.serverCodecModeSupport)
         let hostHEVCMain10 = (hostMask & UInt32(SCM_HEVC_MAIN10)) != 0
         let hdrCapable = settings.codec.supportsHDR && hostHEVCMain10
@@ -796,7 +824,7 @@ final class StreamSessionModel {
             }
         }
 
-        NSLog("[Stream] HDR toggle=%d capable=%d codec=%@ hostMask=0x%x formats=0x%x",
+        NSLog("[Stream] HDR host=%d capable=%d codec=%@ hostMask=0x%x formats=0x%x",
               settings.hdrEnabled ? 1 : 0,
               hdrCapable ? 1 : 0,
               settings.codec.rawValue,
@@ -831,7 +859,16 @@ final class StreamSessionModel {
     // MARK: - Input
 
     private func setupInput(config: StreamConfiguration) {
-        guard !inputActive else { return }
+        if inputActive {
+            // A restart keeps the same view and window, so the input stack is
+            // still alive; only the stream geometry changed.
+            let size = makeInputSize(width: config.width, height: config.height)
+            touchInput.updateStreamSize(size)
+            mouseStrategy?.updateStreamSize(size)
+            mouseStrategy?.setActive(!isBackgrounded)
+            NSLog("[Stream] setupInput kept the existing input stack")
+            return
+        }
         inputActive = true
 
         // Receive raw gamepad events instead of letting visionOS turn them into
@@ -840,6 +877,39 @@ final class StreamSessionModel {
         gameController.receivesEventsInView = false
         inputView.addInteraction(gameController)
         gameControllerInteraction = gameController
+        NSLog(
+            "[Stream] setupInput view=%@ window=%@ interaction=%@",
+            mvLogPointer(inputView), mvLogPointer(inputView.window), mvLogPointer(gameController)
+        )
+        // The interaction above was added while the view had no window, and a
+        // view that is moved between containers inside the same window never
+        // fires didMoveToWindow again. Bind it on the first layout that happens
+        // with a window attached.
+        inputView.needsInteractionAttach = true
+        inputView.onAttachedToWindow = { [weak self] in
+            NSLog(
+                "[Stream] onAttachedToWindow fired interaction=%@",
+                mvLogPointer(self?.gameControllerInteraction)
+            )
+            guard let self, let interaction = self.gameControllerInteraction else { return }
+            self.inputView.removeInteraction(interaction)
+            self.inputView.addInteraction(interaction)
+            NSLog("[Stream] controller interaction bound after layout in a window")
+        }
+        // A restarted stream gets a fresh window scene. Re-register the
+        // interaction once the view is actually hosted, or the pointer/mouse
+        // subsystem keeps talking to the scene that no longer exists and no
+        // GCMouse event ever arrives.
+        inputView.onMovedToWindow = { [weak self] in
+            NSLog(
+                "[Stream] onMovedToWindow fired interaction=%@",
+                mvLogPointer(self?.gameControllerInteraction)
+            )
+            guard let self, let interaction = self.gameControllerInteraction else { return }
+            self.inputView.removeInteraction(interaction)
+            self.inputView.addInteraction(interaction)
+            NSLog("[Stream] controller interaction re-attached to the window")
+        }
 
         let size = makeInputSize(width: config.width, height: config.height)
         touchInput.updateStreamSize(size)
@@ -913,8 +983,23 @@ final class StreamSessionModel {
         controllerSupport?.applySwapABXYButtons(swap)
     }
 
-    private func teardownInput() {
+    private func teardownInput(preserveMouse: Bool = false) {
         guard inputActive else { return }
+        NSLog("[Stream] teardownInput preserveMouse=%d", preserveMouse ? 1 : 0)
+        if preserveMouse {
+            // A restart rebuilds the connection but not the window or the
+            // input view. Tearing the strategy down and building a new one on
+            // the same view leaves the system routing events to an interaction
+            // that no longer exists, so keep it.
+            inputView.releaseHeldKeys()
+            touchInput.cancelAll()
+            // Drop capture and any held button; the reconnect starts fresh and
+            // the next click should capture again.
+            mouseStrategy?.setActive(false)
+            hidesStreamChrome = false
+            NSLog("[Stream] teardownInput preserved the mouse strategy")
+            return
+        }
         inputActive = false
 
         inputView.releaseHeldKeys()
@@ -922,6 +1007,9 @@ final class StreamSessionModel {
         touchInput.cancelAll()
         inputView.directTouchDelegate = nil
         inputView.onDirectTouchBegan = nil
+        inputView.onMovedToWindow = nil
+        inputView.onAttachedToWindow = nil
+        inputView.needsInteractionAttach = false
         mouseStrategy?.stop()
         mouseStrategy = nil
         hidesStreamChrome = false
@@ -930,6 +1018,10 @@ final class StreamSessionModel {
         controllerDelegate = nil
 
         if let gameControllerInteraction {
+            NSLog(
+                "[Stream] GCEventInteraction removed %@ from view=%@",
+                mvLogPointer(gameControllerInteraction), mvLogPointer(inputView)
+            )
             inputView.removeInteraction(gameControllerInteraction)
             self.gameControllerInteraction = nil
         }
@@ -978,7 +1070,11 @@ final class StreamSessionModel {
                         inferMS, report.synthesisSeconds * 1000
                     )
                 }
-                self.statsText = text
+                // Publishing an unchanged string still invalidates the stream
+                // window's body, so compare first.
+                if self.statsText != text {
+                    self.statsText = text
+                }
             }
         }
     }

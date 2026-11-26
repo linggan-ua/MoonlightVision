@@ -81,6 +81,7 @@ struct StreamVideoSurface: View {
                 RealityView { content, attachments in
                     setupRealityView(content: content, attachments: attachments)
                     _ = content.subscribe(to: SceneEvents.Update.self) { _ in
+                        SceneTickMonitor.shared.tick()
                         if let frame = mailbox.collect() {
                             MainActor.assumeIsolated {
                                 runtime.bind(frame)
@@ -652,6 +653,9 @@ final class StreamVideoSurfaceRuntime {
     private var desiredSBSPresentation = false
     private var desiredShowConfirmCard = false
     private var currentTexture: TextureResource?
+    /// Last drawable queue the decoder delivered. Kept so a texture swap can
+    /// re-attach it instead of leaving the new resource empty.
+    private var lastDrawableQueue: TextureResource.DrawableQueue?
     private var lastCardScale: Float = 0
     /// Physical width of the picture in metres, refreshed on every scene
     /// update. The confirmation card sizes itself from this so it keeps its
@@ -671,12 +675,22 @@ final class StreamVideoSurfaceRuntime {
         desiredMode = videoMode
         desiredSBSPresentation = sbsPresentation
         desiredShowConfirmCard = showConfirmCard
-        currentTexture = texture
+        if currentTexture !== texture {
+            currentTexture = texture
+            // Toggling 3D or changing resolution replaces the texture resource
+            // that carried the drawables. Re-attach the last delivered queue,
+            // otherwise the new resource keeps whatever the old one was
+            // showing (a stale double-width picture, or nothing at all).
+            if let lastDrawableQueue {
+                texture.replace(withDrawables: lastDrawableQueue)
+            }
+        }
     }
 
     /// Binds a freshly delivered drawable queue to the current texture. The
     /// texture changes when a live 3D toggle resizes the SBS output.
     func bind(_ queue: TextureResource.DrawableQueue) {
+        lastDrawableQueue = queue
         currentTexture?.replace(withDrawables: queue)
     }
 
@@ -817,7 +831,11 @@ final class StreamVideoSurfaceRuntime {
 
     func updateConfirmCard() {
         guard let confirmCard else { return }
-        confirmCard.isEnabled = desiredShowConfirmCard
+        // Called on every scene tick. Writing the same value still marks the
+        // entity dirty, so only touch it when the state actually changed.
+        if confirmCard.isEnabled != desiredShowConfirmCard {
+            confirmCard.isEnabled = desiredShowConfirmCard
+        }
         guard desiredShowConfirmCard else { return }
 
         if let screen, confirmCard.parent !== screen {
@@ -918,5 +936,47 @@ private struct LocalCursorView: View {
             .foregroundStyle(.white)
             .shadow(color: .black.opacity(0.9), radius: 1.5)
             .frame(width: 28, height: 28)
+    }
+}
+
+
+/// Diagnostic only: records when the stream window's RealityKit scene last ran
+/// its update. A frozen window stops ticking while the rest of the app keeps
+/// running, so a gap here says the scene died rather than the main thread.
+final class SceneTickMonitor: @unchecked Sendable {
+    static let shared = SceneTickMonitor()
+
+    private let lock = NSLock()
+    private var lastTick = CFAbsoluteTimeGetCurrent()
+    private var started = false
+    private var reportedStall = false
+
+    func tick() {
+        lock.lock()
+        lastTick = CFAbsoluteTimeGetCurrent()
+        reportedStall = false
+        let needsTimer = !started
+        started = true
+        lock.unlock()
+        if needsTimer { startTimer() }
+    }
+
+    private func startTimer() {
+        let timer = DispatchSource.makeTimerSource(
+            queue: DispatchQueue(label: "com.moonlightvision.scene-tick", qos: .utility)
+        )
+        timer.schedule(deadline: .now() + 2, repeating: 2)
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            self.lock.lock()
+            let age = CFAbsoluteTimeGetCurrent() - self.lastTick
+            let alreadyReported = self.reportedStall
+            if age > 2.5, !alreadyReported { self.reportedStall = true }
+            self.lock.unlock()
+            if age > 2.5, !alreadyReported {
+                NSLog("[Stream] scene update stalled for %.1fs — the window scene is not ticking", age)
+            }
+        }
+        timer.resume()
     }
 }

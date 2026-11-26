@@ -9,6 +9,14 @@ import Foundation
 import GameController
 import UIKit
 
+/// Diagnostics: a stable, log-friendly address for an object (or "nil").
+/// The input-path logs print these so one run shows which view, window and
+/// interaction each callback actually sees.
+func mvLogPointer(_ object: AnyObject?) -> String {
+    guard let object else { return "nil" }
+    return String(describing: Unmanaged.passUnretained(object).toOpaque())
+}
+
 /// How physical mouse movement is translated for the host.
 enum MouseTrackingMode: String, CaseIterable, Identifiable {
     case relative
@@ -120,7 +128,8 @@ extension StreamMouseStrategy {
 @MainActor
 final class MouseEventSender {
     private(set) var heldButtons = Set<StreamMouseButton>()
-    private var forwarding = true
+    private(set) var forwarding = true
+    var isForwarding: Bool { forwarding }
 
     func setForwarding(_ forwarding: Bool) {
         self.forwarding = forwarding
@@ -149,13 +158,32 @@ final class MouseEventSender {
 
     func button(_ button: StreamMouseButton, pressed: Bool, allowed: Bool) {
         if pressed {
-            guard forwarding, allowed, !heldButtons.contains(button) else { return }
+            guard forwarding, allowed, !heldButtons.contains(button) else {
+                NSLog(
+                    "[Mouse] press %d dropped (forwarding=%d allowed=%d held=[%@])",
+                    button.rawValue, forwarding ? 1 : 0, allowed ? 1 : 0, heldList()
+                )
+                return
+            }
             heldButtons.insert(button)
             LiSendMouseButtonEvent(0x07, button.rawValue)
+            NSLog("[Mouse] press %d sent held=[%@]", button.rawValue, heldList())
         } else {
-            guard heldButtons.remove(button) != nil else { return }
+            guard heldButtons.remove(button) != nil else {
+                NSLog("[Mouse] release %d ignored, not held (held=[%@])", button.rawValue, heldList())
+                return
+            }
             LiSendMouseButtonEvent(0x08, button.rawValue)
+            NSLog("[Mouse] release %d sent held=[%@]", button.rawValue, heldList())
         }
+    }
+
+    /// Buttons currently held down, as a comma-joined list of raw ids.
+    private func heldList() -> String {
+        heldButtons
+            .sorted { $0.rawValue < $1.rawValue }
+            .map { String($0.rawValue) }
+            .joined(separator: ",")
     }
 
     func highResScroll(y: Int32, x: Int32) {
@@ -179,6 +207,9 @@ final class MouseEventSender {
     }
 
     func releaseAll() {
+        if !heldButtons.isEmpty {
+            NSLog("[Mouse] releaseAll held=[%@]", heldList())
+        }
         for button in heldButtons {
             LiSendMouseButtonEvent(0x08, button.rawValue)
         }
@@ -336,9 +367,9 @@ final class IndirectPointerHandler {
     }
 }
 
-/// The continuous/discrete scroll recognizers used by the core client and
-/// other clients. `allowedTouchTypes = []` keeps fingers out of the recognizer, and
-/// the split masks let UIKit apply Natural Scrolling before we convert.
+/// The continuous/discrete scroll recognizers. `allowedTouchTypes = []` keeps
+/// fingers out of the recognizer, and the split masks let UIKit apply Natural
+/// Scrolling before we convert.
 @MainActor
 final class MouseScrollRecognizers: NSObject {
     /// (high-resolution horizontal, high-resolution vertical)
@@ -392,8 +423,8 @@ final class MouseScrollRecognizers: NSObject {
         let translation = gesture.translation(in: view)
         let height = max(view.bounds.height, 1)
         let width = max(view.bounds.width, 1)
-        // Match the core client: one full view height of travel is
-        // WHEEL_DELTA * 20 high-resolution units.
+        // One full view height of travel is WHEEL_DELTA * 20 high-resolution
+        // units.
         let multiplier: CGFloat = 120 * 20
         let dy = Int32(clamping: Int(((translation.y - lastTranslation.y) / height) * multiplier))
         let dx = Int32(clamping: Int(((translation.x - lastTranslation.x) / width) * multiplier))
@@ -439,6 +470,7 @@ final class GCMouseHub {
     private var handlers: Handlers?
     private var profiles: [GCMouse] = []
     private var activeProfile: GCMouse?
+    private var loggedFirstEvent = false
     private var observers: [NSObjectProtocol] = []
     private var running = false
     private var attachRetry: DispatchWorkItem?
@@ -504,7 +536,11 @@ final class GCMouseHub {
             attachRetries = 0
         }
         if profiles.count != previousCount {
-            NSLog("[Mouse] GCMouse profiles: %d -> %d (mice=%d)", previousCount, profiles.count, current.count)
+            let ids = profiles.map { mvLogPointer($0) }.joined(separator: ",")
+            NSLog(
+                "[Mouse] GCMouse profiles: %d -> %d (mice=%d) ids=[%@]",
+                previousCount, profiles.count, current.count, ids
+            )
         }
         reportPresence()
     }
@@ -529,6 +565,7 @@ final class GCMouseHub {
     /// system may have reset them (for example after a window is re-opened).
     func repairHandlers() {
         guard running else { return }
+        NSLog("[Mouse] repairHandlers profiles=%d", profiles.count)
         refreshProfiles()
         for mouse in profiles {
             installHandlers(on: mouse)
@@ -543,6 +580,10 @@ final class GCMouseHub {
 
     private func installHandlers(on mouse: GCMouse) {
         guard let input = mouse.mouseInput else { return }
+        NSLog(
+            "[Mouse] handlers installed on %@ (%@)",
+            mvLogPointer(mouse), mouse.vendorName ?? "unknown"
+        )
 
         input.mouseMovedHandler = { [weak self, weak mouse] _, dx, dy in
             MainActor.assumeIsolated {
@@ -611,6 +652,14 @@ final class GCMouseHub {
         profiles.removeAll { $0 === mouse }
     }
 
+    /// Logs the first event the hub receives after starting, so a silent input
+    /// path can be told apart from events being filtered out later.
+    private func noteFirstEvent(_ kind: String, from mouse: GCMouse) {
+        guard !loggedFirstEvent else { return }
+        loggedFirstEvent = true
+        NSLog("[Mouse] first event after start: %@ from %@", kind, mouse.vendorName ?? "unknown")
+    }
+
     private func isSource(_ mouse: GCMouse) -> Bool {
         let now = Date.timeIntervalSinceReferenceDate
         if activeProfile == nil {
@@ -635,16 +684,19 @@ final class GCMouseHub {
     }
 
     private func handleMove(from mouse: GCMouse, dx: Float, dy: Float) {
+        noteFirstEvent("move", from: mouse)
         guard running, isSource(mouse) else { return }
         handlers?.moved(dx, dy)
     }
 
     private func handleButton(from mouse: GCMouse, button: StreamMouseButton, pressed: Bool) {
+        noteFirstEvent("button", from: mouse)
         guard running, isSource(mouse) else { return }
         handlers?.button(button, pressed)
     }
 
     private func handleScroll(from mouse: GCMouse, vertical: Float? = nil, horizontal: Float? = nil) {
+        noteFirstEvent("scroll", from: mouse)
         guard running, isSource(mouse) else { return }
         handlers?.scroll(horizontal ?? 0, vertical ?? 0)
     }

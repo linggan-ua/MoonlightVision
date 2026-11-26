@@ -68,6 +68,7 @@
 "HEVC" = "HEVC";
 "HDR (HDR10)" = "HDR (HDR10)";
 "HDR is still under development; the picture may be unstable. Use with care." = "HDR 模式目前仍在开发调试阶段，画面表现可能不稳定，请酌情使用。";
+"To use HDR, turn it on on the host. The client follows the host automatically." = "如需使用 HDR，请在主机上直接打开 HDR，客户端会自动切换。";
 "SDR Content Brightness" = "SDR 内容亮度";
 "SDR White Point" = "SDR 白点值";
 "Display P3 / BT.709 Gamut (Experimental)" = "DisplayP3 色域 / BT.709 色域（实验性）";

@@ -34,6 +34,11 @@ final class StreamWindowInputView: UIView {
     private var heldKeys: [UInt16: UIKey] = [:]
     private var heldArrowPresses: [UIPress] = []
 
+    /// Diagnostics: the first layout in each window, and the first touch of
+    /// each type this view sees. Temporary.
+    private var loggedLayoutWindow: ObjectIdentifier?
+    private var loggedTouchTypes: Set<Int> = []
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         // The video is a RealityKit plane behind this view. Keep a nearly
@@ -82,10 +87,30 @@ final class StreamWindowInputView: UIView {
         touchpad.suppressRestoreTap = value
     }
 
+    /// Fires whenever the view settles into a window. The controller event
+    /// interaction has to be registered against a view that actually has one,
+    /// otherwise visionOS never routes mouse/gamepad events to it.
+    var onMovedToWindow: (() -> Void)?
+    /// Fires once, the first time the view is laid out while attached to a
+    /// window. Unlike `didMoveToWindow` this also covers a view that is moved
+    /// between containers inside the same window.
+    var onAttachedToWindow: (() -> Void)?
+    /// Set by the session when its controller interaction still needs binding.
+    var needsInteractionAttach = false
+
     override func didMoveToWindow() {
         super.didMoveToWindow()
+        let scene = window?.windowScene
+        NSLog(
+            "[Input] didMoveToWindow window=%@ scene=%@ state=%d delegate=%d attach%d",
+            mvLogPointer(window), mvLogPointer(scene),
+            scene?.activationState.rawValue ?? 0,
+            mouseSurfaceDelegate == nil ? 0 : 1,
+            needsInteractionAttach ? 1 : 0
+        )
         mouseSurfaceDelegate?.mouseSurfaceDidMoveToWindow()
         guard window != nil else { return }
+        onMovedToWindow?()
         applyLayerEDR()
         DispatchQueue.main.async { [weak self] in
             _ = self?.becomeFirstResponder()
@@ -125,6 +150,7 @@ final class StreamWindowInputView: UIView {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        logNewTouchTypes(touches)
         if touches.contains(where: { $0.type == .direct }) {
             onDirectTouchBegan?()
         }
@@ -162,10 +188,37 @@ final class StreamWindowInputView: UIView {
         super.touchesCancelled(touches, with: event)
     }
 
+    /// Diagnostics: logs the first touch of each type, so a silent pointer path
+    /// can be told apart from touches that arrive and are dropped later.
+    private func logNewTouchTypes(_ touches: Set<UITouch>) {
+        for touch in touches where !loggedTouchTypes.contains(touch.type.rawValue) {
+            loggedTouchTypes.insert(touch.type.rawValue)
+            NSLog(
+                "[Input] first touch type=%d direct=%d indirect=%d pointer=%d",
+                touch.type.rawValue,
+                UITouch.TouchType.direct.rawValue,
+                UITouch.TouchType.indirect.rawValue,
+                UITouch.TouchType.indirectPointer.rawValue
+            )
+        }
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
         mouseSurfaceDelegate?.mouseSurfaceDidLayout()
         applyLayerEDR()
+        if let window, loggedLayoutWindow != ObjectIdentifier(window) {
+            loggedLayoutWindow = ObjectIdentifier(window)
+            NSLog(
+                "[Input] first layout in window=%@ bounds=%@ attach%d",
+                mvLogPointer(window), NSCoder.string(for: bounds),
+                needsInteractionAttach ? 1 : 0
+            )
+        }
+        if needsInteractionAttach, window != nil {
+            needsInteractionAttach = false
+            onAttachedToWindow?()
+        }
     }
 
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
@@ -238,20 +291,29 @@ struct StreamWindowInputViewRepresentable: UIViewControllerRepresentable {
     let view: StreamWindowInputView
 
     func makeUIViewController(context: Context) -> StreamWindowInputViewController {
-        StreamWindowInputViewController(inputView: view)
+        NSLog("[Stream] input controller created (view=%p)", view)
+        return StreamWindowInputViewController(inputView: view)
     }
 
     func updateUIViewController(
         _ controller: StreamWindowInputViewController,
         context: Context
-    ) {}
+    ) {
+        // A restarted stream gets a new session, and therefore a new input
+        // view. SwiftUI reuses this controller, so without swapping the hosted
+        // view the window keeps showing the dead session's view: the new one
+        // never enters a window, never registers its pointer interaction, and
+        // no mouse event ever reaches it.
+        NSLog("[Stream] input controller updated (view=%p)", view)
+        controller.replaceInputView(with: view)
+    }
 }
 
 /// A view controller gives the stream view the same resize behavior the old
 /// UIKit client had: its root view always fills the window, and the decoder's
 /// display layer follows the changing bounds.
 final class StreamWindowInputViewController: UIViewController {
-    private let streamView: StreamWindowInputView
+    private var streamView: StreamWindowInputView
 
     init(inputView: StreamWindowInputView) {
         self.streamView = inputView
@@ -271,14 +333,52 @@ final class StreamWindowInputViewController: UIViewController {
         let container = UIView()
         container.backgroundColor = .clear
         view = container
+        installStreamView()
+        NSLog("[Stream] input controller loadView (view=%p)", streamView)
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            NSLog(
+                "[Stream] input view window=%@ after load",
+                self.streamView.window == nil ? "nil" : "attached"
+            )
+        }
+    }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        NSLog(
+            "[Stream] input controller didAppear view=%@ window=%@",
+            mvLogPointer(streamView), mvLogPointer(streamView.window)
+        )
+    }
+
+    /// Hosts a different input view, e.g. after a stream restart created a new
+    /// session. The old view leaves the hierarchy so its interactions die with
+    /// it and the new one can attach to the window.
+    func replaceInputView(with newView: StreamWindowInputView) {
+        NSLog(
+            "[Stream] replaceInputView old=%@ new=%@ loaded=%d",
+            mvLogPointer(streamView), mvLogPointer(newView), isViewLoaded ? 1 : 0
+        )
+        guard newView !== streamView else { return }
+        guard isViewLoaded else {
+            streamView = newView
+            return
+        }
+        streamView.removeFromSuperview()
+        streamView = newView
+        installStreamView()
+        NSLog("[Stream] input view swapped into the window")
+    }
+
+    private func installStreamView() {
         streamView.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(streamView)
+        view.addSubview(streamView)
         NSLayoutConstraint.activate([
-            streamView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            streamView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            streamView.topAnchor.constraint(equalTo: container.topAnchor),
-            streamView.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+            streamView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            streamView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            streamView.topAnchor.constraint(equalTo: view.topAnchor),
+            streamView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
     }
 }

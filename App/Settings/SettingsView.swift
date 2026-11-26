@@ -303,8 +303,15 @@ struct SettingsView: View {
                             Text(codec.title).tag(codec)
                         }
                     }
+                    // The switch mirrors the host's HDR state; it is not a
+                    // client-side request. Sunshine only streams HDR when the
+                    // host desktop is HDR, so HDR is turned on at the host and
+                    // the client follows the stream it receives.
                     Toggle("HDR (HDR10)", isOn: $settings.hdrEnabled)
-                        .disabled(!settings.codec.supportsHDR)
+                        .disabled(true)
+                    Text("To use HDR, turn it on on the host. The client follows the host automatically.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     Text("HDR is still under development; the picture may be unstable. Use with care.")
                         .font(.caption)
                         .foregroundStyle(.secondary)

@@ -110,60 +110,56 @@ struct StreamWindowRootView: View {
 
 /// The stream's settings panel, in its own auxiliary window. It shares the
 /// active stream session so the HDR calibration and probe buttons still work.
-/// Nothing here can reconnect the stream, so it compares a baseline of the
-/// restart-only settings when it closes and asks the stream window to offer the
-/// restart.
+/// Nothing here can reconnect the stream, so it watches the restart-only
+/// settings against a baseline and asks the stream window to offer the restart
+/// — as soon as one changes, and again on close if none was offered yet.
 struct StreamSettingsWindowView: View {
     @Environment(\.dismissWindow) private var dismissWindow
     @Environment(\.openWindow) private var openWindow
     @Bindable private var presentation = StreamPresentation.shared
     @State private var restartBaseline: StreamRestartSettings?
+    /// One offer per panel session: the stream window owns the prompt, and
+    /// asking again on every further tweak would keep re-presenting it.
+    @State private var reportedRestart = false
 
-    /// Restart-only settings that changed since this window opened. Reading the
-    /// store here is what makes the banner update as the user drags a slider.
-    private var needsRestart: Bool {
-        guard let restartBaseline else { return false }
-        return StreamRestartSettings() != restartBaseline
+    private var currentRestartSettings: StreamRestartSettings {
+        StreamRestartSettings()
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Group {
-                if let model = presentation.session {
-                    SettingsView(
-                        showsDoneButton: false,
-                        onCalibrateHDRWhite: { model.calibrateHDRWhite() },
-                        onShowEDRProbe: { openWindow(id: "edr-probe") }
-                    )
-                } else {
-                    SettingsView(showsDoneButton: false)
-                }
-            }
-            if needsRestart, let model = presentation.session {
-                HStack(spacing: 12) {
-                    Text("Some settings take effect after the stream restarts")
-                        .font(.callout)
-                    Spacer()
-                    Button("Restart") {
-                        restartBaseline = StreamRestartSettings()
-                        Task { await model.restart() }
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .background(.thinMaterial)
+        Group {
+            if let model = presentation.session {
+                SettingsView(
+                    showsDoneButton: false,
+                    onCalibrateHDRWhite: { model.calibrateHDRWhite() },
+                    onShowEDRProbe: { openWindow(id: "edr-probe") }
+                )
+            } else {
+                SettingsView(showsDoneButton: false)
             }
         }
         .onAppear {
             restartBaseline = StreamRestartSettings()
+            reportedRestart = false
+        }
+        .onChange(of: currentRestartSettings) { _, latest in
+            // Report immediately so the prompt can appear while this panel is
+            // still open; the stream window closes the panel when restarting.
+            guard !reportedRestart,
+                  let baseline = restartBaseline,
+                  latest != baseline else { return }
+            reportedRestart = true
+            presentation.requestRestart()
         }
         .onDisappear {
             // Read before clearing: the baseline is only consumed once.
             let baseline = restartBaseline
             restartBaseline = nil
-            guard baseline != nil, presentation.session != nil else { return }
-            guard let baseline, StreamRestartSettings() != baseline else { return }
+            guard !reportedRestart,
+                  let baseline,
+                  presentation.session != nil,
+                  StreamRestartSettings() != baseline else { return }
+            // Closing without an answer still owes the user the offer.
             presentation.requestRestart()
         }
         .onChange(of: presentation.session == nil) { _, ended in

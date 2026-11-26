@@ -120,7 +120,7 @@ final class HostSessionModel {
     private func checkHost() async {
         phase = .checking
 
-        // One retry, matching the core client's serverInfo retry behavior.
+        // One retry before falling back to the error state.
         var response = await fetchServerInfo(overHTTP: false)
         if !response.isStatusOk() {
             try? await Task.sleep(for: .milliseconds(250))

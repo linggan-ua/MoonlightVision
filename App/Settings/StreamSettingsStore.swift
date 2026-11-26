@@ -363,8 +363,8 @@ final class StreamSettingsStore {
 
     private init() {
         // Core Data's Settings.uniqueId is non-optional. HttpManager uses this
-        // fixed the protocol client id, so seed the official settings record with
-        // the same value before the first save.
+        // fixed client id, so seed the settings record with the same value
+        // before the first save.
         dataManager.updateUniqueId("0123456789ABCDEF")
 
         if !UserDefaults.standard.bool(forKey: Self.migratedKey) {

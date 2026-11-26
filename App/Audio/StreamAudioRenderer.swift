@@ -633,16 +633,28 @@ final class AudioRingBuffer: @unchecked Sendable {
             availableFrames = trimToFrames
         }
 
+        // The ring can accept the request without filling the buffer: after a
+        // resume it drops everything and returns 0 once (flushPending), and a
+        // suspended ring does the same. Deinterleaving `framesToRead` frames of
+        // scratch in that case replays stale — on the first connection,
+        // uninitialized — samples, which is the burst heard right after a
+        // connection starts. Only what was actually read may be played.
         let framesToRead = min(frames, availableFrames)
+        var framesRead = 0
         if framesToRead > 0 {
-            _ = MVAudioRingRead(ring, UnsafeMutableRawPointer(scratch), UInt32(framesToRead * bytesPerFrame))
+            let bytesRead = Int(MVAudioRingRead(
+                ring,
+                UnsafeMutableRawPointer(scratch),
+                UInt32(framesToRead * bytesPerFrame)
+            ))
+            framesRead = bytesRead / bytesPerFrame
         }
 
         // Deinterleave into the non-interleaved AudioBufferList.
         for (channel, buffer) in buffers.enumerated() {
             guard let output = buffer.mData?.assumingMemoryBound(to: Float.self) else { continue }
             for index in 0..<frames {
-                if index < framesToRead, channel < channels {
+                if index < framesRead, channel < channels {
                     output[index] = scratch[index * channels + channel]
                 } else {
                     output[index] = 0
@@ -650,11 +662,11 @@ final class AudioRingBuffer: @unchecked Sendable {
             }
         }
 
-        if availableFrames < frames {
+        if framesRead < frames {
             underruns += 1
             priming = true
         }
-        isSilence.pointee = ObjCBool(framesToRead == 0)
+        isSilence.pointee = ObjCBool(framesRead == 0)
     }
 
     private func outputSilence(

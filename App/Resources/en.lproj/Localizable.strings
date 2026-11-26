@@ -68,6 +68,7 @@
 "HEVC" = "HEVC";
 "HDR (HDR10)" = "HDR (HDR10)";
 "HDR is still under development; the picture may be unstable. Use with care." = "HDR is still under development; the picture may be unstable. Use with care.";
+"To use HDR, turn it on on the host. The client follows the host automatically." = "To use HDR, turn it on on the host. The client follows the host automatically.";
 "SDR Content Brightness" = "SDR Content Brightness";
 "SDR White Point" = "SDR White Point";
 "Display P3 / BT.709 Gamut (Experimental)" = "Display P3 / BT.709 Gamut (Experimental)";

@@ -230,11 +230,36 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
     var drawableQueue: TextureResource.DrawableQueue?
 
     var session: VTDecompressionSession?
+    /// Format the current session was created for. Used to skip the blocking
+    /// teardown when a keyframe repeats the same format.
+    private var appliedFormatDesc: CMVideoFormatDescription?
+    private var appliedFormatIsHDR = false
+    /// Color description parsed from the stream's parameter sets. A decoded
+    /// buffer does not always keep its own color attachments (a conversion to
+    /// BGRA drops them), so the per-frame classification falls back to these
+    /// instead of assuming BT.709 SDR.
+    private var streamPrimariesType: UInt32 = 0
+    private var streamMatrixType: UInt32 = 0
+    /// Last HDR/SDR classification reported for the stream, so a host toggle
+    /// is logged once instead of on every keyframe.
+    private var lastFormatIsHDR: Bool?
+    /// `videoContentShown` means "the first picture arrived", not "a keyframe
+    /// arrived"; it used to fire on every IDR.
+    private var reportedContentShown = false
     var decoderCallback: VTDecompressionOutputCallbackRecord
 
     // Limits GPU command buffer depth to 3 in-flight frames.
     // Prevents memory pressure and watchdog kills when the decoder runs faster than the GPU.
     private let inflightSemaphore = DispatchSemaphore(value: 3)
+
+    /// Upper bound on frames submitted per display-link tick, so a backlog
+    /// cannot monopolise the main thread for a whole frame interval.
+    private static let maxFramesPerTick = 8
+
+    /// Width of the drawable queue currently in use. The multiplier alone is
+    /// not enough: a failed rebuild leaves the old queue in place, and then
+    /// the renderer would keep painting a double-width drawable.
+    private var queueOutputWidth = 0
 
     lazy var mtlDevice: MTLDevice = {
         guard let device = MTLCreateSystemDefaultDevice() else {
@@ -252,7 +277,7 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
 
     private var enhancementsProvider: (() -> (Float, Float, Float))? = nil
 
-    // Real-time 2D→3D (ported from the old Moonlight Vision Realtime3D module).
+    // Real-time 2D→3D.
     // While active the drawable is double width and each eye is rendered into
     // one half; the screen keeps using the SBS material.
     private let realtime3DSettingsProvider: (() -> LSRealtime3DSettings)?
@@ -337,10 +362,12 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
     ) {
         metalFormat = .rgba16Float
 
-        // Format setup based on HDR
-        decodingFormat = enableHDR ?
-            kCVPixelFormatType_64RGBAHalf :
-            kCVPixelFormatType_Lossless_32BGRA
+        // The decode target never depends on the client switch: the pipeline
+        // always presents with HDR capability, and only the request sent to
+        // the host changes. A fixed float target also keeps SDR streams on the
+        // same path no matter what the switch is set to — the BGRA fallback
+        // produced a visibly different picture for the same SDR stream.
+        decodingFormat = kCVPixelFormatType_64RGBAHalf
 
         self.texture = texture
         self.callbacks = callbacks
@@ -540,6 +567,11 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             if      CFEqual(prim, kCVImageBufferColorPrimaries_ITU_R_2020)  { primariesType = 1 }
             else if CFEqual(prim, "SMPTE_C" as CFString)                    { primariesType = 2 }
             // else stays 0 (BT.709)
+        } else if streamPrimariesType != 0 {
+            // The buffer carries no attachment of its own (a BGRA conversion
+            // drops them). Use what the stream's parameter sets declared, so
+            // the render path still follows the stream.
+            primariesType = streamPrimariesType
         } else {
             // PQ implies BT.2020; a 10-bit SDR 709 stream stays 709 so it is
             // not mistaken for an extended HDR signal.
@@ -554,16 +586,20 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             if      CFEqual(mtx, kCVImageBufferYCbCrMatrix_ITU_R_2020)  { matrixType = 1 }
             else if CFEqual(mtx, "ITU_R_601_4" as CFString)             { matrixType = 2 }
             // else stays 0 (BT.709)
+        } else if streamMatrixType != 0 {
+            matrixType = streamMatrixType
         } else {
             matrixType = isPQ ? 1 : 0
         }
 
         let is10Bit    = pixelFormatIs10Bit(pf)    ? UInt32(1) : 0
         let isFullRange = pixelFormatIsFullRange(pf) ? UInt32(1) : 0
-        // The render path follows the stream, not the client's host-request
-        // setting. A PQ stream is HDR even when the toggle was off; an SDR
-        // stream is SDR even when the toggle was on.
-        let streamIsHDR = isPQ || (hdrEnabled && is10Bit == 1 && primariesType == 1)
+        // The render path follows the stream's own signaling. The client
+        // toggle only decides what this app asks the host for; it must not
+        // reclassify a stream that already arrived as HDR. Letting it do so
+        // turned the same PQ/2020 stream into an SDR decode whenever HDR was
+        // switched off, which crushes every shadow to black.
+        let streamIsHDR = isPQ || (is10Bit == 1 && primariesType == 1)
 
         let hdrKind = !streamIsHDR ? "SDR" : (isPQ ? "PQ" : "extended/non-PQ")
         let primariesName = primariesType == 1 ? "BT.2020" : (primariesType == 2 ? "SMPTE-C" : "BT.709")
@@ -668,7 +704,10 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         // The drawable is double width whenever 3D is enabled, even if this
         // frame could not be converted; keeping per-eye halves in that case
         // shows a mono picture instead of a stretched side-by-side one.
-        let outputIsStereoWidth = outputWidth >= CVPixelBufferGetWidth(imageBuffer) * 2
+        // Decide from the requested mode, not from the drawable size: a stale
+        // double-width queue must not make a mono frame render twice.
+        let outputIsStereoWidth = stereoOutputMultiplier == 2
+            && outputWidth >= CVPixelBufferGetWidth(imageBuffer) * 2
         let eyeWidth = outputIsStereoWidth ? outputWidth / 2 : outputWidth
 
         let depthPreviewTexture: MTLTexture? = {
@@ -1113,7 +1152,7 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             return false
         default:
             // Unknown layouts default to studio (limited) range.
-            // Relying on CMFormatDescription FullRangeVideo has produced false positives for HDR
+            // Relying on CMFormatDescription FullRangeVideo has produced false positives for HDR streams
             // (washed desktop); only OSTypes in the explicit `true` branch above are treated as full range.
             return false
         }
@@ -1144,7 +1183,15 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         let multiplier = enabled ? 2 : 1
         let changed = multiplier != stereoOutputMultiplier
         stereoOutputMultiplier = multiplier
-        if !changed && !forceReattach { return }
+        let expectedWidth = Int(videoWidth) * multiplier
+        let queueMismatch = queueOutputWidth != 0 && queueOutputWidth != expectedWidth
+        if queueMismatch {
+            NSLog(
+                "[Video] drawable queue %dw does not match 3D=%@ (%dw); rebuilding",
+                queueOutputWidth, enabled ? "on" : "off", expectedWidth
+            )
+        }
+        if !changed && !forceReattach && !queueMismatch { return }
         if multiplier == 1 {
             realtime3DConverter?.reset()
             lastPresentationTimeSeconds = nil
@@ -1175,6 +1222,10 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             flat.layer.drawableSize = CGSize(width: outputWidth, height: outputHeight)
         }
 
+        NSLog(
+            "[Video] rebuild drawable queues %dx%d multiplier=%d",
+            outputWidth, outputHeight, stereoOutputMultiplier
+        )
         let newQueue: TextureResource.DrawableQueue
         do {
             let descriptor = TextureResource.DrawableQueue.Descriptor(
@@ -1190,6 +1241,7 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             )
             let queue = try TextureResource.DrawableQueue(descriptor)
             queue.allowsNextDrawableTimeout = true
+            queueOutputWidth = outputWidth
             newQueue = queue
         } catch {
             // Keep the previous queue rather than killing the app under memory
@@ -1400,6 +1452,12 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         print("DrawableVideoDecoder: start() display link")
         noteFramePresented()
         startStallWatchdog()
+        reportedContentShown = false
+        appliedFormatDesc = nil
+        appliedFormatIsHDR = false
+        lastFormatIsHDR = nil
+        streamPrimariesType = 0
+        streamMatrixType = 0
         displayLink = CADisplayLink(target: self, selector: #selector(displayLinkCallback(_:)))
         if #available(iOS 15.0, tvOS 15.0, *) {
             displayLink?.preferredFrameRateRange = CAFrameRateRange(
@@ -1411,7 +1469,9 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             displayLink?.preferredFramesPerSecond = Int(frameRate)
         }
 
-        displayLink?.add(to: .main, forMode: .default)
+        // .default stops firing while the run loop is in a tracking or modal
+        // mode, which starves the decode-unit queue and trips its overflow.
+        displayLink?.add(to: .main, forMode: .common)
     }
 
     /// Stop the rendering loop
@@ -1479,6 +1539,7 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
         var handle: VIDEO_FRAME_HANDLE?
         var du: PDECODE_UNIT?
 
+        var submittedThisTick = 0
         while LiPollNextVideoFrame(&handle, &du) {
             // Once I a new frame from the network/stream, submit it
             guard let handle = handle, let du = du else {
@@ -1488,6 +1549,12 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             // (Implementation detail) DrSubmitDecodeUnit is presumably your custom decode function
             let result = DrSubmitDecodeUnit(du)
             LiCompleteVideoFrame(handle, result)
+
+            // Each submission copies and rewrites a whole frame on the main
+            // thread. Draining an entire backlog in one tick blocks the UI for
+            // that long, so leave the rest for the next tick.
+            submittedThisTick += 1
+            if submittedThisTick >= Self.maxFramesPerTick { break }
 
             // Frame pacing logic
             if framePacing {
@@ -1557,7 +1624,24 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
                     key: kCMFormatDescriptionExtension_ColorPrimaries
                 )
                 let formatIs2020 = formatPrimaries == (kCMFormatDescriptionColorPrimaries_ITU_R_2020 as String)
-                let formatIsHDR = formatIsPQ || (hdrEnabled && formatBits > 8 && formatIs2020)
+                let formatIsSMPTEC = formatPrimaries == "SMPTE_C"
+                let formatMatrix = Self.stringExtension(
+                    formatDesc,
+                    key: kCMFormatDescriptionExtension_YCbCrMatrix
+                )
+                // The renderer follows the stream's own signaling. The client
+                // toggle only decides what this app asks the host for; it must
+                // not change how a stream that already arrived as HDR is
+                // decoded. Depending on it here used to turn the same PQ/2020
+                // stream into an 8-bit SDR decode when HDR was switched off,
+                // which crushes every shadow to black. A BT.2020 stream whose
+                // bit depth is not declared is treated as HDR-capable rather
+                // than falling back to SDR.
+                let formatIsHDR = formatIsPQ || (formatIs2020 && formatBits != 8)
+                streamPrimariesType = formatIs2020 ? 1 : (formatIsSMPTEC ? 2 : 0)
+                streamMatrixType = formatMatrix == (kCMFormatDescriptionYCbCrMatrix_ITU_R_2020 as String)
+                    ? 1
+                    : (formatMatrix == "ITU_R_601_4" ? 2 : 0)
 
                 var attributes: [CFString: Any] = [
                     kCVPixelBufferMetalCompatibilityKey: true,
@@ -1572,32 +1656,49 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
                         attributes[kCVPixelBufferPixelFormatTypeKey] = decodingFormat
                     }
                 }
-                if formatIsHDR != hdrEnabled {
-                    print("[DrawableVideoDecoder] Stream HDR state changed: format=\(formatIsHDR ? "HDR" : "SDR") (client setting=\(hdrEnabled))")
+                if formatIsHDR != lastFormatIsHDR {
+                    lastFormatIsHDR = formatIsHDR
+                    print(
+                        "[DrawableVideoDecoder] Stream HDR state: \(formatIsHDR ? "HDR" : "SDR")"
+                        + " (client toggle=\(hdrEnabled), renderer follows the stream)"
+                    )
                 }
 
-                // Drain and retire the previous session before overwriting it;
-                // otherwise every keyframe leaks a VT session and an in-flight
-                // callback can outlive the decoder.
-                if let oldSession = session {
-                    VTDecompressionSessionWaitForAsynchronousFrames(oldSession)
-                    VTDecompressionSessionInvalidate(oldSession)
-                    session = nil
-                }
+                // Most keyframes repeat the format the session already decodes.
+                // Rebuilding then costs a blocking drain of in-flight frames on
+                // the display-link (main) thread, once per keyframe — which is
+                // what makes an IDR storm visible as UI stutter. Reuse the
+                // session unless the format really changed.
+                let formatUnchanged = session != nil
+                    && appliedFormatIsHDR == formatIsHDR
+                    && appliedFormatDesc.map { CMFormatDescriptionEqual($0, otherFormatDescription: formatDesc) } == true
 
-                let createStatus = VTDecompressionSessionCreate(
-                    allocator: kCFAllocatorDefault,
-                    formatDescription: formatDesc,
-                    decoderSpecification: decoderConfiguration as CFDictionary,
-                    imageBufferAttributes: attributes as CFDictionary,
-                    outputCallback: &decoderCallback,
-                    decompressionSessionOut: &session
-                )
-                if createStatus != noErr {
-                    NSLog("%@", "[Video] VTDecompressionSessionCreate failed: \(createStatus)")
-                    session = nil
-                    free(dataPtr)
-                    return DR_NEED_IDR
+                if !formatUnchanged {
+                    // Drain and retire the previous session before overwriting
+                    // it; otherwise every keyframe leaks a VT session and an
+                    // in-flight callback can outlive the decoder.
+                    if let oldSession = session {
+                        VTDecompressionSessionWaitForAsynchronousFrames(oldSession)
+                        VTDecompressionSessionInvalidate(oldSession)
+                        session = nil
+                    }
+
+                    let createStatus = VTDecompressionSessionCreate(
+                        allocator: kCFAllocatorDefault,
+                        formatDescription: formatDesc,
+                        decoderSpecification: decoderConfiguration as CFDictionary,
+                        imageBufferAttributes: attributes as CFDictionary,
+                        outputCallback: &decoderCallback,
+                        decompressionSessionOut: &session
+                    )
+                    if createStatus != noErr {
+                        NSLog("%@", "[Video] VTDecompressionSessionCreate failed: \(createStatus)")
+                        session = nil
+                        free(dataPtr)
+                        return DR_NEED_IDR
+                    }
+                    appliedFormatDesc = formatDesc
+                    appliedFormatIsHDR = formatIsHDR
                 }
 
             } else {
@@ -1637,7 +1738,8 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
             return DR_NEED_IDR
         }
 
-        if decodeUnit.pointee.frameType == FRAME_TYPE_IDR {
+        if decodeUnit.pointee.frameType == FRAME_TYPE_IDR, !reportedContentShown {
+            reportedContentShown = true
             callbacks.videoContentShown()
         }
 
@@ -2223,7 +2325,7 @@ class DrawableVideoDecoder: NSObject, AnyVideoDecoderRenderer {
     private func updateHDRMetadata() {
         // Get HDR metadata from the core
         if !LiGetHdrMetadata(&hdrMetadata) {
-            print("Failed to fetch HDR metadata from the protocol")
+            print("Failed to fetch HDR metadata from the core")
         }
     }
     

@@ -27,3 +27,6 @@ fastlane/screenshots/**/*.png
 # Local scratch
 .scratch/
 outputs/
+
+# Local-only project notes (handover / audit / parity). Never commit or push.
+docs/

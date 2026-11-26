@@ -15,6 +15,7 @@ struct StreamWindowView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.physicalMetrics) private var physicalMetrics
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
     @Bindable private var settings = StreamSettingsStore.shared
     @Bindable private var presentation = StreamPresentation.shared
 
@@ -201,6 +202,10 @@ struct StreamWindowView: View {
             isPresented: $showRestartPrompt
         ) {
             Button("Restart") {
+                // Close the settings panel first: a reconnect makes the host
+                // re-send its settings, which would reopen this prompt in a
+                // loop if the panel were still comparing against its baseline.
+                dismissWindow(id: "stream-settings-window")
                 Task { await model.restart() }
             }
             Button("Not Now", role: .cancel) {}
@@ -209,6 +214,10 @@ struct StreamWindowView: View {
         }
         .task { await model.startWhenReady() }
         .onAppear {
+            NSLog(
+                "[Stream] window content appeared view=%@ window=%@",
+                mvLogPointer(model.inputView), mvLogPointer(model.inputView.window)
+            )
             model.inputView.isUserInteractionEnabled = !model.showSBSConfirm
             model.setBackgrounded(scenePhase == .background)
         }

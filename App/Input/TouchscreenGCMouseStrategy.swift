@@ -359,6 +359,12 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
                 sendAbsolute(point)
             }
             setCaptured(true)
+            // The press that starts a capture belongs to the capture gesture,
+            // not to the host. Forwarding it turned "click to capture" into an
+            // accidental click on whatever was under the pointer. The matching
+            // release is ignored because no button was ever held.
+            NSLog("[Mouse] press %d consumed by capture", button.rawValue)
+            return
         }
         sender.button(
             button,
@@ -377,6 +383,10 @@ final class TouchscreenGCMouseStrategy: NSObject, StreamMouseStrategy, UIPointer
                 sendAbsolute(point)
             }
             setCaptured(true)
+            // Same as the GCMouse path: the capture gesture itself is not a
+            // click on the remote desktop.
+            NSLog("[Mouse] pointer press %d consumed by capture", button.rawValue)
+            return
         }
         sender.button(
             button,

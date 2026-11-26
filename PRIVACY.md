@@ -56,4 +56,4 @@ Moonlight for Vision 是一个局域网游戏串流客户端。它直接连接�
 如有隐私相关问题，请通过以下方式联系：
 
 - GitHub Issues：https://github.com/linggan-ua/MoonlightVision/issues
-- 电子邮件：<在此填写你的反馈邮箱>
+- 电子邮件：linggan3404292836@gmail.com

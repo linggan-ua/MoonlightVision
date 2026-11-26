@@ -17,7 +17,7 @@ App Store Distribution Exception 允许在源代码同样以 GPL 提供的前提
 
 | 组件 | 位置 | 许可证 |
 |---|---|---|
-| 环形缓冲实现（原 TPCircularBuffer，已改名） | `App/Audio/MVRingBuffer.{h,c}` | MIT/zlib，© Michael Tyson |
+| [环形缓冲实现（原 TPCircularBuffer，已改名）](https://github.com/michaeltyson/TPCircularBuffer) | `App/Audio/MVRingBuffer.{h,c}` | MIT/zlib，© Michael Tyson |
 | [libopus](https://opus-codec.org/) | `Vendor/ThirdParty/opus` | BSD-3-Clause |
 | [FFmpeg](https://ffmpeg.org/) | `Vendor/ThirdParty/FFmpeg` | LGPL / GPL |
 | [OpenSSL](https://www.openssl.org/)（SwiftPM 依赖） | — | Apache-2.0 |
@@ -27,6 +27,7 @@ App Store Distribution Exception 允许在源代码同样以 GPL 提供的前提
 ### 环形缓冲实现
 
 文件：`App/Audio/MVRingBuffer.{h,c}`（已改名，原文件名 TPCircularBuffer）。
+源仓库：https://github.com/michaeltyson/TPCircularBuffer
 © Michael Tyson，MIT/zlib 许可。以下是随该代码发布的许可原文，按条款 3 原样保留：
 
 ```
@@ -56,8 +57,8 @@ freely, subject to the following restrictions:
 
 | 模型 | 位置 | 许可证 |
 |---|---|---|
-| Depth Anything V2（Small F16） | `App/Realtime3D/Models/DepthAnythingV2SmallF16P6.mlpackage` | Apache-2.0（见同目录 `DepthAnythingV2-LICENSE.txt`） |
-| ZipDepth | `App/Realtime3D/Models/ZipDepth768x416.mlpackage` | MIT，© Fabio Tosi（见同目录 `ZipDepth-LICENSE.txt`） |
+| [Depth Anything V2](https://github.com/DepthAnything/Depth-Anything-V2)（Small F16） | `App/Realtime3D/Models/DepthAnythingV2SmallF16P6.mlpackage` | Apache-2.0（见同目录 `DepthAnythingV2-LICENSE.txt`） |
+| [ZipDepth](https://github.com/fabiotosi92/ZipDepth) | `App/Realtime3D/Models/ZipDepth768x416.mlpackage` | MIT，© Fabio Tosi（见同目录 `ZipDepth-LICENSE.txt`） |
 
 ## 协议与文档
 
@@ -89,7 +90,7 @@ The App Store Distribution Exception allows App Store distribution provided the 
 
 | Component | Location | License |
 |---|---|---|
-| Ring buffer implementation (originally TPCircularBuffer, renamed) | `App/Audio/MVRingBuffer.{h,c}` | MIT/zlib, © Michael Tyson |
+| [Ring buffer implementation (originally TPCircularBuffer, renamed)](https://github.com/michaeltyson/TPCircularBuffer) | `App/Audio/MVRingBuffer.{h,c}` | MIT/zlib, © Michael Tyson |
 | [libopus](https://opus-codec.org/) | `Vendor/ThirdParty/opus` | BSD-3-Clause |
 | [FFmpeg](https://ffmpeg.org/) | `Vendor/ThirdParty/FFmpeg` | LGPL / GPL |
 | [OpenSSL](https://www.openssl.org/) (SwiftPM dependency) | — | Apache-2.0 |
@@ -99,6 +100,7 @@ The App Store Distribution Exception allows App Store distribution provided the 
 ### Ring Buffer Implementation
 
 File: `App/Audio/MVRingBuffer.{h,c}` (renamed; originally TPCircularBuffer).
+Source: https://github.com/michaeltyson/TPCircularBuffer
 © Michael Tyson, MIT/zlib. The license text below is kept verbatim as clause 3 requires:
 
 ```
@@ -128,8 +130,8 @@ freely, subject to the following restrictions:
 
 | Model | Location | License |
 |---|---|---|
-| Depth Anything V2 (Small F16) | `App/Realtime3D/Models/DepthAnythingV2SmallF16P6.mlpackage` | Apache-2.0 (see `DepthAnythingV2-LICENSE.txt` in the same directory) |
-| ZipDepth | `App/Realtime3D/Models/ZipDepth768x416.mlpackage` | MIT, © Fabio Tosi (see `ZipDepth-LICENSE.txt` in the same directory) |
+| [Depth Anything V2](https://github.com/DepthAnything/Depth-Anything-V2) (Small F16) | `App/Realtime3D/Models/DepthAnythingV2SmallF16P6.mlpackage` | Apache-2.0 (see `DepthAnythingV2-LICENSE.txt` in the same directory) |
+| [ZipDepth](https://github.com/fabiotosi92/ZipDepth) | `App/Realtime3D/Models/ZipDepth768x416.mlpackage` | MIT, © Fabio Tosi (see `ZipDepth-LICENSE.txt` in the same directory) |
 
 ## Protocol & Documentation
 

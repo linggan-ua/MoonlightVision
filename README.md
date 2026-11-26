@@ -37,6 +37,13 @@ xcodebuild -project "Moonlight Vision.xcodeproj" -scheme "Moonlight Vision" \
 
 第三方组件与代码参考的归属见 [CREDITS.md](CREDITS.md)。
 
+## 特别致谢
+
+- **Moonlight 社区与官方上游**：[moonlight-ios](https://github.com/moonlight-stream/moonlight-ios) 与 [moonlight-common-c](https://github.com/moonlight-stream/moonlight-common-c)；感谢 [Moonlight 社区](https://moonlight-stream.org) 的长期维护。
+- **第三方库**：[FFmpeg](https://ffmpeg.org/)、[libopus](https://opus-codec.org/)、[OpenSSL](https://www.openssl.org/)，以及[环形缓冲实现（TPCircularBuffer，© Michael Tyson）](https://github.com/michaeltyson/TPCircularBuffer)；完整清单与许可证见 [CREDITS.md](CREDITS.md)。
+- **机器学习模型**：[Depth Anything V2](https://github.com/DepthAnything/Depth-Anything-V2) 与 [ZipDepth](https://github.com/fabiotosi92/ZipDepth)（许可证见对应模型目录）。
+- **特别致谢**：[RikuKunMS2 / Lumanaire](https://github.com/RikuKunMS2/moonlight-ios-vision)。
+
 ---
 
 # MoonlightVision (English)
@@ -77,3 +84,10 @@ xcodebuild -project "Moonlight Vision.xcodeproj" -scheme "Moonlight Vision" \
 | License | GPL-3.0 + App Store Distribution Exception |
 
 Third-party components and code references are credited in [CREDITS.md](CREDITS.md).
+
+## Special Thanks
+
+- **Moonlight community and official upstreams**: [moonlight-ios](https://github.com/moonlight-stream/moonlight-ios) and [moonlight-common-c](https://github.com/moonlight-stream/moonlight-common-c); thanks to the [Moonlight community](https://moonlight-stream.org) for their long-term maintenance.
+- **Third-party libraries**: [FFmpeg](https://ffmpeg.org/), [libopus](https://opus-codec.org/), [OpenSSL](https://www.openssl.org/), and the [ring buffer implementation (TPCircularBuffer, © Michael Tyson)](https://github.com/michaeltyson/TPCircularBuffer); see [CREDITS.md](CREDITS.md) for the full list and licenses.
+- **Machine-learning models**: [Depth Anything V2](https://github.com/DepthAnything/Depth-Anything-V2) and [ZipDepth](https://github.com/fabiotosi92/ZipDepth) (licenses in the corresponding model directories).
+- **Special thanks**: [RikuKunMS2 / Lumanaire](https://github.com/RikuKunMS2/moonlight-ios-vision).

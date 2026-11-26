@@ -48,6 +48,8 @@
 	<array>
 		<string>_nvstream._tcp</string>
 	</array>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Moonlight Vision uses Bluetooth to connect to wireless game controllers.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Moonlight Vision uses the local network to discover and stream from your Sunshine host.</string>
 	<key>UIApplicationSceneManifest</key>

@@ -183,7 +183,7 @@
 
 /* Begin PBXFileReference section */
 		007048C7DE554E5A76D3825D /* SdpGenerator.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = SdpGenerator.c; sourceTree = "<group>"; };
-		0081D894EDA75111B0E9D02E /* Moonlight Vision.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Moonlight Vision.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		0081D894EDA75111B0E9D02E /* Moonlight Vision.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "Moonlight Vision.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		0100885282DA52B9761A4391 /* MVRingBuffer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MVRingBuffer.h; sourceTree = "<group>"; };
 		01509CA1ABF855449ED5F54D /* Moonlight v1.2.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "Moonlight v1.2.xcdatamodel"; sourceTree = "<group>"; };
 		015CD2387E6718C5FBE0D1B8 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
@@ -285,7 +285,7 @@
 		6AF9F07B1A550D43F96F72BA /* Realtime3DConverter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Realtime3DConverter.swift; sourceTree = "<group>"; };
 		6B03C20231DCC6D890F20531 /* StreamTouchpadInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamTouchpadInput.swift; sourceTree = "<group>"; };
 		6BE7C2EFCA0BAF2474081507 /* RtpVideoQueue.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = RtpVideoQueue.c; sourceTree = "<group>"; };
-		6BF5460AD2363D708929EBCC /* ZipDepth768x416.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = ZipDepth768x416.mlpackage; sourceTree = "<group>"; };
+		6BF5460AD2363D708929EBCC /* ZipDepth768x416.mlpackage */ = {isa = PBXFileReference; path = ZipDepth768x416.mlpackage; sourceTree = "<group>"; };
 		6E5C6F1994E85D89AC95BDA8 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
 		6ED03DB6D036E30E5C609997 /* HttpResponse.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = HttpResponse.h; sourceTree = "<group>"; };
 		6EF7F86A0E1C0DB3E8BC02A4 /* HostListModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostListModel.swift; sourceTree = "<group>"; };
@@ -331,7 +331,7 @@
 		962D3E5BD6B6AE5C99489CB4 /* RecorderCallbacks.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = RecorderCallbacks.c; sourceTree = "<group>"; };
 		96B2063B79F6514AB1F6F0A9 /* Logger.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Logger.m; sourceTree = "<group>"; };
 		97F4EB1CAB4B2DCEE8A84B7C /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
-		9AA655338B62F7147B85A9CF /* SBSMaterial.usda */ = {isa = PBXFileReference; lastKnownFileType = text; path = SBSMaterial.usda; sourceTree = "<group>"; };
+		9AA655338B62F7147B85A9CF /* SBSMaterial.usda */ = {isa = PBXFileReference; path = SBSMaterial.usda; sourceTree = "<group>"; };
 		9AAF74C4A3E97B69CDD8FBCD /* DiscoveryWorker.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DiscoveryWorker.h; sourceTree = "<group>"; };
 		9AC745ED8495AC8AC043C41B /* StreamWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamWindowView.swift; sourceTree = "<group>"; };
 		9B1C1A790B573C7E26AE73AC /* ServerInfoResponse.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ServerInfoResponse.m; sourceTree = "<group>"; };
@@ -397,7 +397,7 @@
 		D5173B87CD5A79916AB578E4 /* TemporaryHost.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = TemporaryHost.m; sourceTree = "<group>"; };
 		D59172194CA88F3AAD3E7518 /* HttpManager.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = HttpManager.m; sourceTree = "<group>"; };
 		D5C84096141ACCB25AFDCC41 /* MVRingBuffer.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = MVRingBuffer.c; sourceTree = "<group>"; };
-		D644B170AC831D779517D2CE /* DepthAnythingV2SmallF16P6.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = DepthAnythingV2SmallF16P6.mlpackage; sourceTree = "<group>"; };
+		D644B170AC831D779517D2CE /* DepthAnythingV2SmallF16P6.mlpackage */ = {isa = PBXFileReference; path = DepthAnythingV2SmallF16P6.mlpackage; sourceTree = "<group>"; };
 		D7EEBFD6E792EA5057A76AE4 /* CoreBluetooth.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreBluetooth.framework; path = System/Library/Frameworks/CoreBluetooth.framework; sourceTree = SDKROOT; };
 		DBBFA9FAB874AD6385B4EC86 /* VirtualKeyboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VirtualKeyboardView.swift; sourceTree = "<group>"; };
 		DDBD651DF80798D809D6937B /* OnScreenControls.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OnScreenControls.h; sourceTree = "<group>"; };
@@ -1018,6 +1018,7 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					D890BFBCCD861D91E4DA9894 = {
+						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -1329,8 +1330,8 @@
 				CODE_SIGN_ENTITLEMENTS = MoonlightVision.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = SPWK26VR22;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = "";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"Vendor/ThirdParty/FFmpeg\"",
@@ -1384,8 +1385,8 @@
 				CODE_SIGN_ENTITLEMENTS = MoonlightVision.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = SPWK26VR22;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = "";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"\"Vendor/ThirdParty/FFmpeg\"",

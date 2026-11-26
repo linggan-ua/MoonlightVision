@@ -89,7 +89,7 @@ targets:
         SWIFT_OBJC_INTERFACE_HEADER_NAME: MoonlightVision-Swift.h
         INFOPLIST_FILE: App/Info.plist
         MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: "1"
+        CURRENT_PROJECT_VERSION: "2"
         CODE_SIGN_IDENTITY: "Apple Development"
     dependencies:
       - sdk: UIKit.framework
